@@ -3,265 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArgosbxJ 脚本安装生成器</title>
+    <title>Argosbx 脚本一键安装命令生成器</title>
     <style>
-        :root {
-            --primary-color: #007bff;
-            --bg-color: #f4f6f9;
-            --card-bg: #ffffff;
-            --text-color: #333;
-        }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            background-color: #f0f2f5;
             display: flex;
             justify-content: center;
-            padding: 40px 20px;
-            margin: 0;
+            padding: 20px;
+            color: #333;
         }
-
         .container {
-            background-color: var(--card-bg);
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 700px;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
         }
-
         h1 {
             text-align: center;
-            color: var(--text-color);
+            color: #007bff;
             margin-bottom: 10px;
+            font-size: 24px;
         }
-
-        p.subtitle {
+        .links {
             text-align: center;
-            color: #666;
             margin-bottom: 30px;
-            font-size: 0.9rem;
+            font-size: 14px;
         }
-
-        .section {
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #eee;
+        .links a {
+            color: #666;
+            text-decoration: none;
+            margin: 0 10px;
         }
-
+        .links a:hover {
+            color: #007bff;
+            text-decoration: underline;
+        }
         .section-title {
             font-weight: bold;
+            margin-top: 25px;
             margin-bottom: 15px;
-            display: block;
-            color: #444;
+            border-left: 4px solid #007bff;
+            padding-left: 10px;
+            font-size: 16px;
         }
-
-        /* 复选框网格布局 */
-        .grid {
+        .checkbox-group {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
         }
-
-        .checkbox-wrapper {
+        .checkbox-item {
             display: flex;
             align-items: center;
-            cursor: pointer;
-            padding: 8px;
+            background: #f8f9fa;
+            padding: 10px;
             border-radius: 6px;
-            transition: background 0.2s;
+            cursor: pointer;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
         }
-
-        .checkbox-wrapper:hover {
-            background-color: #f0f8ff;
+        .checkbox-item:hover {
+            border-color: #007bff;
+            background: #eef6ff;
         }
-
         input[type="checkbox"] {
-            margin-right: 10px;
-            accent-color: var(--primary-color);
-            width: 16px;
-            height: 16px;
+            margin-right: 8px;
+            transform: scale(1.1);
         }
-
-        /* 输入框样式 */
         .input-group {
             margin-bottom: 15px;
         }
-        
         .input-group label {
             display: block;
-            font-size: 0.9rem;
             margin-bottom: 5px;
-            color: #666;
+            font-size: 14px;
+            color: #555;
         }
-
         input[type="text"] {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid #ced4da;
             border-radius: 6px;
-            box-sizing: border-box; 
+            box-sizing: border-box;
             font-size: 14px;
         }
-
-        /* 结果区域 */
-        .result-box {
+        .result-area {
+            margin-top: 30px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
             background-color: #2d2d2d;
             color: #76ff03;
-            padding: 15px;
-            border-radius: 8px;
-            font-family: 'Courier New', Courier, monospace;
-            word-break: break-all;
-            min-height: 80px;
-            margin-top: 10px;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            position: relative;
+            font-family: monospace;
+            resize: vertical;
+            box-sizing: border-box;
+            font-size: 13px;
         }
-
-        .btn {
-            background-color: var(--primary-color);
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
+            border-radius: 6px;
             font-size: 16px;
-            font-weight: bold;
-            margin-top: 15px;
-            transition: opacity 0.2s;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
         }
-
-        .btn:hover {
-            opacity: 0.9;
+        button:hover {
+            background-color: #0056b3;
         }
-
-        .btn:active {
-            transform: scale(0.98);
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #999;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>ArgosbxJ 脚本生成器</h1>
-    <p class="subtitle">选择协议与参数，生成一键安装命令</p>
-
-    <div class="section">
-        <span class="section-title">1. 选择启用的协议</span>
-        <div class="grid">
-            <label class="checkbox-wrapper"><input type="checkbox" id="vlpt" checked> VLESS-Reality</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="vmpt" checked> VMess-WS</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="vwpt"> VLESS-WS</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="hypt"> Hysteria2</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="tupt"> Tuic5</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="xhpt"> VLESS-xHTTP</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="vxpt"> xHTTP-Enc</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="anpt"> AnyTLS</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="sspt"> SS-2022</label>
-            <label class="checkbox-wrapper"><input type="checkbox" id="sopt"> Socks5</label>
-        </div>
+    <h1>Argosbx 脚本一键安装命令生成器</h1>
+    <div class="links">
+        <a href="https://github.com/yonggekkk/argosbx" target="_blank">原作者Github</a> |
+        <a href="https://ygkkk.blogspot.com/" target="_blank">甬哥博客</a> |
+        <a href="https://www.youtube.com/@ygkkk" target="_blank">YouTube频道</a>
     </div>
 
-    <div class="section">
-        <span class="section-title">2. 高级参数 (选填)</span>
-        <div class="input-group">
-            <label>自定义节点前缀名 (Name):</label>
-            <input type="text" id="name" placeholder="例如: JP-Node">
-        </div>
-        <div class="input-group">
-            <label>自定义 UUID (留空自动生成):</label>
-            <input type="text" id="uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-        </div>
-        <div class="input-group">
-            <label>Cloudflare Argo Token (固定隧道):</label>
-            <input type="text" id="agk" placeholder="eyJhIjoi...">
-        </div>
-        <div class="input-group">
-            <label>Cloudflare Argo Domain (对应Token的域名):</label>
-            <input type="text" id="agn" placeholder="argo.example.com">
-        </div>
+    <div class="section-title">1. 选择启用的协议 (默认已选常用)</div>
+    <div class="checkbox-group">
+        <label class="checkbox-item"><input type="checkbox" id="vlpt" checked> VLESS-Reality</label>
+        <label class="checkbox-item"><input type="checkbox" id="vmpt" checked> VMess-WS</label>
+        <label class="checkbox-item"><input type="checkbox" id="vwpt"> VLESS-WS</label>
+        <label class="checkbox-item"><input type="checkbox" id="hypt"> Hysteria2</label>
+        <label class="checkbox-item"><input type="checkbox" id="tupt"> Tuic5</label>
+        <label class="checkbox-item"><input type="checkbox" id="xhpt"> VLESS-xHTTP</label>
+        <label class="checkbox-item"><input type="checkbox" id="vxpt"> xHTTP-Enc</label>
+        <label class="checkbox-item"><input type="checkbox" id="anpt"> AnyTLS</label>
+        <label class="checkbox-item"><input type="checkbox" id="ssp"> SS-2022</label>
+        <label class="checkbox-item"><input type="checkbox" id="sop"> Socks5</label>
     </div>
 
-    <div class="section" style="border:none;">
-        <span class="section-title">3. 生成命令</span>
-        <div class="result-box" id="commandOutput">请选择上方协议...</div>
-        <button class="btn" onclick="copyCommand()">复制命令到剪贴板</button>
+    <div class="section-title">2. 个性化设置 (选填)</div>
+    <div class="input-group">
+        <label>节点名称前缀 (Name):</label>
+        <input type="text" id="name" placeholder="例如: MyVPS">
+    </div>
+    <div class="input-group">
+        <label>自定义 UUID (留空自动生成):</label>
+        <input type="text" id="uuid" placeholder="留空则随机生成">
+    </div>
+
+    <div class="section-title">3. Argo 隧道设置 (选填)</div>
+    <div class="input-group">
+        <label>Token (固定隧道):</label>
+        <input type="text" id="agk" placeholder="eyJhIjoi...">
+    </div>
+    <div class="input-group">
+        <label>Domain (对应域名):</label>
+        <input type="text" id="agn" placeholder="argo.example.com">
+    </div>
+
+    <div class="result-area">
+        <div class="section-title" style="margin-top:0;">4. 生成安装命令</div>
+        <textarea id="result" readonly>请选择协议生成命令...</textarea>
+        <button onclick="copyCommand()" id="copyBtn">复制命令</button>
+    </div>
+
+    <div class="footer">
+        Based on Argosbx by yonggekkk | Modified by taizi8888
     </div>
 </div>
 
 <script>
     // ============================================================
-    // 【请修改这里】 将下面的 URL 换成你自己的 argosbxj.sh 的 Raw 地址
+    // 核心修改点：这里已经改成了你的仓库地址
     const scriptUrl = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh"; 
     // ============================================================
 
-    const checkboxes = ['vlpt', 'vmpt', 'vwpt', 'hypt', 'tupt', 'xhpt', 'vxpt', 'anpt', 'sspt', 'sopt'];
+    const checkboxes = ['vlpt', 'vmpt', 'vwpt', 'hypt', 'tupt', 'xhpt', 'vxpt', 'anpt', 'ssp', 'sop'];
     
-    function generateCommand() {
+    function generate() {
         let vars = [];
-
-        // 1. 处理复选框
+        
+        // 1. 遍历协议复选框
         checkboxes.forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.checked) {
-                vars.push(`${id}=yes`);
+            if (document.getElementById(id).checked) {
+                // 原脚本逻辑：ssp和sop就是变量名，其他协议变量名为 id
+                if (id === 'ssp') vars.push(`sspt=yes`);
+                else if (id === 'sop') vars.push(`sopt=yes`);
+                else vars.push(`${id}=yes`);
             }
         });
 
-        // 2. 处理输入框
+        // 2. 获取输入框内容
         const name = document.getElementById('name').value.trim();
         if (name) vars.push(`name="${name}"`);
 
         const uuid = document.getElementById('uuid').value.trim();
         if (uuid) vars.push(`uuid="${uuid}"`);
 
-        // 处理 Argo
         const agk = document.getElementById('agk').value.trim();
         const agn = document.getElementById('agn').value.trim();
+
         if (agk && agn) {
-            vars.push(`argo=vmpt`); // 脚本逻辑：开启argo通常需要依附一个主协议
+            vars.push(`argo=vmpt`); 
             vars.push(`agk="${agk}"`);
             vars.push(`agn="${agn}"`);
         }
 
         // 3. 拼接命令
-        let varString = vars.join(' ');
-        // 确保至少有一个空格
-        if(varString) varString += ' ';
+        const varStr = vars.join(' ');
+        // 如果没有选任何变量，至少保留bash部分
+        const cmd = varStr ? `${varStr} bash <(curl -Ls ${scriptUrl})` : `bash <(curl -Ls ${scriptUrl})`;
         
-        const finalCommand = `${varString}bash <(curl -Ls ${scriptUrl})`;
-        
-        document.getElementById('commandOutput').innerText = finalCommand;
+        document.getElementById('result').value = cmd;
     }
 
-    // 监听所有输入变化，实时更新命令
+    // 监听所有交互事件
     document.querySelectorAll('input').forEach(el => {
-        el.addEventListener('input', generateCommand);
-        el.addEventListener('change', generateCommand);
+        el.addEventListener('input', generate);
+        el.addEventListener('change', generate);
     });
 
     // 复制功能
     function copyCommand() {
-        const text = document.getElementById('commandOutput').innerText;
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = document.querySelector('.btn');
-            const originalText = btn.innerText;
-            btn.innerText = "已复制！";
-            btn.style.backgroundColor = "#4caf50";
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.style.backgroundColor = "";
-            }, 2000);
-        }).catch(err => {
-            alert('复制失败，请手动复制');
-        });
+        const textarea = document.getElementById("result");
+        textarea.select();
+        document.execCommand("copy");
+        
+        const btn = document.getElementById('copyBtn');
+        const oldText = btn.innerText;
+        btn.innerText = "已复制成功！";
+        btn.style.backgroundColor = "#28a745";
+        
+        setTimeout(() => {
+            btn.innerText = oldText;
+            btn.style.backgroundColor = "#007bff";
+        }, 2000);
     }
 
-    // 初始化
-    generateCommand();
+    // 初始化运行
+    generate();
 </script>
 
 </body>
