@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argosbx 脚本一键安装命令生成器</title>
+    <style>
+        :root {
+            --primary: #0d6efd; /* 原版风格蓝色 */
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --text: #212529;
+            --border: #dee2e6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 30px 15px;
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            background-color: var(--card);
+            width: 100%;
+            max-width: 800px;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 10px;
+            font-size: 1.75rem;
+        }
+
+        .header-links {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        
+        .header-links a {
+            color: #6c757d;
+            text-decoration: none;
+            margin: 0 8px;
+            transition: color 0.2s;
+        }
+
+        .header-links a:hover {
+            color: var(--primary);
+        }
+
+        .form-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background-color: var(--primary);
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        /* 协议复选框样式 */
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #fff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .checkbox-item:hover {
+            border-color: var(--primary);
+            background-color: #f1f8ff;
+        }
+
+        .checkbox-item input {
+            margin-right: 10px;
+            transform: scale(1.2);
+            accent-color: var(--primary);
+        }
+
+        /* 输入框样式 */
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        @media (min-width: 600px) {
+            .input-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #212529;
+            background-color: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            transition: border-color 0.15s ease-in-out;
+            box-sizing: border-box; 
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+
+        /* 结果区域 */
+        .result-container {
+            position: relative;
+        }
+
+        textarea#result {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            background-color: #212529;
+            color: #76ff03; /* 终端绿 */
+            font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 6px;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .btn-copy {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            background-color: var(--primary);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-copy:hover {
+            background-color: #0b5ed7;
+        }
+
+        .btn-copy:active {
+            transform: translateY(1px);
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #adb5bd;
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Argosbx 脚本命令生成器</h1>
+    <div class="header-links">
+        <a href="https://github.com/yonggekkk/argosbx" target="_blank">原作者Github</a> •
+        <a href="https://ygkkk.blogspot.com/" target="_blank">技术博客</a> •
+        <a href="https://www.youtube.com/@ygkkk" target="_blank">YouTube频道</a>
+    </div>
+
+    <div class="form-section">
+        <div class="section-title">1. 选择启用的协议 (建议按需选择)</div>
+        <div class="checkbox-grid">
+            <label class="checkbox-item"><input type="checkbox" id="vlpt" checked> VLESS-Reality</label>
+            <label class="checkbox-item"><input type="checkbox" id="vmpt" checked> VMess-WS</label>
+            <label class="checkbox-item"><input type="checkbox" id="vwpt"> VLESS-WS</label>
+            <label class="checkbox-item"><input type="checkbox" id="hypt"> Hysteria2</label>
+            <label class="checkbox-item"><input type="checkbox" id="tupt"> Tuic5</label>
+            <label class="checkbox-item"><input type="checkbox" id="xhpt"> VLESS-xHTTP</label>
+            <label class="checkbox-item"><input type="checkbox" id="vxpt"> xHTTP-Enc</label>
+            <label class="checkbox-item"><input type="checkbox" id="anpt"> AnyTLS</label>
+            <label class="checkbox-item"><input type="checkbox" id="arpt"> Any-Reality</label>
+            <label class="checkbox-item"><input type="checkbox" id="sspt"> SS-2022</label>
+            <label class="checkbox-item"><input type="checkbox" id="sopt"> Socks5</label>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="section-title">2. 个性化设置 (选填)</div>
+        <div class="input-grid">
+            <div class="form-group">
+                <label>节点前缀名称 (Name)</label>
+                <input type="text" class="form-control" id="name" placeholder="例如: MyVPS">
+            </div>
+            <div class="form-group">
+                <label>自定义 UUID</label>
+                <input type="text" class="form-control" id="uuid" placeholder="留空则自动生成">
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="section-title">3. Argo 隧道设置 (选填)</div>
+        <div class="input-grid">
+            <div class="form-group">
+                <label>Token (固定隧道)</label>
+                <input type="text" class="form-control" id="agk" placeholder="eyJhIjoi...">
+            </div>
+            <div class="form-group">
+                <label>Domain (对应域名)</label>
+                <input type="text" class="form-control" id="agn" placeholder="argo.example.com">
+            </div>
+        </div>
+        <p style="font-size: 0.85rem; color: #888; margin-top: 10px;">* 启用固定隧道会自动依赖 VMess-WS 协议</p>
+    </div>
+
+    <div class="form-section" style="border:none; padding-bottom:0;">
+        <div class="section-title">4. 生成安装命令</div>
+        <div class="result-container">
+            <textarea id="result" readonly></textarea>
+        </div>
+        <button class="btn-copy" onclick="copyCommand()" id="copyBtn">复制命令到剪贴板</button>
+    </div>
+
+    <div class="footer">
+        Based on Argosbx by yonggekkk | Customized by taizi8888
+    </div>
+</div>
+
+<script>
+    // =======================================================
+    // ⚠️ 核心配置：此处已替换为你修改后的脚本地址
+    const scriptUrl = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh";
+    // =======================================================
+
+    // 协议变量列表 (必须与 shell 脚本中的变量名完全一致)
+    const protocols = ['vlpt', 'vmpt', 'vwpt', 'hypt', 'tupt', 'xhpt', 'vxpt', 'anpt', 'arpt', 'sspt', 'sopt'];
+
+    function generate() {
+        let commandParts = [];
+
+        // 1. 处理协议复选框
+        protocols.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.checked) {
+                commandParts.push(`${id}=yes`);
+            }
+        });
+
+        // 2. 处理个性化设置
+        const nameVal = document.getElementById('name').value.trim();
+        if (nameVal) commandParts.push(`name="${nameVal}"`);
+
+        const uuidVal = document.getElementById('uuid').value.trim();
+        if (uuidVal) commandParts.push(`uuid="${uuidVal}"`);
+
+        // 3. 处理 Argo 设置
+        const agkVal = document.getElementById('agk').value.trim();
+        const agnVal = document.getElementById('agn').value.trim();
+
+        if (agkVal && agnVal) {
+            // 如果填了 Argo，通常需要开启 vmp (vmess) 作为载体，并设置 argo 变量
+            // 原逻辑：argo=vmpt 代表用 vmess 端口跑 argo
+            if (!commandParts.includes('vmpt=yes')) {
+                // 如果用户没勾选 vmess，为了 argo 生效，我们可以强制加上，或者只加变量
+                // commandParts.push('vmpt=yes'); 
+            }
+            commandParts.push(`argo=vmpt`); 
+            commandParts.push(`agk="${agkVal}"`);
+            commandParts.push(`agn="${agnVal}"`);
+        }
+
+        // 4. 拼接最终命令
+        const vars = commandParts.join(' ');
+        // 即使没有变量，也生成基础命令
+        const finalCmd = vars ? `${vars} bash <(curl -Ls ${scriptUrl})` : `bash <(curl -Ls ${scriptUrl})`;
+
+        document.getElementById('result').value = finalCmd;
+    }
+
+    // 监听所有输入框和复选框的变化
+    const inputs = document.querySelectorAll('input');
+    inputs.forEach(input => {
+        input.addEventListener('input', generate);
+        input.addEventListener('change', generate);
+    });
+
+    // 复制功能
+    function copyCommand() {
+        const copyText = document.getElementById("result");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); // 适配移动端
+
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            const btn = document.getElementById('copyBtn');
+            const originalText = btn.innerText;
+            btn.innerText = "✅ 复制成功！";
+            btn.style.backgroundColor = "#198754"; // 绿色
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.backgroundColor = ""; // 恢复原色
+            }, 2000);
+        }).catch(err => {
+            alert("复制失败，请手动复制");
+        });
+    }
+
+    // 页面加载后立即生成一次默认命令
+    generate();
+</script>
+
+</body>
+</html>
