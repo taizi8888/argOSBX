@@ -60,7 +60,7 @@ echo "甬哥Github项目 ：github.com/yonggekkk"
 echo "甬哥Blogger博客 ：ygkkk.blogspot.com"
 echo "甬哥YouTube频道 ：www.youtube.com/@ygkkk"
 echo "Argosbx一键无交互小钢炮脚本💣"
-echo "当前版本：V25.11.20"
+echo "当前版本：V25.11.20 (J+D融合版)"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 hostname=$(uname -a | awk '{print $2}')
 op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | grep -i pretty_name | cut -d \" -f2)
@@ -1305,7 +1305,7 @@ argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
 if [ -n "$argodomain" ]; then
 vlvm=$(cat $HOME/agsbx/vlvm 2>/dev/null)
 if [ "$vlvm" = "Vmess" ]; then
-# 修改：ps字段只保留 ${sxname}端口号
+# J系列节点
 vmatls_link1="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}443\", \"add\": \"j2.dtsm.de5.net\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vmatls_link1" >> "$HOME/agsbx/jh.txt"
 vmatls_link2="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}8443\", \"add\": \"j3.dtsm.de5.net\", \"port\": \"8443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
@@ -1332,13 +1332,49 @@ vma_link12="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}2086\", \"add\": 
 echo "$vma_link12" >> "$HOME/agsbx/jh.txt"
 vma_link13="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}2095\", \"add\": \"[2400:cb00:2049::0]\", \"port\": \"2095\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
 echo "$vma_link13" >> "$HOME/agsbx/jh.txt"
+
+# D系列节点 (添加 D 备注)
+vmatls_link1_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D443\", \"add\": \"d2.dtsm.de5.net\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link1_d" >> "$HOME/agsbx/jh.txt"
+vmatls_link2_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D8443\", \"add\": \"d3.dtsm.de5.net\", \"port\": \"8443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link2_d" >> "$HOME/agsbx/jh.txt"
+vmatls_link3_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2053\", \"add\": \"d4.dtsm.de5.net\", \"port\": \"2053\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link3_d" >> "$HOME/agsbx/jh.txt"
+vmatls_link4_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2083\", \"add\": \"d5.dtsm.de5.net\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link4_d" >> "$HOME/agsbx/jh.txt"
+vmatls_link5_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2087\", \"add\": \"d6.dtsm.de5.net\", \"port\": \"2087\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link5_d" >> "$HOME/agsbx/jh.txt"
+vmatls_link6_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2096\", \"add\": \"[2606:4700::0]\", \"port\": \"2096\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vmatls_link6_d" >> "$HOME/agsbx/jh.txt"
+vma_link7_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D80\", \"add\": \"d7.dtsm.de5.net\", \"port\": \"80\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link7_d" >> "$HOME/agsbx/jh.txt"
+vma_link8_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D8080\", \"add\": \"d8.dtsm.de5.net\", \"port\": \"8080\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link8_d" >> "$HOME/agsbx/jh.txt"
+vma_link9_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D8880\", \"add\": \"d9.dtsm.de5.net\", \"port\": \"8880\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link9_d" >> "$HOME/agsbx/jh.txt"
+vma_link10_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2052\", \"add\": \"d10.dtsm.de5.net\", \"port\": \"2052\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link10_d" >> "$HOME/agsbx/jh.txt"
+vma_link11_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2082\", \"add\": \"d11.dtsm.de5.net\", \"port\": \"2082\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link11_d" >> "$HOME/agsbx/jh.txt"
+vma_link12_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2086\", \"add\": \"d12.dtsm.de5.net\", \"port\": \"2086\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link12_d" >> "$HOME/agsbx/jh.txt"
+vma_link13_d="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}D2095\", \"add\": \"[2400:cb00:2049::0]\", \"port\": \"2095\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+echo "$vma_link13_d" >> "$HOME/agsbx/jh.txt"
+
 elif [ "$vlvm" = "Vless" ]; then
-# 修改：URL hash部分只保留 ${sxname}端口号
+# J系列节点
 vwatls_link1="vless://$uuid@j$(cfip).dtsm.de5.net:443?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=tls&sni=$argodomain&fp=chrome&insecure=0&allowInsecure=0#${sxname}443"
 echo "$vwatls_link1" >> "$HOME/agsbx/jh.txt"
 vwa_link2="vless://$uuid@j$(cfip).dtsm.de5.net:80?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=none#${sxname}80"
 echo "$vwa_link2" >> "$HOME/agsbx/jh.txt"
+
+# D系列节点 (添加 D 备注)
+vwatls_link1_d="vless://$uuid@j$(cfip).dtsm.de5.net:443?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=tls&sni=$argodomain&fp=chrome&insecure=0&allowInsecure=0#${sxname}D443"
+echo "$vwatls_link1_d" >> "$HOME/agsbx/jh.txt"
+vwa_link2_d="vless://$uuid@j$(cfip).dtsm.de5.net:80?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=none#${sxname}D80"
+echo "$vwa_link2_d" >> "$HOME/agsbx/jh.txt"
 fi
+
 sbtk=$(cat "$HOME/agsbx/sbargotoken.log" 2>/dev/null)
 if [ -n "$sbtk" ]; then
 nametn="Argo固定隧道token：$sbtk"
@@ -1348,11 +1384,17 @@ echo "Argo隧道端口正在使用$vlvm-ws主协议端口：$(cat $HOME/agsbx/ar
 Argo域名：$argodomain
 $nametn
 
-1、💣443端口的$vlvm-ws-tls-argo节点(优选IP与443系端口随便换)
+1、💣443端口的$vlvm-ws-tls-argo节点 (J系列，优选IP与443系端口随便换)
 ${vmatls_link1}${vwatls_link1}
 
-2、💣80端口的$vlvm-ws-argo节点(优选IP与80系端口随便换)
+2、💣80端口的$vlvm-ws-argo节点 (J系列，优选IP与80系端口随便换)
 ${vma_link7}${vwa_link2}
+
+3、💣443端口的$vlvm-ws-tls-argo节点 (D系列，优选IP与443系端口随便换)
+${vmatls_link1_d}${vwatls_link1_d}
+
+4、💣80端口的$vlvm-ws-argo节点 (D系列，优选IP与80系端口随便换)
+${vma_link7_d}${vwa_link2_d}
 "
 )
 fi
