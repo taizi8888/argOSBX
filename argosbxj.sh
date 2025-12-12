@@ -44,20 +44,20 @@ v46url="https://icanhazip.com"
 agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
 
 # ==========================================
-# 新增 GitLab 自动订阅功能模块 (智能分支版)
+# 新增 GitLab 自动订阅功能模块 (智能分支 + OAuth2认证版)
 # ==========================================
 
 # 1. 配置 GitLab 信息的函数
 gitlabsub(){
-    # 检查并安装依赖 (git 和 expect)
+    # 检查并安装依赖 (git)
     if command -v apk >/dev/null 2>&1; then
-        apk add git expect
+        apk add git
     elif command -v apt-get >/dev/null 2>&1; then
-        apt-get update && apt-get install -y git expect
+        apt-get update && apt-get install -y git
     elif command -v yum >/dev/null 2>&1; then
-        yum install -y git expect
+        yum install -y git
     elif command -v dnf >/dev/null 2>&1; then
-        dnf install -y git expect
+        dnf install -y git
     fi
 
     mkdir -p "$HOME/agsbx"
@@ -65,6 +65,7 @@ gitlabsub(){
     
     echo
     echo "请确保Gitlab官网上已建立项目，已开启推送功能，已获取访问令牌"
+    echo "权限要求：勾选 api, read_repository, write_repository"
     echo "------------------------------------------------"
     echo -n "输入登录邮箱: "
     read email
@@ -84,82 +85,65 @@ gitlabsub(){
         git_sk="${gitlabml}"
     fi
 
-    # 保存 Token 和 分支名 以便后续使用
-    echo "$token" > "$HOME/agsbx/gitlabtoken.txt"
-    echo "$gitlabml" > "$HOME/agsbx/gitlabbranch.txt"
-    
-    # 初始化 Git 仓库
-    rm -rf "$HOME/agsbx/.git"
-    git init
-    # 设置 Git 用户信息
-    git config --global user.email "${email}"
-    git config --global user.name "${userid}"
-    
-    # 关联远程仓库
-    git remote add origin "https://${token}@gitlab.com/${userid}/${project}.git"
-    
-    # === 自动分支处理 (核心修改) ===
-    # 强制创建并切换到指定分支 (例如 main)
-    # 如果分支存在则切换，不存在则创建(-b)并切换
-    git checkout -b "${gitlabml}" 2>/dev/null || git checkout "${gitlabml}"
-    # ==========================
-
-    # 生成用于自动推送的 expect 脚本 (解决输入密码问题)
-    cat > "$HOME/agsbx/gitpush.sh" <<EOF
-#!/usr/bin/expect
-set timeout 30
-set cmd [lindex \$argv 0]
-set token [lindex \$argv 1]
-spawn bash -c "\$cmd"
-expect {
-    "Password for" { send "\$token\r"; exp_continue }
-    "Username for" { send "oauth2\r"; exp_continue }
-    eof
-}
-EOF
-    chmod +x "$HOME/agsbx/gitpush.sh"
+    # 保存配置信息到文件
+    echo "$email" > "$HOME/agsbx/gl_email"
+    echo "$token" > "$HOME/agsbx/gl_token"
+    echo "$userid" > "$HOME/agsbx/gl_user"
+    echo "$project" > "$HOME/agsbx/gl_project"
+    echo "$gitlabml" > "$HOME/agsbx/gl_branch"
     
     # 生成订阅链接文件
     echo "https://gitlab.com/api/v4/projects/${userid}%2F${project}/repository/files/jh.txt/raw?ref=${git_sk}&private_token=${token}" > "$HOME/agsbx/jh_sub_gitlab.txt"
     
     echo
-    echo "GitLab 配置完成！"
-    echo "当前本地分支: $(git branch --show-current 2>/dev/null)"
+    echo "GitLab 配置已保存！"
     echo "订阅链接已生成: $(cat "$HOME/agsbx/jh_sub_gitlab.txt")"
-    echo "下次生成节点时将自动推送。"
+    echo "正在执行首次推送..."
+    
+    # 立即触发一次推送
+    gitlabsubgo
 }
 
-# 2. 执行自动推送的函数
+# 2. 执行自动推送的函数 (OAuth2 认证 + 强制推送)
 gitlabsubgo(){
-    if [ -f "$HOME/agsbx/gitlabtoken.txt" ] && [ -f "$HOME/agsbx/gitpush.sh" ]; then
+    if [ -f "$HOME/agsbx/gl_token" ]; then
         cd "$HOME/agsbx" || return
-        echo "正在推送订阅到 GitLab..."
         
-        token=$(cat "$HOME/agsbx/gitlabtoken.txt")
-        # 读取之前保存的分支名，如果没有则默认 main
-        target_branch=$(cat "$HOME/agsbx/gitlabbranch.txt" 2>/dev/null)
-        [ -z "$target_branch" ] && target_branch="main"
+        # 读取配置
+        email=$(cat "$HOME/agsbx/gl_email")
+        token=$(cat "$HOME/agsbx/gl_token")
+        userid=$(cat "$HOME/agsbx/gl_user")
+        project=$(cat "$HOME/agsbx/gl_project")
+        branch=$(cat "$HOME/agsbx/gl_branch")
+        
+        echo "正在推送订阅到 GitLab (${branch} 分支)..."
 
-        # === 自动分支检测与修复 (核心修改) ===
-        current_branch=$(git branch --show-current 2>/dev/null)
+        # 清理旧的 git 记录，确保环境纯净
+        rm -rf .git
+
+        # 初始化并提交
+        git init >/dev/null 2>&1
+        git config user.email "${email}"
+        git config user.name "${userid}"
         
-        # 如果当前分支不是目标分支
-        if [ "$current_branch" != "$target_branch" ]; then
-            echo "检测到分支不匹配，正在切换到 $target_branch..."
-            # 尝试切换，如果不存在则创建 (-b)
-            git checkout "$target_branch" 2>/dev/null || git checkout -b "$target_branch"
-        fi
-        # ==================================
+        # 切换到指定分支 (如果不存在则创建)
+        git checkout -b "${branch}" >/dev/null 2>&1
         
         # 添加节点文件
         git add jh.txt
-        git commit -m "Auto update $(date +'%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
+        git commit -m "Auto Update $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
+
+        # 构造带Token的URL并强制推送
+        # 格式：https://oauth2:TOKEN@gitlab.com/USER/REPO.git
+        remote_url="https://oauth2:${token}@gitlab.com/${userid}/${project}.git"
         
-        # 使用 expect 脚本强制推送 (-u origin 分支名 -f 强推)
-        "$HOME/agsbx/gitpush.sh" "git push -u origin ${target_branch} -f" "${token}" >/dev/null 2>&1
-        
-        echo "GitLab 推送完成！"
-        echo "订阅链接: $(cat "$HOME/agsbx/jh_sub_gitlab.txt" 2>/dev/null)"
+        # 强制推送到远程的对应分支
+        if git push --force "${remote_url}" HEAD:${branch} >/dev/null 2>&1; then
+            echo "GitLab 推送成功！"
+            echo "订阅链接: $(cat "$HOME/agsbx/jh_sub_gitlab.txt" 2>/dev/null)"
+        else
+            echo "GitLab 推送失败！请检查 Token 权限或项目地址是否正确。"
+        fi
     fi
 }
 
