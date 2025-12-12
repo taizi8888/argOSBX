@@ -1,5 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 export LANG=en_US.UTF-8
+# 基础环境与变量定义
 [ -z "${vlpt+x}" ] || vlp=yes
 [ -z "${vmpt+x}" ] || { vmp=yes; vmag=yes; }
 [ -z "${vwpt+x}" ] || { vwp=yes; vmag=yes; }
@@ -12,6 +13,10 @@ export LANG=en_US.UTF-8
 [ -z "${arpt+x}" ] || arp=yes
 [ -z "${sopt+x}" ] || sop=yes
 [ -z "${warp+x}" ] || wap=yes
+
+# 融合列表文件路径
+MERGE_LIST="$HOME/agsbx/merge_list.txt"
+
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
 [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
@@ -44,67 +49,66 @@ v46url="https://icanhazip.com"
 agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
 
 # ==========================================
-# 新增 GitLab 自动订阅功能模块 (智能分支 + OAuth2认证版)
+# 模块1：配置 GitLab 信息 (智能分支版)
 # ==========================================
-
-# 1. 配置 GitLab 信息的函数
 gitlabsub(){
-    # 检查并安装依赖 (git)
+    # 检查并安装依赖
     if command -v apk >/dev/null 2>&1; then
-        apk add git
+        apk add git curl
     elif command -v apt-get >/dev/null 2>&1; then
-        apt-get update && apt-get install -y git
+        apt-get update && apt-get install -y git curl
     elif command -v yum >/dev/null 2>&1; then
-        yum install -y git
+        yum install -y git curl
     elif command -v dnf >/dev/null 2>&1; then
-        dnf install -y git
+        dnf install -y git curl
     fi
 
     mkdir -p "$HOME/agsbx"
     cd "$HOME/agsbx" || exit
     
     echo
-    echo "请确保Gitlab官网上已建立项目，已开启推送功能，已获取访问令牌"
-    echo "权限要求：勾选 api, read_repository, write_repository"
-    echo "------------------------------------------------"
-    echo -n "输入登录邮箱: "
+    echo "================================================="
+    echo "           GitLab 自动订阅配置向导"
+    echo "================================================="
+    echo "提示：多台服务器请填写相同的Token和项目名，但使用不同的分支名！"
+    echo "-------------------------------------------------"
+    echo -n "输入登录邮箱 (随意填): "
     read email
-    echo -n "输入访问令牌(Access Token): "
+    echo -n "输入访问令牌 (Access Token): "
     read token
-    echo -n "输入用户名(User ID): "
+    echo -n "输入用户名 (User ID): "
     read userid
-    echo -n "输入项目名(Project Name): "
+    echo -n "输入项目名 (Project Name): "
     read project
-    echo -n "新建分支名称(回车默认main): "
+    echo -n "输入分支名称 (主服务器填main, 从服务器填arm/node2等): "
     read gitlabml
     
     if [ -z "$gitlabml" ]; then
         gitlabml="main"
-        git_sk="main"
-    else
-        git_sk="${gitlabml}"
     fi
 
-    # 保存配置信息到文件
+    # 保存配置
     echo "$email" > "$HOME/agsbx/gl_email"
     echo "$token" > "$HOME/agsbx/gl_token"
     echo "$userid" > "$HOME/agsbx/gl_user"
     echo "$project" > "$HOME/agsbx/gl_project"
     echo "$gitlabml" > "$HOME/agsbx/gl_branch"
     
-    # 生成订阅链接文件
-    echo "https://gitlab.com/api/v4/projects/${userid}%2F${project}/repository/files/jh.txt/raw?ref=${git_sk}&private_token=${token}" > "$HOME/agsbx/jh_sub_gitlab.txt"
+    # 生成订阅链接预览
+    sub_link="https://gitlab.com/api/v4/projects/${userid}%2F${project}/repository/files/jh.txt/raw?ref=${gitlabml}&private_token=${token}"
+    echo "$sub_link" > "$HOME/agsbx/jh_sub_gitlab.txt"
     
     echo
-    echo "GitLab 配置已保存！"
-    echo "订阅链接已生成: $(cat "$HOME/agsbx/jh_sub_gitlab.txt")"
-    echo "正在执行首次推送..."
+    echo "配置已保存！"
+    echo "当前订阅链接: $sub_link"
+    echo "正在执行首次连接测试..."
     
-    # 立即触发一次推送
     gitlabsubgo
 }
 
-# 2. 执行自动推送的函数 (OAuth2 认证 + 强制推送)
+# ==========================================
+# 模块2：执行自动推送 (OAuth2 + 强制推送)
+# ==========================================
 gitlabsubgo(){
     if [ -f "$HOME/agsbx/gl_token" ]; then
         cd "$HOME/agsbx" || return
@@ -116,57 +120,90 @@ gitlabsubgo(){
         project=$(cat "$HOME/agsbx/gl_project")
         branch=$(cat "$HOME/agsbx/gl_branch")
         
-        echo "正在推送订阅到 GitLab (${branch} 分支)..."
+        echo "正在推送到 GitLab (分支: $branch)..."
 
-        # 清理旧的 git 记录，确保环境纯净
+        # 暴力重置 git 环境，确保无冲突
         rm -rf .git
-
-        # 初始化并提交
         git init >/dev/null 2>&1
         git config user.email "${email}"
         git config user.name "${userid}"
         
-        # 切换到指定分支 (如果不存在则创建)
+        # 切换/创建分支
         git checkout -b "${branch}" >/dev/null 2>&1
         
-        # 添加节点文件
-        git add jh.txt
+        # 添加文件
+        git add jh.txt >/dev/null 2>&1
         git commit -m "Auto Update $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
 
-        # 构造带Token的URL并强制推送
-        # 格式：https://oauth2:TOKEN@gitlab.com/USER/REPO.git
+        # 构造 OAuth2 URL
         remote_url="https://oauth2:${token}@gitlab.com/${userid}/${project}.git"
         
-        # 强制推送到远程的对应分支
+        # 强制推送
         if git push --force "${remote_url}" HEAD:${branch} >/dev/null 2>&1; then
-            echo "GitLab 推送成功！"
+            echo -e "\033[32mGitLab 推送成功！\033[0m"
             echo "订阅链接: $(cat "$HOME/agsbx/jh_sub_gitlab.txt" 2>/dev/null)"
         else
-            echo "GitLab 推送失败！请检查 Token 权限或项目地址是否正确。"
+            echo -e "\033[31mGitLab 推送失败！请检查 Token 权限或项目名是否正确。\033[0m"
         fi
+    fi
+}
+
+# ==========================================
+# 模块3：节点融合配置 (主服务器用)
+# ==========================================
+configure_merge(){
+    mkdir -p "$HOME/agsbx"
+    echo
+    echo "================================================="
+    echo "           多节点融合配置 (仅主服务器使用)"
+    echo "================================================="
+    echo "请粘贴从服务器(如ARM机器)的 GitLab Raw 订阅链接。"
+    echo "格式如: https://gitlab.com/.../jh.txt/raw?ref=arm..."
+    echo "-------------------------------------------------"
+    
+    if [ -f "$MERGE_LIST" ]; then
+        echo "当前已添加的融合链接："
+        cat -n "$MERGE_LIST"
+        echo "-------------------------------------------------"
+        echo "1. 添加新链接"
+        echo "2. 清空列表"
+        echo "0. 退出"
+        echo -n "请选择: "
+        read choice
+        if [ "$choice" = "2" ]; then
+            rm -f "$MERGE_LIST"
+            echo "列表已清空。"
+            return
+        elif [ "$choice" = "0" ]; then
+            return
+        fi
+    fi
+
+    echo -n "请输入链接: "
+    read merge_url
+    if [ -n "$merge_url" ]; then
+        echo "$merge_url" >> "$MERGE_LIST"
+        echo "添加成功！下次生成节点时将自动合并。"
     fi
 }
 
 showmode(){
 echo "Argosbx脚本一键SSH命令生器在线网址：https://yonggekkk.github.io/argosbx/"
 echo "主脚本：bash <(curl -Ls https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh) 或 bash <(wget -qO- https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh)"
-echo "显示节点信息命令：agsbx list 【或者】 主脚本 list"
-echo "重置变量组命令：自定义各种协议变量组 agsbx rep 【或者】 自定义各种协议变量组 主脚本 rep"
-echo "更新脚本命令：原已安装的自定义各种协议变量组 主脚本 rep"
-echo "更新Xray或Singbox内核命令：agsbx upx或ups 【或者】 主脚本 upx或ups"
-echo "重启脚本命令：agsbx res 【或者】 主脚本 res"
-echo "卸载脚本命令：agsbx del 【或者】 主脚本 del"
-echo "双栈VPS显示IPv4/IPv6节点配置命令：ippz=4或6 agsbx list 【或者】 ippz=4或6 主脚本 list"
-echo "配置GitLab订阅：agsbx git 【或者】 主脚本 git"
+echo "显示节点信息命令：agsbx list"
+echo "重置变量组命令：自定义各种协议变量组 agsbx rep"
+echo "更新Xray或Singbox内核命令：agsbx upx 或 agsbx ups"
+echo "重启脚本命令：agsbx res"
+echo "卸载脚本命令：agsbx del"
+echo "配置GitLab订阅：agsbx git"
+echo "配置节点融合：agsbx merge"
 echo "---------------------------------------------------------"
 echo
 }
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "甬哥Github项目 ：github.com/yonggekkk"
-echo "甬哥Blogger博客 ：ygkkk.blogspot.com"
-echo "甬哥YouTube频道 ：www.youtube.com/@ygkkk"
-echo "Argosbx一键无交互小钢炮脚本💣"
-echo "当前版本：V25.11.20 (J/D 双系列版 + GitLab自动修复分支)"
+echo "Argosbx一键无交互小钢炮脚本 (GitLab 多服融合特别版)"
+echo "当前版本：V25.12.11"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 hostname=$(uname -a | awk '{print $2}')
 op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | grep -i pretty_name | cut -d \" -f2)
@@ -1512,10 +1549,24 @@ echo "聚合节点信息，请进入 $HOME/agsbx/jh.txt 文件目录查看或者
 echo "========================================================="
 
 # ==========================================
+# 融合逻辑：抓取从服务器节点并追加
+# ==========================================
+if [ -f "$MERGE_LIST" ]; then
+    echo
+    echo "正在融合远程节点..."
+    while IFS= read -r remote_url || [ -n "$remote_url" ]; do
+        if [ -n "$remote_url" ]; then
+            echo " -> 抓取: $remote_url"
+            echo "" >> "$HOME/agsbx/jh.txt" 
+            curl -s -m 15 "$remote_url" >> "$HOME/agsbx/jh.txt"
+        fi
+    done < "$MERGE_LIST"
+    echo "融合完成。"
+fi
+# ==========================================
+
 # 触发GitLab自动推送
-# ==========================================
 gitlabsubgo
-# ==========================================
 
 echo "相关快捷方式如下：(首次安装成功后需重连SSH，agsbx快捷方式才可生效)"
 showmode
@@ -1583,10 +1634,13 @@ echo "Argosbx重置协议完成，开始更新相关协议变量……" && sleep
 echo
 
 # ==========================================
-# 新增 GitLab 配置菜单
+# 新增 GitLab 配置与融合菜单
 # ==========================================
 elif [ "$1" = "git" ]; then
 gitlabsub
+exit
+elif [ "$1" = "merge" ]; then
+configure_merge
 exit
 # ==========================================
 
