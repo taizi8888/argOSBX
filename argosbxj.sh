@@ -44,7 +44,7 @@ v46url="https://icanhazip.com"
 agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
 
 # ==========================================
-# 新增 GitLab 自动订阅功能模块
+# 新增 GitLab 自动订阅功能模块 (智能分支版)
 # ==========================================
 
 # 1. 配置 GitLab 信息的函数
@@ -84,8 +84,9 @@ gitlabsub(){
         git_sk="${gitlabml}"
     fi
 
-    # 保存 Token 以便后续使用
+    # 保存 Token 和 分支名 以便后续使用
     echo "$token" > "$HOME/agsbx/gitlabtoken.txt"
+    echo "$gitlabml" > "$HOME/agsbx/gitlabbranch.txt"
     
     # 初始化 Git 仓库
     rm -rf "$HOME/agsbx/.git"
@@ -97,11 +98,11 @@ gitlabsub(){
     # 关联远程仓库
     git remote add origin "https://${token}@gitlab.com/${userid}/${project}.git"
     
-    # 如果分支不是 master/main，切换/创建分支
-    current_branch=$(git branch --show-current 2>/dev/null)
-    if [ -z "$current_branch" ]; then
-        git checkout -b main 2>/dev/null || git checkout -b master 2>/dev/null
-    fi
+    # === 自动分支处理 (核心修改) ===
+    # 强制创建并切换到指定分支 (例如 main)
+    # 如果分支存在则切换，不存在则创建(-b)并切换
+    git checkout -b "${gitlabml}" 2>/dev/null || git checkout "${gitlabml}"
+    # ==========================
 
     # 生成用于自动推送的 expect 脚本 (解决输入密码问题)
     cat > "$HOME/agsbx/gitpush.sh" <<EOF
@@ -123,6 +124,7 @@ EOF
     
     echo
     echo "GitLab 配置完成！"
+    echo "当前本地分支: $(git branch --show-current 2>/dev/null)"
     echo "订阅链接已生成: $(cat "$HOME/agsbx/jh_sub_gitlab.txt")"
     echo "下次生成节点时将自动推送。"
 }
@@ -134,16 +136,27 @@ gitlabsubgo(){
         echo "正在推送订阅到 GitLab..."
         
         token=$(cat "$HOME/agsbx/gitlabtoken.txt")
+        # 读取之前保存的分支名，如果没有则默认 main
+        target_branch=$(cat "$HOME/agsbx/gitlabbranch.txt" 2>/dev/null)
+        [ -z "$target_branch" ] && target_branch="main"
+
+        # === 自动分支检测与修复 (核心修改) ===
+        current_branch=$(git branch --show-current 2>/dev/null)
+        
+        # 如果当前分支不是目标分支
+        if [ "$current_branch" != "$target_branch" ]; then
+            echo "检测到分支不匹配，正在切换到 $target_branch..."
+            # 尝试切换，如果不存在则创建 (-b)
+            git checkout "$target_branch" 2>/dev/null || git checkout -b "$target_branch"
+        fi
+        # ==================================
+        
         # 添加节点文件
         git add jh.txt
         git commit -m "Auto update $(date +'%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
         
-        # 获取当前分支
-        branch=$(git branch --show-current 2>/dev/null)
-        [ -z "$branch" ] && branch="main"
-        
-        # 使用 expect 脚本推送
-        "$HOME/agsbx/gitpush.sh" "git push -f origin ${branch}" "${token}" >/dev/null 2>&1
+        # 使用 expect 脚本强制推送 (-u origin 分支名 -f 强推)
+        "$HOME/agsbx/gitpush.sh" "git push -u origin ${target_branch} -f" "${token}" >/dev/null 2>&1
         
         echo "GitLab 推送完成！"
         echo "订阅链接: $(cat "$HOME/agsbx/jh_sub_gitlab.txt" 2>/dev/null)"
@@ -169,7 +182,7 @@ echo "甬哥Github项目 ：github.com/yonggekkk"
 echo "甬哥Blogger博客 ：ygkkk.blogspot.com"
 echo "甬哥YouTube频道 ：www.youtube.com/@ygkkk"
 echo "Argosbx一键无交互小钢炮脚本💣"
-echo "当前版本：V25.11.20 (J/D 双系列版 + GitLab订阅)"
+echo "当前版本：V25.11.20 (J/D 双系列版 + GitLab自动修复分支)"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 hostname=$(uname -a | awk '{print $2}')
 op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | grep -i pretty_name | cut -d \" -f2)
