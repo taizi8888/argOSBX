@@ -42,6 +42,114 @@ export name=${name:-''}
 export oap=${oap:-''}
 v46url="https://icanhazip.com"
 agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
+
+# ==========================================
+# 新增 GitLab 自动订阅功能模块
+# ==========================================
+
+# 1. 配置 GitLab 信息的函数
+gitlabsub(){
+    # 检查并安装依赖 (git 和 expect)
+    if command -v apk >/dev/null 2>&1; then
+        apk add git expect
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y git expect
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y git expect
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y git expect
+    fi
+
+    mkdir -p "$HOME/agsbx"
+    cd "$HOME/agsbx" || exit
+    
+    echo
+    echo "请确保Gitlab官网上已建立项目，已开启推送功能，已获取访问令牌"
+    echo "------------------------------------------------"
+    echo -n "输入登录邮箱: "
+    read email
+    echo -n "输入访问令牌(Access Token): "
+    read token
+    echo -n "输入用户名(User ID): "
+    read userid
+    echo -n "输入项目名(Project Name): "
+    read project
+    echo -n "新建分支名称(回车默认main): "
+    read gitlabml
+    
+    if [ -z "$gitlabml" ]; then
+        gitlabml="main"
+        git_sk="main"
+    else
+        git_sk="${gitlabml}"
+    fi
+
+    # 保存 Token 以便后续使用
+    echo "$token" > "$HOME/agsbx/gitlabtoken.txt"
+    
+    # 初始化 Git 仓库
+    rm -rf "$HOME/agsbx/.git"
+    git init
+    # 设置 Git 用户信息
+    git config --global user.email "${email}"
+    git config --global user.name "${userid}"
+    
+    # 关联远程仓库
+    git remote add origin "https://${token}@gitlab.com/${userid}/${project}.git"
+    
+    # 如果分支不是 master/main，切换/创建分支
+    current_branch=$(git branch --show-current 2>/dev/null)
+    if [ -z "$current_branch" ]; then
+        git checkout -b main 2>/dev/null || git checkout -b master 2>/dev/null
+    fi
+
+    # 生成用于自动推送的 expect 脚本 (解决输入密码问题)
+    cat > "$HOME/agsbx/gitpush.sh" <<EOF
+#!/usr/bin/expect
+set timeout 30
+set cmd [lindex \$argv 0]
+set token [lindex \$argv 1]
+spawn bash -c "\$cmd"
+expect {
+    "Password for" { send "\$token\r"; exp_continue }
+    "Username for" { send "oauth2\r"; exp_continue }
+    eof
+}
+EOF
+    chmod +x "$HOME/agsbx/gitpush.sh"
+    
+    # 生成订阅链接文件
+    echo "https://gitlab.com/api/v4/projects/${userid}%2F${project}/repository/files/jh.txt/raw?ref=${git_sk}&private_token=${token}" > "$HOME/agsbx/jh_sub_gitlab.txt"
+    
+    echo
+    echo "GitLab 配置完成！"
+    echo "订阅链接已生成: $(cat "$HOME/agsbx/jh_sub_gitlab.txt")"
+    echo "下次生成节点时将自动推送。"
+}
+
+# 2. 执行自动推送的函数
+gitlabsubgo(){
+    if [ -f "$HOME/agsbx/gitlabtoken.txt" ] && [ -f "$HOME/agsbx/gitpush.sh" ]; then
+        cd "$HOME/agsbx" || return
+        echo "正在推送订阅到 GitLab..."
+        
+        token=$(cat "$HOME/agsbx/gitlabtoken.txt")
+        # 添加节点文件
+        git add jh.txt
+        git commit -m "Auto update $(date +'%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
+        
+        # 获取当前分支
+        branch=$(git branch --show-current 2>/dev/null)
+        [ -z "$branch" ] && branch="main"
+        
+        # 使用 expect 脚本推送
+        "$HOME/agsbx/gitpush.sh" "git push -f origin ${branch}" "${token}" >/dev/null 2>&1
+        
+        echo "GitLab 推送完成！"
+        echo "订阅链接: $(cat "$HOME/agsbx/jh_sub_gitlab.txt" 2>/dev/null)"
+    fi
+}
+
 showmode(){
 echo "Argosbx脚本一键SSH命令生器在线网址：https://yonggekkk.github.io/argosbx/"
 echo "主脚本：bash <(curl -Ls https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh) 或 bash <(wget -qO- https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh)"
@@ -52,6 +160,7 @@ echo "更新Xray或Singbox内核命令：agsbx upx或ups 【或者】 主脚本 
 echo "重启脚本命令：agsbx res 【或者】 主脚本 res"
 echo "卸载脚本命令：agsbx del 【或者】 主脚本 del"
 echo "双栈VPS显示IPv4/IPv6节点配置命令：ippz=4或6 agsbx list 【或者】 ippz=4或6 主脚本 list"
+echo "配置GitLab订阅：agsbx git 【或者】 主脚本 git"
 echo "---------------------------------------------------------"
 echo
 }
@@ -60,7 +169,7 @@ echo "甬哥Github项目 ：github.com/yonggekkk"
 echo "甬哥Blogger博客 ：ygkkk.blogspot.com"
 echo "甬哥YouTube频道 ：www.youtube.com/@ygkkk"
 echo "Argosbx一键无交互小钢炮脚本💣"
-echo "当前版本：V25.11.20 (J/D 双系列版)"
+echo "当前版本：V25.11.20 (J/D 双系列版 + GitLab订阅)"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 hostname=$(uname -a | awk '{print $2}')
 op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | grep -i pretty_name | cut -d \" -f2)
@@ -1404,6 +1513,13 @@ echo
 echo "---------------------------------------------------------"
 echo "聚合节点信息，请进入 $HOME/agsbx/jh.txt 文件目录查看或者运行 cat $HOME/agsbx/jh.txt 查看"
 echo "========================================================="
+
+# ==========================================
+# 触发GitLab自动推送
+# ==========================================
+gitlabsubgo
+# ==========================================
+
 echo "相关快捷方式如下：(首次安装成功后需重连SSH，agsbx快捷方式才可生效)"
 showmode
 }
@@ -1468,6 +1584,15 @@ cleandel
 rm -rf "$HOME/agsbx"/{sb.json,xr.json,sbargoym.log,sbargotoken.log,argo.log,argoport.log,cdnym,name}
 echo "Argosbx重置协议完成，开始更新相关协议变量……" && sleep 2
 echo
+
+# ==========================================
+# 新增 GitLab 配置菜单
+# ==========================================
+elif [ "$1" = "git" ]; then
+gitlabsub
+exit
+# ==========================================
+
 elif [ "$1" = "list" ]; then
 cip
 exit
