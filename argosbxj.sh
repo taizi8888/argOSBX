@@ -1731,4 +1731,3 @@ echo "相关快捷方式如下："
 showmode
 exit
 fi
-}
