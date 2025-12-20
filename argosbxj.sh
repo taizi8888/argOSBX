@@ -46,7 +46,7 @@ export warp=${warp:-''}
 export name=${name:-''}
 export oap=${oap:-''}
 v46url="https://icanhazip.com"
-agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
+agsbxurl="https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh"
 
 # ==========================================
 # 模块1：配置 GitLab 信息 (智能分支版)
