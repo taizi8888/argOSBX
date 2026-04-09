@@ -7,7 +7,7 @@ CYAN="\033[36m"
 YELLOW="\033[33m"
 RESET="\033[0m"
 
-# 路径定义 (严格对齐官方脚本)
+# 路径定义
 AGSBX_DIR="$HOME/agsbx"
 JH_FILE="$AGSBX_DIR/jh.txt"
 MERGE_LIST="$AGSBX_DIR/merge_list.txt"
@@ -29,7 +29,7 @@ install_deps() {
 install_deps
 
 # ==========================================
-# 2. 极致快捷命令注册 (git sync / g / gg)
+# 2. 极致快捷命令注册
 # ==========================================
 if [ ! -f "/usr/local/bin/git-sync" ]; then
     cat "$0" > /usr/local/bin/git-sync
@@ -41,7 +41,6 @@ if ! grep -q "alias g='/usr/local/bin/git-sync'" ~/.bashrc; then
     echo "alias gg='/usr/local/bin/git-sync push'" >> ~/.bashrc
     source ~/.bashrc 2>/dev/null
     echo -e "${GREEN}✅ 极致快捷命令已激活！日常修改敲 'g'，一键起飞敲 'gg'。${RESET}"
-    echo -e "${YELLOW}⚠️ 提示：如果按 g 提示找不到命令，请手动执行一次: source ~/.bashrc${RESET}"
 fi
 
 # ==========================================
@@ -51,10 +50,8 @@ do_config() {
     echo -e "\n${GREEN}=================================================${RESET}"
     echo -e "${GREEN}           GitLab 自动订阅配置向导                ${RESET}"
     echo -e "${GREEN}=================================================${RESET}"
-    echo "提示：多台服务器请填写相同的Token和项目名，但使用不同的分支名！"
-    echo "-------------------------------------------------"
     read -p "输入登录邮箱 (随意填): " email
-    read -p "输入访问令牌 (Access Token，必须带 write_repository 权限): " token
+    read -p "输入访问令牌 (Access Token): " token
     read -p "输入用户名 (User ID): " userid
     read -p "输入项目名 (Project Name): " project
     read -p "输入分支名称 (主服务器填main, 从机填node2等): " branch
@@ -72,14 +69,42 @@ do_config() {
 }
 
 # ==========================================
-# 模块 B：节点融合配置
+# 模块 B：单独修改分支
+# ==========================================
+do_change_branch() {
+    if [ ! -f "$AGSBX_DIR/gl_token" ]; then
+        echo -e "${RED}❌ 请先使用选项 1 完成基础配置！${RESET}"
+        return
+    fi
+    echo -e "\n${YELLOW}=================================================${RESET}"
+    echo -e "${YELLOW}                 修改当前分支名                  ${RESET}"
+    echo -e "${YELLOW}=================================================${RESET}"
+    current_branch=$(cat "$AGSBX_DIR/gl_branch" 2>/dev/null)
+    echo -e "当前分支为: ${CYAN}${current_branch}${RESET}"
+    read -p "请输入新的分支名称: " new_branch
+    
+    if [ -n "$new_branch" ]; then
+        echo "$new_branch" > "$AGSBX_DIR/gl_branch"
+        # 重新生成订阅链接
+        userid=$(cat "$AGSBX_DIR/gl_user")
+        project=$(cat "$AGSBX_DIR/gl_project")
+        token=$(cat "$AGSBX_DIR/gl_token")
+        sub_link="https://gitlab.com/api/v4/projects/${userid}%2F${project}/repository/files/jh.txt/raw?ref=${new_branch}&private_token=${token}"
+        echo "$sub_link" > "$AGSBX_DIR/jh_sub_gitlab.txt"
+        echo -e "${GREEN}✅ 分支已成功修改为: $new_branch，并已更新订阅链接预览。${RESET}"
+    else
+        echo -e "${RED}❌ 未输入新分支，操作取消。${RESET}"
+    fi
+}
+
+# ==========================================
+# 模块 C：节点融合配置
 # ==========================================
 do_merge_config() {
     echo -e "\n${YELLOW}=================================================${RESET}"
     echo -e "${YELLOW}           多节点融合配置 (仅主服务器使用)        ${RESET}"
     echo -e "${YELLOW}=================================================${RESET}"
-    echo "请粘贴从服务器(如ARM机器)的 GitLab Raw 订阅链接。"
-    echo "-------------------------------------------------"
+    echo "请粘贴从服务器的 GitLab Raw 订阅链接。"
     if [ -f "$MERGE_LIST" ]; then
         echo -e "${CYAN}当前已添加的融合链接：${RESET}"
         cat -n "$MERGE_LIST"
@@ -98,7 +123,7 @@ do_merge_config() {
 }
 
 # ==========================================
-# 模块 C：同步与推送
+# 模块 D：同步与推送
 # ==========================================
 do_push() {
     if [ ! -f "$AGSBX_DIR/gl_token" ]; then
@@ -106,13 +131,12 @@ do_push() {
         return
     fi
     if [ ! -f "$JH_FILE" ]; then
-        echo -e "${RED}❌ 未发现节点文件 jh.txt，请先运行官方 Argosbx 脚本生成节点！${RESET}"
+        echo -e "${RED}❌ 未发现节点文件 jh.txt，请先运行官方 Argosbx 脚本！${RESET}"
         return
     fi
 
     echo -e "\n${GREEN}🚀 正在执行节点融合与同步推送...${RESET}"
 
-    # 融合逻辑
     if [ -f "$MERGE_LIST" ]; then
         echo "发现融合列表，正在合并远程节点..."
         sed -i '$a\' "$JH_FILE" 2>/dev/null
@@ -126,7 +150,6 @@ do_push() {
         echo "✅ 融合完成。"
     fi
 
-    # 推送逻辑
     cd "$AGSBX_DIR" || exit
     email=$(cat gl_email); token=$(cat gl_token); userid=$(cat gl_user); project=$(cat gl_project); branch=$(cat gl_branch)
     
@@ -146,7 +169,7 @@ do_push() {
         echo -e "${CYAN}$(cat jh_sub_gitlab.txt)${RESET}"
         echo -e "${GREEN}=================================================${RESET}"
     else
-        echo -e "\n${RED}❌ 推送失败！请检查 Token 权限 (必须勾选 api 和 write_repository) 或项目名是否正确。${RESET}"
+        echo -e "\n${RED}❌ 推送失败！请检查 Token 权限或项目名是否正确。${RESET}"
     fi
 }
 
@@ -160,21 +183,23 @@ while true; do
     echo -e "${CYAN}      Argosbx 官方脚本 - 融合Git伴侣      ${RESET}"
     echo -e "${CYAN}=======================================${RESET}"
     if [ -f "$AGSBX_DIR/gl_token" ]; then
-        echo -e "当前状态: ${GREEN}已配置${RESET} (分支: $(cat "$AGSBX_DIR/gl_branch" 2>/dev/null))"
+        echo -e "当前状态: ${GREEN}已配置${RESET} (当前分支: ${YELLOW}$(cat "$AGSBX_DIR/gl_branch" 2>/dev/null)${RESET})"
     else
         echo -e "当前状态: ${RED}未配置${RESET}"
     fi
-    echo "1. 配置 GitLab 账户信息 (填入你的新Token)"
-    echo "2. 配置 多节点融合 (添加从机链接)"
-    echo "3. 执行 同步推送 (合并并上传)"
+    echo "1. 配置 GitLab 账户信息 (首次填Token用)"
+    echo "2. 单独 修改推送分支 (快速切换分支名)"
+    echo "3. 配置 多节点融合 (添加从机链接)"
+    echo "4. 执行 同步推送 (合并并上传)"
     echo "0. 退出"
     echo -e "${CYAN}---------------------------------------${RESET}"
-    read -p "请输入数字选择操作 [0-3]: " choice
+    read -p "请输入数字选择操作 [0-4]: " choice
     
     case $choice in
         1) do_config ;;
-        2) do_merge_config ;;
-        3) do_push ; break ;;
+        2) do_change_branch ;;
+        3) do_merge_config ;;
+        4) do_push ; break ;;
         0) echo "已退出。" ; break ;;
         *) echo -e "${RED}输入无效，请重新输入。${RESET}" ;;
     esac
