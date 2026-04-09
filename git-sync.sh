@@ -29,12 +29,19 @@ install_deps() {
 install_deps
 
 # ==========================================
-# 2. 快捷命令注册 (git sync)
+# 2. 极致快捷命令注册 (git sync / g / gg)
 # ==========================================
 if [ ! -f "/usr/local/bin/git-sync" ]; then
     cat "$0" > /usr/local/bin/git-sync
     chmod +x /usr/local/bin/git-sync
-    git config --global alias.sync "!/usr/local/bin/git-sync"
+fi
+
+if ! grep -q "alias g='/usr/local/bin/git-sync'" ~/.bashrc; then
+    echo "alias g='/usr/local/bin/git-sync'" >> ~/.bashrc
+    echo "alias gg='/usr/local/bin/git-sync push'" >> ~/.bashrc
+    source ~/.bashrc 2>/dev/null
+    echo -e "${GREEN}✅ 极致快捷命令已激活！日常修改敲 'g'，一键起飞敲 'gg'。${RESET}"
+    echo -e "${YELLOW}⚠️ 提示：如果按 g 提示找不到命令，请手动执行一次: source ~/.bashrc${RESET}"
 fi
 
 # ==========================================
@@ -47,10 +54,10 @@ do_config() {
     echo "提示：多台服务器请填写相同的Token和项目名，但使用不同的分支名！"
     echo "-------------------------------------------------"
     read -p "输入登录邮箱 (随意填): " email
-    read -p "输入访问令牌 (Access Token): " token
+    read -p "输入访问令牌 (Access Token，必须带 write_repository 权限): " token
     read -p "输入用户名 (User ID): " userid
     read -p "输入项目名 (Project Name): " project
-    read -p "输入分支名称 (主服务器填main, 从服务器填node2等): " branch
+    read -p "输入分支名称 (主服务器填main, 从机填node2等): " branch
     branch=${branch:-"main"}
 
     echo "$email" > "$AGSBX_DIR/gl_email"
@@ -99,7 +106,7 @@ do_push() {
         return
     fi
     if [ ! -f "$JH_FILE" ]; then
-        echo -e "${RED}❌ 未发现节点文件 jh.txt，请先运行官方 Argosbx 脚本！${RESET}"
+        echo -e "${RED}❌ 未发现节点文件 jh.txt，请先运行官方 Argosbx 脚本生成节点！${RESET}"
         return
     fi
 
@@ -139,14 +146,13 @@ do_push() {
         echo -e "${CYAN}$(cat jh_sub_gitlab.txt)${RESET}"
         echo -e "${GREEN}=================================================${RESET}"
     else
-        echo -e "\n${RED}❌ 推送失败！请检查 Token 权限或项目名是否正确。${RESET}"
+        echo -e "\n${RED}❌ 推送失败！请检查 Token 权限 (必须勾选 api 和 write_repository) 或项目名是否正确。${RESET}"
     fi
 }
 
 # ==========================================
 # 主程序：交互式菜单
 # ==========================================
-# 支持直接带参数运行
 if [ "$1" = "push" ]; then do_push; exit 0; fi
 
 while true; do
@@ -158,7 +164,7 @@ while true; do
     else
         echo -e "当前状态: ${RED}未配置${RESET}"
     fi
-    echo "1. 配置 GitLab 账户信息"
+    echo "1. 配置 GitLab 账户信息 (填入你的新Token)"
     echo "2. 配置 多节点融合 (添加从机链接)"
     echo "3. 执行 同步推送 (合并并上传)"
     echo "0. 退出"
