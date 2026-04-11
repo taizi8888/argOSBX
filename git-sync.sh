@@ -29,19 +29,27 @@ install_deps() {
 install_deps
 
 # ==========================================
-# 2. 极致快捷命令注册
+# 2. 实体快捷命令注册 (100% 绝对生效)
 # ==========================================
+# 复制主程序到系统目录
 if [ ! -f "/usr/local/bin/git-sync" ]; then
     cat "$0" > /usr/local/bin/git-sync
     chmod +x /usr/local/bin/git-sync
 fi
 
-if ! grep -q "alias g='/usr/local/bin/git-sync'" ~/.bashrc; then
-    echo "alias g='/usr/local/bin/git-sync'" >> ~/.bashrc
-    echo "alias gg='/usr/local/bin/git-sync push'" >> ~/.bashrc
-    source ~/.bashrc 2>/dev/null
-    echo -e "${GREEN}✅ 极致快捷命令已激活！日常修改敲 'g'，一键起飞敲 'gg'。${RESET}"
+# 创建实体快捷命令 g
+if [ ! -f "/usr/local/bin/g" ]; then
+    echo -e '#!/bin/bash\n/usr/local/bin/git-sync "$@"' > /usr/local/bin/g
+    chmod +x /usr/local/bin/g
 fi
+
+# 创建实体快捷命令 gg
+if [ ! -f "/usr/local/bin/gg" ]; then
+    echo -e '#!/bin/bash\n/usr/local/bin/git-sync push' > /usr/local/bin/gg
+    chmod +x /usr/local/bin/gg
+fi
+
+echo -e "${GREEN}✅ 实体快捷命令已激活！日常修改敲 'g'，一键起飞敲 'gg'（即刻生效）。${RESET}"
 
 # ==========================================
 # 模块 A：配置 GitLab
