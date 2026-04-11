@@ -100,7 +100,7 @@ process_folder() {
     if [ "$NEED_FFMPEG" = true ]; then
         echo "⏳ 正在静默提取 12 张 8K 截图 (防宕机并发模式)..."
         mkdir -p "$TMP_IMG_DIR"
-        MAX_JOBS=3  # 黄金并发数
+        MAX_JOBS=4  # 黄金并发数
         
         for i in {0..11}; do
             FILE_IDX=$(( i % NUM_FILES ))
