@@ -1,18 +1,10 @@
 #!/bin/bash
 
-# ==========================================
-# 颜色与全局变量
-# ==========================================
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# 强制设置基础环境变量，减少依赖
+export LANG=zh_CN.UTF-8
 
 ask_confirm() {
-    read -p "$(echo -e "${YELLOW}$1 [y/N]: ${NC}")" choice
+    read -p "$1 [y/N]: " choice
     case "$choice" in
         y|Y ) return 0 ;;
         * ) return 1 ;;
@@ -27,61 +19,57 @@ get_sys_info() {
     MEM_INFO=$(free -m | awk '/Mem:/ {printf "%d/%dMB (%.1f%%)", $3, $2, $3*100/$2}')
     DISK_USAGE=$(df -h / | awk '/\// {print $5}')
     
-    echo -e "${CYAN}================================================================${NC}"
-    echo -e "${YELLOW}系统状态:${NC} CPU: ${CPU_USAGE} | 内存: ${MEM_INFO} | 硬盘: ${DISK_USAGE}"
-    echo -e "${YELLOW}网络环境:${NC} 内网: ${LOCAL_IP} | 外网: ${PUB_IP}"
-    echo -e "${CYAN}================================================================${NC}"
+    echo "================================================================"
+    echo "系统状态: CPU: ${CPU_USAGE} | 内存: ${MEM_INFO} | 硬盘: ${DISK_USAGE}"
+    echo "网络环境: 内网: ${LOCAL_IP} | 外网: ${PUB_IP}"
+    echo "================================================================"
 }
 
 sys_optimization() {
-    echo -e "${PURPLE}--- 🚀 核心系统优化 ---${NC}"
-    echo -e "1. 开启 BBR 加速 | 2. 添加 Swap 虚拟内存 | 3. 安装 Docker | 4. 清理系统垃圾"
-    read -p "👉 请选择: " sys_opt
+    echo "--- 核心系统优化 ---"
+    echo "1. 开启 BBR 加速 | 2. 添加 Swap 虚拟内存 | 3. 安装 Docker | 4. 清理系统垃圾"
+    read -p "请选择: " sys_opt
     case $sys_opt in
         1) 
             if ask_confirm "确认开启 BBR 加速吗？"; then
                 echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
                 echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
                 sysctl -p
-                echo -e "${GREEN}✅ BBR 已开启！${NC}"
+                echo "BBR 已开启！"
             fi ;;
         2) 
             if ask_confirm "确认添加 Swap 虚拟内存吗？"; then
                 read -p "输入虚拟内存大小(MB): " swap_size
                 fallocate -l ${swap_size}M /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
                 echo '/swapfile none swap sw 0 0' >> /etc/fstab
-                echo -e "${GREEN}✅ Swap 添加成功！${NC}"
+                echo "Swap 添加成功！"
             fi ;;
         3) 
             if ask_confirm "确认安装 Docker 引擎吗？"; then
                 curl -fsSL https://get.docker.com | bash
                 systemctl enable docker && systemctl start docker
-                echo -e "${GREEN}✅ Docker 安装完毕！${NC}"
+                echo "Docker 安装完毕！"
             fi ;;
         4) 
             if ask_confirm "确认清理系统无用包和 Docker 垃圾吗？"; then
                 apt autoremove -y && apt clean
                 if command -v docker &> /dev/null; then docker system prune -a -f; fi
-                echo -e "${GREEN}✅ 垃圾清理完成！${NC}"
+                echo "垃圾清理完成！"
             fi ;;
     esac
     read -p "按回车返回主菜单..."
 }
 
-# ==========================================
-# 强化版：站点与反代签名一条龙
-# ==========================================
 manage_web() {
-    echo -e "${YELLOW}--- 🌐 站点与反代签名管理 ---${NC}"
-    echo -e "1. 🚀 一键配置反代并申请 SSL 证书 (一条龙推荐)"
-    echo -e "2. 仅单独申请 SSL 证书"
-    read -p "👉 请选择: " w_opt
+    echo "--- 站点与反代签名管理 ---"
+    echo "1. 一键配置反代并申请 SSL 证书 (一条龙推荐)"
+    echo "2. 仅单独申请 SSL 证书"
+    read -p "请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
-        read -p "👉 请输入要绑定的域名 (需已解析到本机): " dom
-        read -p "👉 请输入本地转发端口 (如 8080): " port
+        read -p "请输入要绑定的域名 (需已解析到本机): " dom
+        read -p "请输入本地转发端口 (如 8080): " port
         
-        # 写入基础 Nginx 规则
         cat > /etc/nginx/sites-available/$dom <<EOFSERVER
 server {
     listen 80;
@@ -98,28 +86,27 @@ server {
 EOFSERVER
         ln -sf /etc/nginx/sites-available/$dom /etc/nginx/sites-enabled/
         systemctl restart nginx
-        echo -e "${GREEN}✅ 基础 Nginx 反代规则已生成！${NC}"
+        echo "基础 Nginx 反代规则已生成！"
         
-        # 紧接着询问并自动签发证书
         if ask_confirm "是否立即为 [ $dom ] 签发并配置 SSL HTTPS 证书？(强烈建议)"; then
             if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-            echo -e "${CYAN}正在向 Let's Encrypt 申请证书并自动配置 Nginx...${NC}"
+            echo "正在向 Let's Encrypt 申请证书并自动配置 Nginx..."
             certbot --nginx -d $dom
-            echo -e "${GREEN}✅ 域名 $dom 的反代签名配置已全部完成！${NC}"
+            echo "域名 $dom 的反代签名配置已全部完成！"
         fi
 
     elif [ "$w_opt" == "2" ]; then
         if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-        read -p "👉 请输入域名: " dom
+        read -p "请输入域名: " dom
         certbot --nginx -d $dom
     fi
     read -p "按回车返回主菜单..."
 }
 
 manage_pt() {
-    echo -e "${BLUE}--- 🎬 PT 生产线全能管理 ---${NC}"
-    echo -e "1. 查看容器状态 | 2. qB 日志 | 3. 一键部署 qB | 4. 🚀 洗版发种引擎 (pt_make.sh)"
-    read -p "👉 请选择: " pt_opt
+    echo "--- PT 生产线全能管理 ---"
+    echo "1. 查看容器状态 | 2. qB 日志 | 3. 一键部署 qB | 4. 洗版发种引擎 (pt_make.sh)"
+    read -p "请选择: " pt_opt
     case $pt_opt in
         1) if command -v docker &> /dev/null; then docker ps -a; fi ;;
         2) docker logs -f --tail 50 qbittorrent-nox ;;
@@ -147,7 +134,7 @@ services:
     restart: always
 EOFQBIT
                 cd /home/docker/qbittorrent && docker compose up -d
-                echo -e "${GREEN}✅ 部署成功！访问地址: http://${PUB_IP}:8080${NC}"
+                echo "部署成功！访问地址: http://${PUB_IP}:8080"
             fi ;;
         4)
             if ask_confirm "确认拉取并运行 pt_make.sh？"; then
@@ -158,9 +145,9 @@ EOFQBIT
 }
 
 manage_node() {
-    echo -e "${CYAN}--- ✈️ 节点与科学上网管理 ---${NC}"
-    echo -e "1. 🚀 部署德泰专属 Argo (argosbxj.sh) | 2. WARP 管理"
-    read -p "👉 请选择: " n_opt
+    echo "--- 节点与科学上网管理 ---"
+    echo "1. 部署德泰专属 Argo (argosbxj.sh) | 2. WARP 管理"
+    read -p "请选择: " n_opt
     case $n_opt in
         1) if ask_confirm "部署 Argo 节点？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r'); fi ;;
         2) if command -v warp-cli &> /dev/null; then warp-cli status; fi ;;
@@ -170,15 +157,15 @@ manage_node() {
 
 while true; do
     get_sys_info
-    echo -e "  ${GREEN}1.${NC} 🚀 核心系统优化 ${YELLOW}(含BBR/Swap/清理)${NC}"
-    echo -e "  ${GREEN}2.${NC} 🌐 站点反代管理 ${YELLOW}(反代并签名SSL一条龙)${NC}"
-    echo -e "  ${GREEN}3.${NC} 🎬 PT 下载与制种 ${YELLOW}(qB部署/pt_make发种)${NC}"
-    echo -e "  ${GREEN}4.${NC} ✈️ 节点与科学上网 ${YELLOW}(德泰专属 Argo/WARP)${NC}"
-    echo -e "  ${GREEN}5.${NC} 🐙 Git 自动化同步 ${YELLOW}(执行 git-sync.sh)${NC}"
-    echo -e "  ${CYAN}------------------------------------------------${NC}"
-    echo -e "  ${GREEN}8.${NC} 🔄 云端在线更新   | ${RED}0.${NC} 退出"
-    echo -e "${CYAN}================================================================${NC}"
-    read -p "👉 请输入指令: " choice
+    echo "  1. 核心系统优化 (含BBR/Swap/清理)"
+    echo "  2. 站点反代管理 (反代并签名SSL一条龙)"
+    echo "  3. PT 下载与制种 (qB部署/pt_make发种)"
+    echo "  4. 节点与科学上网 (德泰专属 Argo/WARP)"
+    echo "  5. Git 自动化同步 (执行 git-sync.sh)"
+    echo "------------------------------------------------"
+    echo "  8. 云端在线更新   | 0. 退出"
+    echo "================================================================"
+    read -p "请输入指令: " choice
 
     case $choice in
         1) sys_optimization ;;
