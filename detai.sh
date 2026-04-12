@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 强制设置基础环境变量，减少依赖
+# 强制设置基础环境变量
 export LANG=zh_CN.UTF-8
 
 ask_confirm() {
@@ -51,7 +51,7 @@ sys_optimization() {
                 echo "Docker 安装完毕！"
             fi ;;
         4) 
-            if ask_confirm "确认清理系统无用包和 Docker 垃圾吗？"; then
+            if ask_confirm "确认清理系统垃圾吗？"; then
                 apt autoremove -y && apt clean
                 if command -v docker &> /dev/null; then docker system prune -a -f; fi
                 echo "垃圾清理完成！"
@@ -60,15 +60,25 @@ sys_optimization() {
     read -p "按回车返回主菜单..."
 }
 
+# 提取出的复用函数：添加自动续签定时任务
+add_ssl_cron() {
+    if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
+        (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --post-hook \"systemctl reload nginx\"") | crontab -
+        echo "SSL 证书自动续签任务已添加 (每天凌晨2点后台静默检查)！"
+    else
+        echo "SSL 证书自动续签任务已存在，无需重复添加！"
+    fi
+}
+
 manage_web() {
     echo "--- 站点与反代签名管理 ---"
-    echo "1. 一键配置反代并申请 SSL 证书 (一条龙推荐)"
-    echo "2. 仅单独申请 SSL 证书"
+    echo "1. 一键配置反代并自动申请 SSL (静默模式 + 自动续签)"
+    echo "2. 仅单独申请 SSL 证书 (包含自动续签)"
     read -p "请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
-        read -p "请输入要绑定的域名 (需已解析到本机): " dom
-        read -p "请输入本地转发端口 (如 8080): " port
+        read -p "请输入域名: " dom
+        read -p "请输入本地端口: " port
         
         cat > /etc/nginx/sites-available/$dom <<EOFSERVER
 server {
@@ -86,32 +96,35 @@ server {
 EOFSERVER
         ln -sf /etc/nginx/sites-available/$dom /etc/nginx/sites-enabled/
         systemctl restart nginx
-        echo "基础 Nginx 反代规则已生成！"
         
-        if ask_confirm "是否立即为 [ $dom ] 签发并配置 SSL HTTPS 证书？(强烈建议)"; then
+        if ask_confirm "是否立即自动签发 SSL HTTPS 证书？"; then
             if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-            echo "正在向 Let's Encrypt 申请证书并自动配置 Nginx..."
-            certbot --nginx -d $dom
-            echo "域名 $dom 的反代签名配置已全部完成！"
+            echo "正在静默签发证书..."
+            certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
+            add_ssl_cron
+            echo "域名 $dom 的反代与 SSL 已全部自动完成！"
         fi
 
     elif [ "$w_opt" == "2" ]; then
         if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
         read -p "请输入域名: " dom
-        certbot --nginx -d $dom
+        echo "正在静默签发证书..."
+        certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
+        add_ssl_cron
+        echo "域名 $dom 的 SSL 证书已申请完成！"
     fi
     read -p "按回车返回主菜单..."
 }
 
 manage_pt() {
     echo "--- PT 生产线全能管理 ---"
-    echo "1. 查看容器状态 | 2. qB 日志 | 3. 一键部署 qB | 4. 洗版发种引擎 (pt_make.sh)"
+    echo "1. 查看容器状态 | 2. qB 日志 | 3. 一键部署 qB | 4. 洗版发种引擎"
     read -p "请选择: " pt_opt
     case $pt_opt in
         1) if command -v docker &> /dev/null; then docker ps -a; fi ;;
         2) docker logs -f --tail 50 qbittorrent-nox ;;
         3) 
-            if ask_confirm "确认部署 qBittorrent 容器吗？"; then
+            if ask_confirm "确认部署 qB 容器吗？"; then
                 mkdir -p /home/docker/qbittorrent/{config,downloads}
                 cat > /home/docker/qbittorrent/docker-compose.yml <<EOFQBIT
 version: "3"
@@ -137,7 +150,7 @@ EOFQBIT
                 echo "部署成功！访问地址: http://${PUB_IP}:8080"
             fi ;;
         4)
-            if ask_confirm "确认拉取并运行 pt_make.sh？"; then
+            if ask_confirm "运行 pt_make.sh？"; then
                 bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r')
             fi ;;
     esac
@@ -146,7 +159,7 @@ EOFQBIT
 
 manage_node() {
     echo "--- 节点与科学上网管理 ---"
-    echo "1. 部署德泰专属 Argo (argosbxj.sh) | 2. WARP 管理"
+    echo "1. 部署 Argo 节点 | 2. WARP 管理"
     read -p "请选择: " n_opt
     case $n_opt in
         1) if ask_confirm "部署 Argo 节点？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r'); fi ;;
@@ -158,9 +171,9 @@ manage_node() {
 while true; do
     get_sys_info
     echo "  1. 核心系统优化 (含BBR/Swap/清理)"
-    echo "  2. 站点反代管理 (反代并签名SSL一条龙)"
+    echo "  2. 站点反代管理 (一键自动 SSL + 自动续签)"
     echo "  3. PT 下载与制种 (qB部署/pt_make发种)"
-    echo "  4. 节点与科学上网 (德泰专属 Argo/WARP)"
+    echo "  4. 节点与科学上网 (Argo/WARP)"
     echo "  5. Git 自动化同步 (执行 git-sync.sh)"
     echo "------------------------------------------------"
     echo "  8. 云端在线更新   | 0. 退出"
