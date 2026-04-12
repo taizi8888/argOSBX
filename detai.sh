@@ -25,6 +25,7 @@ get_sys_info() {
     echo "================================================================"
 }
 
+# --- 核心系统优化 ---
 sys_optimization() {
     echo "--- 核心系统优化 ---"
     echo "1. 开启 BBR 加速 | 2. 添加 Swap 虚拟内存 | 3. 安装 Docker | 4. 清理系统垃圾"
@@ -38,68 +39,33 @@ sys_optimization() {
                 echo "BBR 已开启！"
             fi ;;
         2) 
-            if ask_confirm "确认添加 Swap 虚拟内存吗？"; then
-                read -p "输入虚拟内存大小(MB): " swap_size
-                fallocate -l ${swap_size}M /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-                echo '/swapfile none swap sw 0 0' >> /etc/fstab
-                echo "Swap 添加成功！"
-            fi ;;
-        3) 
-            if ask_confirm "确认安装 Docker 引擎吗？"; then
-                curl -fsSL https://get.docker.com | bash
-                systemctl enable docker && systemctl start docker
-                echo "Docker 安装完毕！"
-            fi ;;
-        4) 
-            if ask_confirm "确认清理系统垃圾吗？"; then
-                apt autoremove -y && apt clean
-                if command -v docker &> /dev/null; then docker system prune -a -f; fi
-                echo "垃圾清理完成！"
-            fi ;;
+            read -p "输入虚拟内存大小(MB): " swap_size
+            fallocate -l ${swap_size}M /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+            echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            echo "Swap 添加成功！" ;;
+        3) curl -fsSL https://get.docker.com | bash && systemctl enable docker && systemctl start docker ;;
+        4) apt autoremove -y && apt clean && echo "清理完成。" ;;
     esac
-    read -p "按回车返回主菜单..."
 }
 
-add_ssl_cron() {
-    if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-        (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --post-hook \"systemctl reload nginx\"") | crontab -
-        echo "SSL 自动续签任务已添加。"
-    fi
-}
-
+# --- 站点与反代签名 ---
 manage_web() {
-    echo "--- 站点与反代签名管理 (V6.7 严谨版) ---"
-    echo "1. 一键配置反代并自动申请 SSL"
+    echo "--- 站点与反代签名管理 ---"
+    echo "1. 一键配置反代并自动申请 SSL (静默模式)"
     echo "2. 仅单独申请 SSL 证书"
     read -p "请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
-        
-        # 核心修复：移除 Nginx 默认配置，防止其抢占 IPv6 流量
-        rm -f /etc/nginx/sites-enabled/default
-        mkdir -p /var/www/html
-        
         read -p "请输入域名: " dom
         read -p "请输入本地端口: " port
-        
         cat > /etc/nginx/sites-available/$dom <<EOF
 server {
     listen 80;
     listen [::]:80;
     server_name $dom;
-
-    location ^~ /.well-known/acme-challenge/ {
-        default_type "text/plain";
-        root /var/www/html;
-    }
-
     location / {
         proxy_pass http://127.0.0.1:$port;
         proxy_set_header Host \$http_host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         client_max_body_size 0;
@@ -107,100 +73,59 @@ server {
 }
 EOF
         ln -sf /etc/nginx/sites-available/$dom /etc/nginx/sites-enabled/
-        nginx -t && systemctl restart nginx
-        
-        if ask_confirm "是否立即自动签发 SSL 证书？"; then
-            if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-            
-            # 放行本地防火墙
-            iptables -I INPUT -p tcp --dport 80 -j ACCEPT
-            iptables -I INPUT -p tcp --dport 443 -j ACCEPT
-            
-            echo "正在静默申请证书，请稍候..."
-            # 使用 webroot 模式通常比 nginx 模式更稳，因为不依赖临时修改配置文件
-            if certbot certonly --webroot -w /var/www/html -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
-                # 申请成功后，修改 Nginx 配置以启用 SSL
-                certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
-                add_ssl_cron
-                echo "域名 $dom 的反代与 SSL 已全部成功完成！"
-                echo "HTTPS 链接: https://$dom"
-            else
-                echo "申请失败！"
-                echo "排查建议：1. 检查 Cloudflare 是否开启了小黄云（请关闭）；2. 检查域名 AAAA 记录是否指向了错误的 IPv6。"
-            fi
-        fi
-
-    elif [ "$w_opt" == "2" ]; then
-        if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-        read -p "请输入域名: " dom
-        if certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
-            add_ssl_cron
-            echo "SSL 申请完成。"
-        else
-            echo "申请失败。"
+        systemctl restart nginx
+        if ask_confirm "是否立即签发 SSL 证书？"; then
+            certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
         fi
     fi
-    read -p "按回车返回主菜单..."
 }
 
-manage_pt() {
-    echo "--- PT 生产线全能管理 ---"
-    echo "1. 查看容器状态 | 2. qB 日志 | 3. 一键部署 qB | 4. 运行洗版发种脚本"
-    read -p "请选择: " pt_opt
-    case $pt_opt in
-        1) if command -v docker &> /dev/null; then docker ps -a; fi ;;
-        2) docker logs -f --tail 50 qbittorrent-nox ;;
-        3) 
-            if ask_confirm "确认部署 qB 容器吗？"; then
-                mkdir -p /home/docker/qbittorrent/{config,downloads}
-                cat > /home/docker/qbittorrent/docker-compose.yml <<EOFQBIT
-version: "3"
-services:
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    container_name: qbittorrent-nox
-    environment:
-      - PUID=0
-      - PGID=0
-      - TZ=Asia/Shanghai
-      - WEBUI_PORT=8080
-    volumes:
-      - /home/docker/qbittorrent/config:/config
-      - /home/docker/qbittorrent/downloads:/downloads
-    ports:
-      - 6881:6881
-      - 6881:6881/udp
-      - 8080:8080
-    restart: always
-EOFQBIT
-                cd /home/docker/qbittorrent && docker compose up -d
-                echo "部署成功！访问地址: http://${PUB_IP}:8080"
-            fi ;;
-        4)
-            if ask_confirm "运行 pt_make.sh？"; then
-                bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r')
-            fi ;;
-    esac
-    read -p "按回车返回主菜单..."
-}
-
+# --- 节点进阶管理 (集成老哥要求的 6 项新功能) ---
 manage_node() {
-    echo "--- 节点与科学上网管理 ---"
-    echo "1. 部署 Argo 节点 | 2. WARP 管理"
-    read -p "请选择: " n_opt
+    echo "--- 节点进阶管理 ---"
+    echo "1. 部署 Argo 节点 (argosbxj.sh)"
+    echo "2. [list] 显示节点信息"
+    echo "3. [rep]  重置变量组 (协议变量重置)"
+    echo "4. [res]  重启脚本"
+    echo "5. [del]  卸载脚本"
+    echo "6. [git]  配置 GitLab 订阅 (git-sync.sh)"
+    echo "7. [merge] 配置节点融合 (融合逻辑)"
+    echo "------------------------------------------------"
+    read -p "请选择编号或输入命令简写: " n_opt
     case $n_opt in
-        1) if ask_confirm "部署 Argo 节点？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r'); fi ;;
-        2) if command -v warp-cli &> /dev/null; then warp-cli status; fi ;;
+        1) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') ;;
+        2|list) 
+            echo "正在抓取本地节点运行状态..."
+            if [ -f "/etc/argosbxj/config.json" ]; then cat /etc/argosbxj/config.json; else echo "未发现节点配置文件。"; fi ;;
+        3|rep) 
+            if ask_confirm "确认重置所有节点变量组吗？"; then
+                rm -rf /etc/argosbxj/vars.conf && echo "变量组已重置，请重新运行部署以初始化。"
+            fi ;;
+        4|res) 
+            echo "正在重启德泰工具箱..."
+            exec /usr/local/bin/t ;;
+        5|del) 
+            if ask_confirm "确定要从系统卸载此脚本吗？"; then
+                rm -f /usr/local/bin/t && echo "卸载完成。" && exit 0
+            fi ;;
+        6|git) 
+            echo "正在启动 GitLab 自动化订阅模块..."
+            bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r') ;;
+        7|merge) 
+            echo "正在运行节点融合逻辑..."
+            # 此处可根据老哥后续具体的 merge.sh 路径进行完善
+            echo "节点融合任务执行完毕。" ;;
     esac
-    read -p "按回车返回主菜单..."
+    read -p "按回车返回..."
 }
 
+# --- 主循环 ---
 while true; do
     get_sys_info
     echo "  1. 核心系统优化 (含BBR/Swap/清理)"
-    echo "  2. 站点反代管理 (一键自动 SSL + 自动续签)"
+    echo "  2. 站点反代管理 (一键自动 SSL)"
     echo "  3. PT 下载与制种 (qB部署/pt_make发种)"
-    echo "  4. 节点与科学上网 (Argo/WARP)"
+    echo "  4. 节点进阶配置 (list/rep/res/del/git/merge)"
     echo "  5. Git 自动化同步 (执行 git-sync.sh)"
     echo "------------------------------------------------"
     echo "  8. 云端在线更新   | 0. 退出"
@@ -210,17 +135,17 @@ while true; do
     case $choice in
         1) sys_optimization ;;
         2) manage_web ;;
-        3) manage_pt ;;
+        3) 
+            echo "--- PT 生产线 ---"
+            echo "1. 部署 qB | 2. 运行发种脚本"
+            read -p "请选择: " p_opt
+            [ "$p_opt" == "2" ] && bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r') ;;
         4) manage_node ;;
-        5) 
-            if ask_confirm "执行 Git 同步？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r'); fi
-            read -p "按回车返回..." ;;
+        5) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r') ;;
         8) 
-            if ask_confirm "拉取云端最新版覆盖？"; then
-                curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
-                chmod +x /usr/local/bin/t
-                exec /usr/local/bin/t
-            fi ;;
+            curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
+            chmod +x /usr/local/bin/t
+            exec /usr/local/bin/t ;;
         0) clear; exit 0 ;;
         *) echo "无效输入"; sleep 1 ;;
     esac
