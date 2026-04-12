@@ -45,6 +45,22 @@ BASE_DIR="/home/docker/qbittorrent/downloads"
 TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 TMP_IMG_DIR="/tmp/pt_screens_$(date +%s)"
 
+# ==========================================
+# 0.8 在线更新功能 (新增)
+# ==========================================
+update_script() {
+    echo "⏳ 正在从云端获取最新版本..."
+    # 使用你提供的 URL 进行更新，并过滤掉 Windows 换行符
+    if curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r' > "$SCRIPT_PATH"; then
+        chmod +x "$SCRIPT_PATH"
+        echo "✅ 更新成功！正在重新启动脚本..."
+        sleep 1
+        exec "$SCRIPT_PATH"
+    else
+        echo "❌ 更新失败，请检查网络连接。"
+    fi
+}
+
 process_folder() {
     local FOLDER_NAME=$1
     local FOLDER_PATH="$BASE_DIR/$FOLDER_NAME"
@@ -61,7 +77,7 @@ process_folder() {
         return
     fi
 
-    # 2. 净网与去水印逻辑 (保持原有精华)
+    # 2. 净网与去水印逻辑
     find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.lnk" -o -iname "*.html" -o -iname "*.htm" -o -iname "*.exe" -o -iname "*.bat" -o -iname "*.cmd" -o -iname "*.vbs" -o -iname "*.chm" \) -delete > /dev/null 2>&1
     find "$FOLDER_PATH" -type f -iname "*.mp4" -size -50M -delete > /dev/null 2>&1
     for file in "$FOLDER_PATH"/*; do
@@ -161,11 +177,12 @@ process_folder() {
 echo "======================================"
 echo " 🚀 PT 终极自愈流水线 V4.5 (增强版 2x8)"
 echo "======================================"
-echo " 1. 手动模式"
+echo " 1. 手动模式 (处理单个文件夹)"
 echo " 2. 自动模式 (全盘增量扫描)"
-echo " 3. 退出脚本"
+echo " 3. 🔄 在线更新脚本 (云端同步)"
+echo " 4. 退出脚本"
 echo "======================================"
-read -p "选择模式 [1-3]: " RUN_MODE
+read -p "选择模式 [1-4]: " RUN_MODE
 case $RUN_MODE in
     1) read -p "文件夹名: " MN; process_folder "$MN" ;;
     2) 
@@ -173,5 +190,6 @@ case $RUN_MODE in
             [ -d "$dir" ] && process_folder "$(basename "$dir")"
         done 
         ;;
-    3|q|Q) exit 0 ;;
+    3) update_script ;;
+    4|q|Q) exit 0 ;;
 esac
