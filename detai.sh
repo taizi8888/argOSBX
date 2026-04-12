@@ -60,30 +60,36 @@ sys_optimization() {
     read -p "按回车返回主菜单..."
 }
 
-# 提取出的复用函数：添加自动续签定时任务
 add_ssl_cron() {
     if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
         (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --post-hook \"systemctl reload nginx\"") | crontab -
-        echo "SSL 证书自动续签任务已添加 (每天凌晨2点后台静默检查)！"
+        echo "SSL 证书自动续签任务已添加 (每天凌晨2点后台静默检查)。"
     else
-        echo "SSL 证书自动续签任务已存在，无需重复添加！"
+        echo "SSL 证书自动续签任务已存在。"
     fi
 }
 
 manage_web() {
     echo "--- 站点与反代签名管理 ---"
-    echo "1. 一键配置反代并自动申请 SSL (静默模式 + 自动续签)"
-    echo "2. 仅单独申请 SSL 证书 (包含自动续签)"
+    echo "1. 一键配置反代并自动申请 SSL"
+    echo "2. 仅单独申请 SSL 证书"
     read -p "请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
         read -p "请输入域名: " dom
         read -p "请输入本地端口: " port
         
+        # 核心修复：增加 acme-challenge 专属拦截，防止后端应用吞掉验证文件
         cat > /etc/nginx/sites-available/$dom <<EOFSERVER
 server {
     listen 80;
     server_name $dom;
+
+    location ^~ /.well-known/acme-challenge/ {
+        default_type "text/plain";
+        root /var/www/html;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:$port;
         proxy_set_header Host \$http_host;
@@ -99,19 +105,26 @@ EOFSERVER
         
         if ask_confirm "是否立即自动签发 SSL HTTPS 证书？"; then
             if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-            echo "正在静默签发证书..."
-            certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
-            add_ssl_cron
-            echo "域名 $dom 的反代与 SSL 已全部自动完成！"
+            echo "正在静默签发证书，请稍候..."
+            # 核心修复：加入严格的成功/失败判定逻辑
+            if certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
+                add_ssl_cron
+                echo "域名 $dom 的反代与 SSL 已全部成功完成！"
+            else
+                echo "【失败】证书申请被拒绝！请检查排错清单(CF黄云/443端口/域名解析)。"
+            fi
         fi
 
     elif [ "$w_opt" == "2" ]; then
         if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
         read -p "请输入域名: " dom
         echo "正在静默签发证书..."
-        certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
-        add_ssl_cron
-        echo "域名 $dom 的 SSL 证书已申请完成！"
+        if certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
+            add_ssl_cron
+            echo "域名 $dom 的 SSL 证书已申请完成！"
+        else
+            echo "【失败】证书申请被拒绝！请检查排错清单。"
+        fi
     fi
     read -p "按回车返回主菜单..."
 }
