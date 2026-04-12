@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# 颜色与全局变量 (最原生的 Bash 变色逻辑)
+# 颜色与全局变量
 # ==========================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -68,21 +68,50 @@ sys_optimization() {
     read -p "按回车返回主菜单..."
 }
 
+# ==========================================
+# 强化版：站点与反代签名一条龙
+# ==========================================
 manage_web() {
-    echo -e "${YELLOW}--- 🌐 站点与反代管理 ---${NC}"
-    echo -e "1. 绑定域名反代 (配Nginx) | 2. 申请 SSL 证书"
+    echo -e "${YELLOW}--- 🌐 站点与反代签名管理 ---${NC}"
+    echo -e "1. 🚀 一键配置反代并申请 SSL 证书 (一条龙推荐)"
+    echo -e "2. 仅单独申请 SSL 证书"
     read -p "👉 请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
-        read -p "域名: " dom && read -p "本地端口: " port
+        read -p "👉 请输入要绑定的域名 (需已解析到本机): " dom
+        read -p "👉 请输入本地转发端口 (如 8080): " port
+        
+        # 写入基础 Nginx 规则
         cat > /etc/nginx/sites-available/$dom <<EOFSERVER
-server { listen 80; server_name $dom; location / { proxy_pass http://127.0.0.1:$port; client_max_body_size 50000m; } }
+server {
+    listen 80;
+    server_name $dom;
+    location / {
+        proxy_pass http://127.0.0.1:$port;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        client_max_body_size 50000m;
+    }
+}
 EOFSERVER
-        ln -sf /etc/nginx/sites-available/$dom /etc/nginx/sites-enabled/ && systemctl restart nginx
-        echo -e "${GREEN}✅ 域名绑定成功！${NC}"
+        ln -sf /etc/nginx/sites-available/$dom /etc/nginx/sites-enabled/
+        systemctl restart nginx
+        echo -e "${GREEN}✅ 基础 Nginx 反代规则已生成！${NC}"
+        
+        # 紧接着询问并自动签发证书
+        if ask_confirm "是否立即为 [ $dom ] 签发并配置 SSL HTTPS 证书？(强烈建议)"; then
+            if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
+            echo -e "${CYAN}正在向 Let's Encrypt 申请证书并自动配置 Nginx...${NC}"
+            certbot --nginx -d $dom
+            echo -e "${GREEN}✅ 域名 $dom 的反代签名配置已全部完成！${NC}"
+        fi
+
     elif [ "$w_opt" == "2" ]; then
         if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-        read -p "域名: " dom && certbot --nginx -d $dom
+        read -p "👉 请输入域名: " dom
+        certbot --nginx -d $dom
     fi
     read -p "按回车返回主菜单..."
 }
@@ -122,7 +151,6 @@ EOFQBIT
             fi ;;
         4)
             if ask_confirm "确认拉取并运行 pt_make.sh？"; then
-                # 加入了 tr -d '\r' 过滤
                 bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r')
             fi ;;
     esac
@@ -143,7 +171,7 @@ manage_node() {
 while true; do
     get_sys_info
     echo -e "  ${GREEN}1.${NC} 🚀 核心系统优化 ${YELLOW}(含BBR/Swap/清理)${NC}"
-    echo -e "  ${GREEN}2.${NC} 🌐 站点反代管理 ${YELLOW}(域名绑定/SSL证书)${NC}"
+    echo -e "  ${GREEN}2.${NC} 🌐 站点反代管理 ${YELLOW}(反代并签名SSL一条龙)${NC}"
     echo -e "  ${GREEN}3.${NC} 🎬 PT 下载与制种 ${YELLOW}(qB部署/pt_make发种)${NC}"
     echo -e "  ${GREEN}4.${NC} ✈️ 节点与科学上网 ${YELLOW}(德泰专属 Argo/WARP)${NC}"
     echo -e "  ${GREEN}5.${NC} 🐙 Git 自动化同步 ${YELLOW}(执行 git-sync.sh)${NC}"
@@ -162,7 +190,6 @@ while true; do
             read -p "按回车返回..." ;;
         8) 
             if ask_confirm "拉取云端最新版覆盖？"; then
-                # 在线更新时，自动粉碎回车符
                 curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
                 chmod +x /usr/local/bin/t
                 exec /usr/local/bin/t
