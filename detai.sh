@@ -1,4 +1,3 @@
-cat > /usr/local/bin/detai <<'EOF'
 #!/bin/bash
 
 # ==========================================
@@ -114,7 +113,6 @@ EOFQBIT
             ;;
         4)
             echo -e "${PURPLE}--- 🚀 正在从你的 Github 唤醒 PT 洗版发种引擎 ---${NC}"
-            # 完美对接老哥的专属 pt_make.sh
             bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh)
             ;;
     esac
@@ -163,7 +161,7 @@ while true; do
     echo -e "  ${GREEN}4.${NC} ✈️ 节点与科学上网 ${YELLOW}(德泰专属 Argo/WARP)${NC}"
     echo -e "  ${GREEN}5.${NC} 🐙 Git 自动化同步 ${YELLOW}(执行 git-sync.sh)${NC}"
     echo -e "  ${CYAN}------------------------------------------------${NC}"
-    echo -e "  ${GREEN}8.${NC} 🔄 更新脚本权限 | ${RED}0.${NC} 退出"
+    echo -e "  ${GREEN}8.${NC} 🔄 云端在线更新   | ${RED}0.${NC} 退出"
     echo -e "${CYAN}================================================================${NC}"
     read -p "👉 请输入指令: " choice
 
@@ -177,10 +175,14 @@ while true; do
             bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh)
             read -p "按回车返回主菜单..."
             ;;
-        8) chmod +x /usr/local/bin/detai && echo "重载成功" ;;
+        8) 
+            echo -e "${YELLOW}正在从云端拉取最新版工具箱...${NC}"
+            curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh -o /usr/local/bin/detai
+            chmod +x /usr/local/bin/detai
+            echo -e "${GREEN}✅ 脚本已升级到最新云端版本并重载成功！${NC}"
+            sleep 1
+            ;;
         0) clear; exit 0 ;;
         *) echo "无效输入"; sleep 1 ;;
     esac
 done
-EOF
-chmod +x /usr/local/bin/detai
