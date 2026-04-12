@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# 强制设置基础环境变量
 export LANG=zh_CN.UTF-8
 
 ask_confirm() {
@@ -67,16 +68,20 @@ add_ssl_cron() {
 }
 
 manage_web() {
-    echo "--- 站点与反代签名管理 (IPv6 兼容版) ---"
-    echo "1. 一键配置反代并自动申请 SSL (静默安装一条龙)"
+    echo "--- 站点与反代签名管理 (V6.7 严谨版) ---"
+    echo "1. 一键配置反代并自动申请 SSL"
     echo "2. 仅单独申请 SSL 证书"
     read -p "请选择: " w_opt
     if [ "$w_opt" == "1" ]; then
         if ! command -v nginx &> /dev/null; then apt update && apt install nginx -y; fi
+        
+        # 核心修复：移除 Nginx 默认配置，防止其抢占 IPv6 流量
+        rm -f /etc/nginx/sites-enabled/default
+        mkdir -p /var/www/html
+        
         read -p "请输入域名: " dom
         read -p "请输入本地端口: " port
         
-        # 核心：支持 IPv4/IPv6 双栈监听
         cat > /etc/nginx/sites-available/$dom <<EOF
 server {
     listen 80;
@@ -106,15 +111,22 @@ EOF
         
         if ask_confirm "是否立即自动签发 SSL 证书？"; then
             if ! command -v certbot &> /dev/null; then apt update && apt install certbot python3-certbot-nginx -y; fi
-            # 尝试放行本地 80/443
+            
+            # 放行本地防火墙
             iptables -I INPUT -p tcp --dport 80 -j ACCEPT
             iptables -I INPUT -p tcp --dport 443 -j ACCEPT
-            echo "正在申请证书，请稍候..."
-            if certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
+            
+            echo "正在静默申请证书，请稍候..."
+            # 使用 webroot 模式通常比 nginx 模式更稳，因为不依赖临时修改配置文件
+            if certbot certonly --webroot -w /var/www/html -d $dom --non-interactive --agree-tos --register-unsafely-without-email; then
+                # 申请成功后，修改 Nginx 配置以启用 SSL
+                certbot --nginx -d $dom --non-interactive --agree-tos --register-unsafely-without-email
                 add_ssl_cron
-                echo "配置成功！HTTPS 链接: https://$dom"
+                echo "域名 $dom 的反代与 SSL 已全部成功完成！"
+                echo "HTTPS 链接: https://$dom"
             else
-                echo "申请失败！检测到 DNS 中有 IPv6 记录但验证不通，建议去解析商处删除 AAAA 记录后再试。"
+                echo "申请失败！"
+                echo "排查建议：1. 检查 Cloudflare 是否开启了小黄云（请关闭）；2. 检查域名 AAAA 记录是否指向了错误的 IPv6。"
             fi
         fi
 
