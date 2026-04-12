@@ -6,7 +6,6 @@ export LANG=zh_CN.UTF-8
 # ==========================================
 # 0. 首次运行初始化 (彻底解决 Pipe 别名失效问题)
 # ==========================================
-# 如果当前运行的不是 /usr/local/bin/p，说明是从网络 curl 或者其他地方启动的
 if [ ! -f "/usr/local/bin/p" ] || [ "$(readlink -f "$0")" != "/usr/local/bin/p" ]; then
     echo "======================================"
     echo " ✨ 正在将脚本固化为系统全局指令 'p'..."
@@ -36,12 +35,12 @@ check_env() {
     
     if [ ${#missing[@]} -gt 0 ]; then
         echo "======================================"
-        echo " ⚠️ 检测到新机器缺失核心组件: ${missing[*]}"
+        echo " 检测到新机器缺失核心组件: ${missing[*]}"
         echo " ⏳ 正在自动为您呼叫支援安装，请稍候..."
         echo "======================================"
         sudo apt-get update -y > /dev/null 2>&1
         sudo apt-get install -y mediainfo mktorrent ffmpeg > /dev/null 2>&1
-        echo " ✅ 环境装配完毕！弹药已上膛 🚀"
+        echo " ✅ 环境装配完毕！弹药已上膛"
         echo "--------------------------------------"
     fi
 }
@@ -53,7 +52,7 @@ TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 TMP_IMG_DIR="/tmp/pt_screens_$(date +%s)"
 
 # ==========================================
-# 0.8 在线更新功能 (适配固化路径)
+# 0.8 在线更新功能
 # ==========================================
 update_script() {
     echo "⏳ 正在从云端获取最新版本..."
@@ -75,11 +74,11 @@ process_folder() {
     local STITCHED_IMG="$BASE_DIR/${FOLDER_NAME}_Stitched_4K.jpg"
 
     echo "------------------------------------------------"
-    echo "📂 检查目录: $FOLDER_NAME"
+    echo " 检查目录: $FOLDER_NAME"
 
     # 1. 终极防御：拦截 .!qB
     if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then
-        echo "🚧 拦截：该目录仍在下载中 (检测到 .!qB 文件)，跳过处理。"
+        echo " 拦截：该目录仍在下载中 (检测到 .!qB 文件)，跳过处理。"
         return
     fi
 
@@ -99,7 +98,7 @@ process_folder() {
     mapfile -t VIDEO_FILES < <(find "$FOLDER_PATH" -maxdepth 1 -iname "*.mp4" | sort)
     NUM_FILES=${#VIDEO_FILES[@]}
     if [ "$NUM_FILES" -eq 0 ]; then
-        echo "⚠️  跳过：未发现 mp4 视频。"
+        echo " 跳过：未发现 mp4 视频。"
         return
     fi
 
@@ -181,21 +180,22 @@ process_folder() {
 # 主菜单
 # ==========================================
 echo "======================================"
-echo " 🚀 PT 终极自愈流水线 V4.6 (固化防丢版)"
+echo "  PT 终极自愈流水线 V4.6 (固化防丢版)"
 echo "======================================"
 echo " 1. 手动模式 (处理单个文件夹)"
 echo " 2. 自动模式 (全盘增量扫描)"
-echo " 3. 🔄 在线更新脚本 (云端同步)"
+echo " 3. 在线更新脚本 (云端同步)"
 echo " 4. 退出脚本"
 echo "======================================"
 read -p "选择模式 [1-4]: " RUN_MODE
 case $RUN_MODE in
     1) read -p "文件夹名: " MN; process_folder "$MN" ;;
     2) 
+        echo " 正在扫描下载目录..."
         for dir in "$BASE_DIR"/*; do 
             [ -d "$dir" ] && process_folder "$(basename "$dir")"
         done 
         ;;
     3) update_script ;;
-    4|q|Q) exit 0 ;;
+    4|q|Q) echo " 已退出。"; exit 0 ;;
 esac
