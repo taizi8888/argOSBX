@@ -243,12 +243,14 @@ while true; do
         8) 
             if ask_confirm "确认从 Github 拉取最新版覆盖当前脚本吗？"; then
                 echo -e "${YELLOW}正在拉取...${NC}"
-                curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh -o /usr/local/bin/detai
-                chmod +x /usr/local/bin/detai
+                # 核心改动点：下载目标路径改为 /usr/local/bin/t
+                curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh -o /usr/local/bin/t
+                chmod +x /usr/local/bin/t
                 echo -e "${GREEN}✅ 更新完成！即将重新加载...${NC}"
                 sleep 1
                 clear
-                exec /usr/local/bin/detai
+                # 核心改动点：重启时执行 t
+                exec /usr/local/bin/t
             fi
             ;;
         0) clear; exit 0 ;;
