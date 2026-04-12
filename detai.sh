@@ -80,43 +80,28 @@ EOF
     fi
 }
 
-# --- 节点进阶管理 (集成老哥要求的 6 项新功能) ---
+# --- 节点进阶管理 (全部路由至 argosbxj.sh 进行底层传参处理) ---
 manage_node() {
     echo "--- 节点进阶管理 ---"
-    echo "1. 部署 Argo 节点 (argosbxj.sh)"
-    echo "2. [list] 显示节点信息"
-    echo "3. [rep]  重置变量组 (协议变量重置)"
-    echo "4. [res]  重启脚本"
-    echo "5. [del]  卸载脚本"
-    echo "6. [git]  配置 GitLab 订阅 (git-sync.sh)"
-    echo "7. [merge] 配置节点融合 (融合逻辑)"
+    echo "1. 部署 Argo 节点 (无参数默认部署)"
+    echo "2. [list]  显示节点信息"
+    echo "3. [rep]   重置变量组 (自定义协议)"
+    echo "4. [res]   重启脚本"
+    echo "5. [del]   卸载脚本"
+    echo "6. [git]   配置 GitLab 订阅"
+    echo "7. [merge] 配置节点融合"
     echo "------------------------------------------------"
     read -p "请选择编号或输入命令简写: " n_opt
     case $n_opt in
         1) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') ;;
-        2|list) 
-            echo "正在抓取本地节点运行状态..."
-            if [ -f "/etc/argosbxj/config.json" ]; then cat /etc/argosbxj/config.json; else echo "未发现节点配置文件。"; fi ;;
-        3|rep) 
-            if ask_confirm "确认重置所有节点变量组吗？"; then
-                rm -rf /etc/argosbxj/vars.conf && echo "变量组已重置，请重新运行部署以初始化。"
-            fi ;;
-        4|res) 
-            echo "正在重启德泰工具箱..."
-            exec /usr/local/bin/t ;;
-        5|del) 
-            if ask_confirm "确定要从系统卸载此脚本吗？"; then
-                rm -f /usr/local/bin/t && echo "卸载完成。" && exit 0
-            fi ;;
-        6|git) 
-            echo "正在启动 GitLab 自动化订阅模块..."
-            bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r') ;;
-        7|merge) 
-            echo "正在运行节点融合逻辑..."
-            # 此处可根据老哥后续具体的 merge.sh 路径进行完善
-            echo "节点融合任务执行完毕。" ;;
+        2|list) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') list ;;
+        3|rep) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') rep ;;
+        4|res) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') res ;;
+        5|del) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') del ;;
+        6|git) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') git ;;
+        7|merge) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') merge ;;
     esac
-    read -p "按回车返回..."
+    read -p "按回车返回主菜单..."
 }
 
 # --- 主循环 ---
@@ -125,7 +110,7 @@ while true; do
     echo "  1. 核心系统优化 (含BBR/Swap/清理)"
     echo "  2. 站点反代管理 (一键自动 SSL)"
     echo "  3. PT 下载与制种 (qB部署/pt_make发种)"
-    echo "  4. 节点进阶配置 (list/rep/res/del/git/merge)"
+    echo "  4. 节点进阶配置 (全参数引擎化)"
     echo "  5. Git 自动化同步 (执行 git-sync.sh)"
     echo "------------------------------------------------"
     echo "  8. 云端在线更新   | 0. 退出"
