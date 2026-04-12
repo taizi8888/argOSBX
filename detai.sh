@@ -80,10 +80,10 @@ EOF
     fi
 }
 
-# --- 节点进阶管理 (全部路由至 argosbxj.sh 进行底层传参处理) ---
+# --- 节点进阶管理 (彻底修复参数传递逻辑) ---
 manage_node() {
     echo "--- 节点进阶管理 ---"
-    echo "1. 部署 Argo 节点 (无参数默认部署)"
+    echo "1. 部署 Argo 节点 (默认部署)"
     echo "2. [list]  显示节点信息"
     echo "3. [rep]   重置变量组 (自定义协议)"
     echo "4. [res]   重启脚本"
@@ -93,13 +93,13 @@ manage_node() {
     echo "------------------------------------------------"
     read -p "请选择编号或输入命令简写: " n_opt
     case $n_opt in
-        1) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') ;;
-        2|list) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') list ;;
-        3|rep) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') rep ;;
-        4|res) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') res ;;
-        5|del) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') del ;;
-        6|git) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') git ;;
-        7|merge) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r') merge ;;
+        1) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) ;;
+        2|list) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) list ;;
+        3|rep) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) rep ;;
+        4|res) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) res ;;
+        5|del) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) del ;;
+        6|git) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) git ;;
+        7|merge) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh) merge ;;
     esac
     read -p "按回车返回主菜单..."
 }
@@ -124,11 +124,12 @@ while true; do
             echo "--- PT 生产线 ---"
             echo "1. 部署 qB | 2. 运行发种脚本"
             read -p "请选择: " p_opt
-            [ "$p_opt" == "2" ] && bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r') ;;
+            [ "$p_opt" == "2" ] && bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh) ;;
         4) manage_node ;;
-        5) bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r') ;;
+        5) bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh) ;;
         8) 
-            curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
+            # 主程序的更新依然保留 tr，防止本地 Windows 污染
+            curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
             chmod +x /usr/local/bin/t
             exec /usr/local/bin/t ;;
         0) clear; exit 0 ;;
