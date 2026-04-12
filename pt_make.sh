@@ -1,23 +1,31 @@
 #!/bin/bash
 
-# ==========================================
-# 0. 首次运行初始化 (自动注册快捷键 p)
-# ==========================================
-SCRIPT_PATH=$(readlink -f "$0") 
-BASHRC="$HOME/.bashrc"
+# 强制设置基础环境变量
+export LANG=zh_CN.UTF-8
 
-if ! grep -q "alias p='$SCRIPT_PATH'" "$BASHRC"; then
+# ==========================================
+# 0. 首次运行初始化 (彻底解决 Pipe 别名失效问题)
+# ==========================================
+# 如果当前运行的不是 /usr/local/bin/p，说明是从网络 curl 或者其他地方启动的
+if [ ! -f "/usr/local/bin/p" ] || [ "$(readlink -f "$0")" != "/usr/local/bin/p" ]; then
     echo "======================================"
-    echo " ✨ 正在将脚本注册为系统快捷指令 'p'..."
-    echo "alias p='$SCRIPT_PATH'" >> "$BASHRC"
-    echo " 🔄 正在刷新环境，完成后请重新输入 p 运行"
+    echo " ✨ 正在将脚本固化为系统全局指令 'p'..."
+    
+    # 强制清理老版本在 bashrc 里留下的 alias 垃圾，防止冲突
+    sed -i '/alias p=/d' "$HOME/.bashrc"
+    
+    # 从云端拉取最新代码，过滤乱码，并直接写入系统执行目录
+    curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r' > /usr/local/bin/p
+    chmod +x /usr/local/bin/p
+    
+    echo " ✅ 固化成功！正在为您自动启动..."
     echo "======================================"
-    sleep 2
-    exec bash
+    sleep 1
+    exec /usr/local/bin/p
 fi
 
 # ==========================================
-# 0.5 环境自检与自动修复 (专门针对新机器)
+# 0.5 环境自检与自动修复 (针对新机器)
 # ==========================================
 check_env() {
     local missing=()
@@ -37,7 +45,6 @@ check_env() {
         echo "--------------------------------------"
     fi
 }
-# 启动前先自检
 check_env
 
 # --- 基础配置 ---
@@ -46,16 +53,15 @@ TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 TMP_IMG_DIR="/tmp/pt_screens_$(date +%s)"
 
 # ==========================================
-# 0.8 在线更新功能 (新增)
+# 0.8 在线更新功能 (适配固化路径)
 # ==========================================
 update_script() {
     echo "⏳ 正在从云端获取最新版本..."
-    # 使用你提供的 URL 进行更新，并过滤掉 Windows 换行符
-    if curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r' > "$SCRIPT_PATH"; then
-        chmod +x "$SCRIPT_PATH"
+    if curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r' > /usr/local/bin/p; then
+        chmod +x /usr/local/bin/p
         echo "✅ 更新成功！正在重新启动脚本..."
         sleep 1
-        exec "$SCRIPT_PATH"
+        exec /usr/local/bin/p
     else
         echo "❌ 更新失败，请检查网络连接。"
     fi
@@ -175,7 +181,7 @@ process_folder() {
 # 主菜单
 # ==========================================
 echo "======================================"
-echo " 🚀 PT 终极自愈流水线 V4.5 (增强版 2x8)"
+echo " 🚀 PT 终极自愈流水线 V4.6 (固化防丢版)"
 echo "======================================"
 echo " 1. 手动模式 (处理单个文件夹)"
 echo " 2. 自动模式 (全盘增量扫描)"
