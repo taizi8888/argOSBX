@@ -1,12 +1,7 @@
-cat > /usr/local/bin/t <<'EOF'
 #!/bin/bash
 
-# 强制系统输出 UTF-8
-export LANG=zh_CN.UTF-8
-export LC_ALL=zh_CN.UTF-8
-
 # ==========================================
-# 颜色与全局变量 (原生底层写法)
+# 颜色与全局变量 (最原生的 Bash 变色逻辑)
 # ==========================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -127,7 +122,8 @@ EOFQBIT
             fi ;;
         4)
             if ask_confirm "确认拉取并运行 pt_make.sh？"; then
-                bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh)
+                # 加入了 tr -d '\r' 过滤
+                bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt_make.sh | tr -d '\r')
             fi ;;
     esac
     read -p "按回车返回主菜单..."
@@ -138,7 +134,7 @@ manage_node() {
     echo -e "1. 🚀 部署德泰专属 Argo (argosbxj.sh) | 2. WARP 管理"
     read -p "👉 请选择: " n_opt
     case $n_opt in
-        1) if ask_confirm "部署 Argo 节点？"; then bash <(curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh); fi ;;
+        1) if ask_confirm "部署 Argo 节点？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/argosbxj.sh | tr -d '\r'); fi ;;
         2) if command -v warp-cli &> /dev/null; then warp-cli status; fi ;;
     esac
     read -p "按回车返回主菜单..."
@@ -162,11 +158,12 @@ while true; do
         3) manage_pt ;;
         4) manage_node ;;
         5) 
-            if ask_confirm "执行 Git 同步？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh); fi
+            if ask_confirm "执行 Git 同步？"; then bash <(curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/git-sync.sh | tr -d '\r'); fi
             read -p "按回车返回..." ;;
         8) 
             if ask_confirm "拉取云端最新版覆盖？"; then
-                curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh -o /usr/local/bin/t
+                # 在线更新时，自动粉碎回车符
+                curl -sL https://raw.githubusercontent.com/taizi8888/argOSBX/main/detai.sh | tr -d '\r' > /usr/local/bin/t
                 chmod +x /usr/local/bin/t
                 exec /usr/local/bin/t
             fi ;;
@@ -174,5 +171,3 @@ while true; do
         *) echo "无效输入"; sleep 1 ;;
     esac
 done
-EOF
-chmod +x /usr/local/bin/t
