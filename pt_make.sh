@@ -1,127 +1,193 @@
 #!/bin/bash
 
-# 强制设置基础环境变量
-export LANG=zh_CN.UTF-8
+# ==========================================
+# 0. 首次运行初始化 (自动注册快捷键 p)
+# ==========================================
+SCRIPT_PATH=$(readlink -f "$0") 
+BASHRC="$HOME/.bashrc"
+
+if ! grep -q "alias p='$SCRIPT_PATH'" "$BASHRC"; then
+    echo "======================================"
+    echo " ✨ 正在将脚本注册为系统快捷指令 'p'..."
+    echo "alias p='$SCRIPT_PATH'" >> "$BASHRC"
+    echo " 🔄 正在刷新环境，完成后请重新输入 p 运行"
+    echo "======================================"
+    sleep 2
+    exec bash
+fi
 
 # ==========================================
-# 默认路径配置 (可根据你服务器实际情况微调)
+# 0.5 环境自检与自动修复 (专门针对新机器)
 # ==========================================
-WORK_DIR="/home/docker/qbittorrent/downloads"
-OUTPUT_DIR="/home/docker/qbittorrent/pt_outputs"
-
-ask_confirm() {
-    read -p "$1 [y/N]: " choice
-    case "$choice" in
-        y|Y ) return 0 ;;
-        * ) return 1 ;;
-    esac
-}
-
-# ==========================================
-# 1. 环境自愈模块 (核心升级)
-# ==========================================
-check_dependencies() {
-    echo "--- 正在执行环境自愈检测 ---"
-    local deps=("ffmpeg" "mediainfo" "bc" "jq")
-    local need_install=0
-
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" > /dev/null 2>&1; then
-            echo "系统检测到缺失核心组件: $dep"
-            need_install=1
-        fi
-    done
-
-    if [ $need_install -eq 1 ]; then
-        echo "正在为您自动修复运行环境，这可能需要一点时间，请稍候..."
-        apt-get update -qq
-        apt-get install -y ffmpeg mediainfo bc jq > /dev/null 2>&1
-        echo "环境自愈完成！所有核心生产依赖已就绪。"
-    else
-        echo "环境检测通过，底层依赖完整。"
-    fi
-    echo "----------------------------"
-}
-
-# ==========================================
-# 2. 核心洗版与打图引擎
-# ==========================================
-process_media() {
-    local file="$1"
-    local filename=$(basename "$file")
-    local basename="${filename%.*}"
-    local out_img="${OUTPUT_DIR}/${basename}_screen.jpg"
-    local out_nfo="${OUTPUT_DIR}/${basename}_mediainfo.txt"
-
-    echo "正在洗版处理: $filename"
-
-    # 生成 MediaInfo NFO 文本
-    if [ ! -f "$out_nfo" ]; then
-        mediainfo "$file" > "$out_nfo"
-        echo " - 媒体特征码提取完成"
-    fi
-
-    # 抽取 2x6 宫格高清截图 (多线程限制，防止小鸡内存溢出宕机)
-    if [ ! -f "$out_img" ]; then
-        ffmpeg -hide_banner -loglevel error -y -threads 2 \
-            -i "$file" \
-            -vf "select='isnan(prev_selected_t)+gte(t-prev_selected_t, (max_t-min_t)/13)',scale=1920:-1,tile=2x6" \
-            -frames:v 1 -q:v 2 "$out_img"
-        echo " - 2x6 宫格 4K 预览图生成完成"
+check_env() {
+    local missing=()
+    command -v mediainfo >/dev/null 2>&1 || missing+=("mediainfo")
+    command -v mktorrent >/dev/null 2>&1 || missing+=("mktorrent")
+    command -v ffmpeg >/dev/null 2>&1 || missing+=("ffmpeg")
+    command -v ffprobe >/dev/null 2>&1 || missing+=("ffmpeg") # ffprobe包含在ffmpeg包中
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "======================================"
+        echo " ⚠️ 检测到新机器缺失核心组件: ${missing[*]}"
+        echo " ⏳ 正在自动为您呼叫支援安装，请稍候..."
+        echo "======================================"
+        sudo apt-get update -y > /dev/null 2>&1
+        sudo apt-get install -y mediainfo mktorrent ffmpeg > /dev/null 2>&1
+        echo " ✅ 环境装配完毕！弹药已上膛 🚀"
+        echo "--------------------------------------"
     fi
 }
+# 启动前先自检
+check_env
 
-# ==========================================
-# 3. 增量扫描与未完成拦截器
-# ==========================================
-scan_and_process() {
-    echo "--- 启动 PT 流水线扫描引擎 ---"
-    mkdir -p "$OUTPUT_DIR"
+# --- 基础配置 ---
+BASE_DIR="/home/docker/qbittorrent/downloads"
+TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
+TMP_IMG_DIR="/tmp/pt_screens_$(date +%s)"
 
-    if [ ! -d "$WORK_DIR" ]; then
-        echo "错误: 下载源目录 $WORK_DIR 不存在！请检查 qBittorrent 映射路径。"
+process_folder() {
+    local FOLDER_NAME=$1
+    local FOLDER_PATH="$BASE_DIR/$FOLDER_NAME"
+    local TORRENT_FILE="$BASE_DIR/${FOLDER_NAME}.torrent"
+    local INFO_FILE="$BASE_DIR/${FOLDER_NAME}_mediainfo.txt"
+    local STITCHED_IMG="$BASE_DIR/${FOLDER_NAME}_Stitched_4K.jpg"
+
+    echo "------------------------------------------------"
+    echo "📂 检查目录: $FOLDER_NAME"
+
+    # 1. 终极防御：检查是否仍在下载中 (.!qB 雷达)
+    if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then
+        echo "🚧 拦截：该目录仍在下载中 (检测到 .!qB 文件)，跳过处理。"
         return
     fi
 
-    # 智能搜索常见的视频格式
-    find "$WORK_DIR" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.ts" -o -iname "*.avi" \) | while read -r media_file; do
-        
-        # 拦截器规则 1：自身就是未完成的 qB 临时文件
-        if [[ "$media_file" == *".!qB"* ]]; then
-            echo "拦截器触发: 发现未完成分块，跳过 -> $(basename "$media_file")"
-            continue
+    # 2. 军用级净网行动：无情删光所有常见小广告格式
+    find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.lnk" -o -iname "*.html" -o -iname "*.htm" -o -iname "*.exe" -o -iname "*.bat" -o -iname "*.cmd" -o -iname "*.vbs" -o -iname "*.chm" \) -delete > /dev/null 2>&1
+    
+    find "$FOLDER_PATH" -type f -iname "*.mp4" -size -50M -delete > /dev/null 2>&1
+    
+    for file in "$FOLDER_PATH"/*; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            if [[ "$filename" == *"@"* ]]; then
+                mv "$file" "$FOLDER_PATH/${filename#*@}"
+            fi
         fi
-        
-        # 拦截器规则 2：主体文件存在，但同级目录下还有它的 .!qB 碎片，说明正在下载中
-        if [ -f "${media_file}.!qB" ]; then
-            echo "拦截器触发: 该任务仍在下载队列中，跳过 -> $(basename "$media_file")"
-            continue
-        fi
-
-        # 进入安全作业区
-        process_media "$media_file"
     done
 
-    echo "--- 流水线作业完毕 ---"
-    echo "所有成品截图和 NFO 文本已输出至: $OUTPUT_DIR"
+    # 3. 定位所有视频文件
+    mapfile -t VIDEO_FILES < <(find "$FOLDER_PATH" -maxdepth 1 -iname "*.mp4" | sort)
+    NUM_FILES=${#VIDEO_FILES[@]}
+    if [ "$NUM_FILES" -eq 0 ]; then
+        echo "⚠️  跳过：未发现 mp4 视频。"
+        return
+    fi
+
+    # 4. 智能增量判断
+    local NEED_MAKE_TORRENT=true
+    local NEED_FFMPEG=true
+    [[ -f "$TORRENT_FILE" && -f "$INFO_FILE" ]] && NEED_MAKE_TORRENT=false
+    [[ -f "$STITCHED_IMG" ]] && NEED_FFMPEG=false
+
+    if [ "$NEED_MAKE_TORRENT" = false ] && [ "$NEED_FFMPEG" = false ]; then
+        echo "✅ 种子、参数、预览图均已存在，跳过该目录。"
+        return
+    fi
+
+    # 5. 补全种子与参数 (带严格产出校验)
+    if [ "$NEED_MAKE_TORRENT" = true ]; then
+        echo "⏳ 正在制作纯净版种子与参数..."
+        MAIN_VIDEO=$(find "$FOLDER_PATH" -maxdepth 1 -iname "*.mp4" -printf "%s\t%p\n" | sort -nr | head -n1 | cut -f2)
+        
+        # 确保真的提取了信息
+        if [ -n "$MAIN_VIDEO" ]; then
+            mediainfo "$MAIN_VIDEO" > "$INFO_FILE"
+        fi
+        
+        SIZE_MB=$(du -sm "$FOLDER_PATH" | cut -f1)
+        if [ "$SIZE_MB" -lt 512 ]; then PIECE_L=18
+        elif [ "$SIZE_MB" -lt 1024 ]; then PIECE_L=19
+        elif [ "$SIZE_MB" -lt 2048 ]; then PIECE_L=20
+        elif [ "$SIZE_MB" -lt 4096 ]; then PIECE_L=21
+        elif [ "$SIZE_MB" -lt 8192 ]; then PIECE_L=22
+        elif [ "$SIZE_MB" -lt 16384 ]; then PIECE_L=23
+        else PIECE_L=24
+        fi
+        
+        mktorrent -v -p -l "$PIECE_L" -a "$TRACKER" -o "$TORRENT_FILE" "$FOLDER_PATH" > /dev/null 2>&1
+        
+        # 【重要修复】必须检测到文件真实存在，才报成功
+        if [[ -f "$TORRENT_FILE" && -f "$INFO_FILE" ]]; then
+            echo "✅ 种子与参数制作成功。"
+        else
+            echo "❌ 种子或参数制作失败 (环境缺失或权限不足)。"
+        fi
+    else
+        echo "⏩ 种子与参数已存在，跳过制作。"
+    fi
+
+    # 6. 核心：小批量并发防崩溃截图
+    if [ "$NEED_FFMPEG" = true ]; then
+        echo "⏳ 正在静默提取 12 张截图 (防宕机并发模式)..."
+        mkdir -p "$TMP_IMG_DIR"
+        MAX_JOBS=3  
+        
+        for i in {0..11}; do
+            FILE_IDX=$(( i % NUM_FILES ))
+            CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
+            DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
+            
+            # 如果时长获取失败，给个默认值防止脚本卡死
+            if [ -z "$DUR" ]; then DUR=300; fi
+            
+            INSTANCES=0; MY_POS=0
+            for ((k=0; k<i; k++)); do [ "${VIDEO_FILES[$((k%NUM_FILES))]}" == "$CUR_FILE" ] && ((MY_POS++)); done
+            for ((k=0; k<12; k++)); do [ "${VIDEO_FILES[$((k%NUM_FILES))]}" == "$CUR_FILE" ] && ((INSTANCES++)); done
+            PERCENT=$(( 5 + (85 * (MY_POS + 1) / (INSTANCES + 1)) ))
+            TIMESTAMP=$(( DUR * PERCENT / 100 ))
+
+            ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 -vf "scale=1920:-1" "$TMP_IMG_DIR/shot_$i.jpg" > /dev/null 2>&1 ) &
+            
+            if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then
+                echo -n "   - 同步处理第 $((i-1)) 到 $((i+1)) 张... "
+                wait; echo "完成"
+            fi
+        done
+        wait
+
+        echo "⏳ 正在拼合 2x6 规格 4K 巨幕预览长图..."
+        ffmpeg -y \
+        -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
+        -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
+        -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
+        -filter_complex "xstack=grid=2x6:fill=black" -q:v 3 "$STITCHED_IMG" > /dev/null 2>&1
+        
+        rm -rf "$TMP_IMG_DIR"
+        [[ -f "$STITCHED_IMG" ]] && echo "✅ 2x6 预览长图制作成功！" || echo "❌ 预览图制作失败。"
+    else
+        echo "⏩ 预览图已存在，跳过截图。"
+    fi
 }
 
 # ==========================================
-# 主程序入口
+# 主程序菜单
 # ==========================================
-clear
-echo "================================================================"
-echo "          PT 终极洗版机 V4.5 (环境自愈版) - 纯净白"
-echo "================================================================"
-
-check_dependencies
-
-echo "监听数据源: $WORK_DIR"
-echo "成品输出库: $OUTPUT_DIR"
-echo "================================================================"
-
-if ask_confirm "确认唤醒引擎开始批量洗版任务吗？"; then
-    scan_and_process
-else
-    echo "任务已取消。"
-fi
+echo "======================================"
+echo " 🚀 PT 终极自愈流水线 V4.5 (新机无忧版)"
+echo "======================================"
+echo " 1. 手动模式 (处理单个文件夹)"
+echo " 2. 自动模式 (全盘扫描增量补齐)"
+echo " 3. 退出脚本"
+echo "======================================"
+read -p "请选择模式 [1-3]: " RUN_MODE
+case $RUN_MODE in
+    1) read -p "👉 请输入文件夹名: " MN; process_folder "$MN" ;;
+    2) 
+        echo "🔍 正在扫描下载目录..."
+        for dir in "$BASE_DIR"/*; do 
+            [ -d "$dir" ] && process_folder "$(basename "$dir")"
+        done 
+        ;;
+    3|q|Q) echo "👋 已退出。"; exit 0 ;;
+    *) echo "❌ 输入错误。"; exit 1 ;;
+esac
