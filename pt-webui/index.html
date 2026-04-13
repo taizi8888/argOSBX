@@ -28,6 +28,10 @@
         .stat-item { display: flex; align-items: center; gap: 8px; }
         .stat-value { background: #3730a3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;}
 
+        /* 集群面板折叠按钮 */
+        .btn-fleet-toggle { background: transparent; color: #3b82f6; font-size: 13px; font-weight: bold; cursor: pointer; border: 1px solid #3b82f6; padding: 5px 12px; border-radius: 6px; transition: all 0.2s;}
+        .btn-fleet-toggle:hover { background: #eff6ff; }
+
         /* Nezha 探针矩阵样式 */
         .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 15px; }
         .sys-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -72,11 +76,10 @@
         .btn-pro-submit { background: #0f172a; width: 100%; font-size: 16px; font-weight: bold; padding: 14px; border-radius: 6px; margin-top: 15px;}
         .btn-pro-submit:hover { background: #000000; }
         
-        /* 【已修复】详情页排版与安全尺寸限制 */
         #detail-view { display: none; background: #ffffff; min-height: 100vh; padding: 40px 20px; }
         .detail-container { max-width: 1100px; margin: 0 auto; text-align: center; }
         .success-title { color: #16a34a; font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;}
-        .success-title svg { flex-shrink: 0; } /* 防止图标被文字挤压变形 */
+        .success-title svg { flex-shrink: 0; }
         .btn-return { background: #3b82f6; font-size: 16px; padding: 12px 30px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
         .save-path { color: #64748b; font-size: 15px; margin-bottom: 25px; }
         .download-bar { display: flex; gap: 15px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap;}
@@ -99,7 +102,10 @@
     <div id="main-dashboard">
         
         <div class="card" style="border-top: 4px solid #3b82f6;">
-            <h2 style="color: #1e3a8a; margin-bottom: 15px; border:none; padding:0; font-size: 20px;">🌐 局域网集群管理 (Fleet Manager)</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin:0; border:none; padding:0; font-size: 20px; color: #1e3a8a;">🌐 局域网集群管理 (Fleet Manager)</h2>
+                <button id="btn-fleet-toggle" class="btn-fleet-toggle" onclick="toggleFleetConfig()">⚙️ 展开节点详情 ▼</button>
+            </div>
             
             <div class="dashboard-stats" id="global-stats">
                 <div class="stat-item">🖥️ 活跃节点: <span class="stat-value" id="stat-nodes">0</span></div>
@@ -108,13 +114,15 @@
                 <div class="stat-item">⏳ 排队中: <span class="stat-value" style="background:#f59e0b;" id="stat-pending">0</span></div>
             </div>
 
-            <div class="cluster-panel">
-                <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入节点 API 地址 (例: http://192.168.1.10:8080)" style="flex: 2; min-width: 250px;">
-                <input type="text" id="newNodeName" class="cluster-input" placeholder="节点备注名 (选填)" style="flex: 1; min-width: 150px;">
-                <button class="cluster-btn" onclick="addNode()">➕ 添加节点</button>
+            <div id="fleet-config-container">
+                <div class="cluster-panel">
+                    <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入节点 API 地址 (例: http://192.168.1.10:8080)" style="flex: 2; min-width: 250px;">
+                    <input type="text" id="newNodeName" class="cluster-input" placeholder="节点备注名 (选填)" style="flex: 1; min-width: 150px;">
+                    <button class="cluster-btn" onclick="addNode()">➕ 添加节点</button>
+                </div>
+                
+                <div id="active-nodes"></div>
             </div>
-            
-            <div id="active-nodes"></div>
         </div>
 
         <div class="card" style="border-top: 4px solid #f59e0b;">
@@ -219,6 +227,9 @@
         
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
+        
+        // 新增：集群面板折叠状态记忆
+        let isFleetConfigCollapsed = localStorage.getItem('fleet_config_collapsed') === 'true';
 
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -228,6 +239,26 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
+        // ================= 集群配置折叠逻辑 =================
+        function toggleFleetConfig() {
+            isFleetConfigCollapsed = !isFleetConfigCollapsed;
+            localStorage.setItem('fleet_config_collapsed', isFleetConfigCollapsed);
+            renderFleetConfigState();
+        }
+
+        function renderFleetConfigState() {
+            const container = document.getElementById('fleet-config-container');
+            const btn = document.getElementById('btn-fleet-toggle');
+            if (isFleetConfigCollapsed) {
+                container.style.display = 'none';
+                btn.innerHTML = '⚙️ 展开节点详情 ▼';
+            } else {
+                container.style.display = 'block';
+                btn.innerHTML = '⚙️ 折叠节点详情 ▲';
+            }
+        }
+
+        // ================= 其他 UI 逻辑 =================
         function switchViewMode(mode) {
             currentViewMode = mode;
             localStorage.setItem('view_mode', mode);
@@ -344,6 +375,7 @@
 
         // ================= 高频轮询：硬件探针数据 (2秒一次) =================
         async function fetchSysInfo() {
+            // 如果节点面板被折叠，且不需要看着探针数据，其实可以继续在后台跑，以防想看的时候卡顿
             clusterNodes.forEach(async (node, index) => {
                 if (node.status === 'offline') return;
                 try {
@@ -367,7 +399,6 @@
                                 let txSpeed = Math.max(0, (current.net_tx - prev.net_tx) / timeDiff);
                                 let rxSpeed = Math.max(0, (current.net_rx - prev.net_rx) / timeDiff);
 
-                                // 提取按月累计流量
                                 let totalMonthTx = current.month_tx || 0;
                                 let totalMonthRx = current.month_rx || 0;
                                 let totalMonth = totalMonthTx + totalMonthRx;
@@ -398,7 +429,7 @@
                         nodeStats[node.url] = current;
                     }
                 } catch (e) {
-                    // Fail silently, low-freq folder fetch will mark it offline
+                    // 异常处理交由低频任务
                 }
             });
         }
@@ -649,6 +680,9 @@
             
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
+            
+            // 初始化集群面板折叠状态
+            renderFleetConfigState();
 
             await initNodes();
             fetchAllNodesFolders();
