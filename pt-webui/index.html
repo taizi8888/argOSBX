@@ -5,36 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PT 分布式集群探针面板</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f4f8; color: #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f1f5f9; color: #334155; }
         
-        #main-dashboard { max-width: 1100px; margin: 30px auto; padding: 0 15px; }
-        .card { background: white; padding: 20px 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        #main-dashboard { max-width: 1200px; margin: 30px auto; padding: 0 15px; }
         
-        h2 { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0;}
+        /* 统一卡片与模块化抽屉样式 */
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); margin-bottom: 24px; overflow: hidden; transition: all 0.3s ease; }
         
-        button { border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: white; font-weight: 500;}
+        /* 统一的交互式模块标题栏 */
+        .module-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 25px; cursor: pointer; user-select: none; transition: background-color 0.2s; }
+        .module-header:hover { background-color: #f8fafc; }
+        .module-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: bold; margin: 0; }
+        .module-chevron { font-size: 14px; transition: transform 0.3s ease; color: #94a3b8; }
+        .module-chevron.collapsed { transform: rotate(-90deg); }
+        .module-content { padding: 0 25px 25px 25px; transition: max-height 0.3s ease; }
+        .module-content.collapsed { display: none; }
+
+        /* 通用按钮样式 */
+        button { border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: white; font-weight: 500; font-size: 14px;}
         button:disabled { background: #cbd5e1 !important; cursor: not-allowed; }
-        
-        .btn-auto { background: #10b981; font-size: 15px; padding: 10px 18px;} .btn-auto:hover { background: #059669; }
-        .btn-update { background: #f59e0b; font-size: 15px; padding: 10px 18px;} .btn-update:hover { background: #d97706; }
+        .btn-auto { background: #10b981; padding: 8px 16px;} .btn-auto:hover { background: #059669; }
+        .btn-update { background: #f59e0b; padding: 8px 16px;} .btn-update:hover { background: #d97706; }
         .btn-batch { background: #ec4899; padding: 8px 14px;} .btn-batch:hover { background: #db2777; }
         .btn-action { background: #4f46e5; padding: 8px 14px; font-size: 13px;} .btn-action:hover { background: #4338ca; }
         .btn-view { background: #0ea5e9; padding: 8px 14px; font-size: 13px;} .btn-view:hover { background: #0284c7; }
 
-        .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;}
+        .toolbar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;}
         
         /* 算力大盘 */
-        .dashboard-stats { display: flex; gap: 20px; background: #e0e7ff; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; color: #3730a3; flex-wrap: wrap;}
+        .dashboard-stats { display: flex; gap: 15px; background: #e0e7ff; padding: 15px 20px; border-radius: 8px; margin-top: 15px; margin-bottom: 20px; font-weight: bold; color: #3730a3; flex-wrap: wrap; align-items: center;}
         .stat-item { display: flex; align-items: center; gap: 8px; }
-        .stat-value { background: #3730a3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;}
-
-        /* 集群面板折叠按钮 */
-        .btn-fleet-toggle { background: transparent; color: #3b82f6; font-size: 13px; font-weight: bold; cursor: pointer; border: 1px solid #3b82f6; padding: 5px 12px; border-radius: 6px; transition: all 0.2s;}
-        .btn-fleet-toggle:hover { background: #eff6ff; }
+        .stat-value { background: #3730a3; color: white; padding: 3px 10px; border-radius: 12px; font-size: 14px;}
 
         /* Nezha 探针矩阵样式 */
-        .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 15px; }
-        .sys-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 5px; }
+        .sys-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; color: #1e3a8a;}
         .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 6px;}
         .sys-bar-bg { background: #e2e8f0; border-radius: 4px; height: 6px; width: 100%; overflow: hidden; margin-top: 4px; margin-bottom: 10px;}
@@ -44,50 +49,69 @@
         .node-tag-name:hover { border-bottom: 1px dashed #1e40af; }
         .node-tag-del { cursor: pointer; margin-left: 8px; color: #94a3b8; font-size: 12px;} .node-tag-del:hover { color: #ef4444; }
 
-        /* 集群添加工具 */
-        .cluster-panel { display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap;}
-        .cluster-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        /* 表单输入与面板 */
+        .cluster-panel { display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; border: 1px solid #e2e8f0;}
+        .cluster-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s;}
+        .cluster-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
         .cluster-btn { background: #3b82f6; padding: 10px 20px; white-space: nowrap;} .cluster-btn:hover { background: #2563eb; }
 
-        /* 视图切换与节点分组 */
+        /* 视图切换与节点分组 (目录监控) */
         .view-toggle { display: flex; background: #e2e8f0; border-radius: 6px; padding: 3px; }
         .view-toggle button { background: transparent; color: #64748b; padding: 6px 12px; font-size: 13px; font-weight: bold; border-radius: 4px; box-shadow: none; }
         .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .node-group { margin-bottom: 25px; }
-        .node-header { font-size: 16px; font-weight: bold; color: #1e3a8a; padding: 12px 15px; background: #eff6ff; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; border-left: 4px solid #3b82f6; cursor: pointer; user-select: none;}
+        .node-header { font-size: 15px; font-weight: bold; color: #1e3a8a; padding: 10px 15px; background: #eff6ff; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; border-left: 4px solid #3b82f6; cursor: pointer; user-select: none; transition: background 0.2s;}
+        .node-header:hover { background: #e0f2fe; }
         .chevron { display: inline-block; font-size: 12px; transition: transform 0.3s ease; color: #3b82f6;}
         .chevron.collapsed { transform: rotate(-90deg); }
         .items-container.collapsed { display: none !important; }
 
         /* 列表视图与网格视图 */
-        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; }
+        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; border-radius: 6px;}
+        .items-container.list-view .item:hover { background: #f8fafc; }
         .items-container.list-view .item-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
         .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; padding: 5px 0;}
-        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 12px;}
+        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s, box-shadow 0.2s;}
+        .items-container.grid-view .item:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-color: #cbd5e1;}
         .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
-        .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px;}
+        .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px; accent-color: #3b82f6;}
 
-        /* --- 新增：qBittorrent 交互式表格与排序样式 --- */
-        .qb-table th { background: #f8fafc; color: #334155; border-bottom: 2px solid #e2e8f0; font-size: 14px; cursor: pointer; user-select: none; transition: background 0.2s;}
+        /* qBittorrent 表格样式 (增加水平滚动与美化) */
+        .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; text-align: left; }
+        .qb-table th { background: #f8fafc; color: #475569; padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none; transition: background 0.2s; position: sticky; top: 0;}
         .qb-table th:hover { background: #e2e8f0; }
-        .qb-table th.no-sort { cursor: default; background: #f8fafc; }
+        .qb-table th.no-sort { cursor: default; }
         .qb-table th.no-sort:hover { background: #f8fafc; }
-        .qb-table tr:hover { background: #f8fafc; }
-        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s;}
+        .qb-table td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .qb-table tr:last-child td { border-bottom: none; }
+        .qb-table tr:hover { background-color: #f8fafc; }
+        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s; padding: 4px 10px; font-size: 12px;}
         .qb-btn:hover { opacity: 0.8; }
-        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; color: #94a3b8; font-size: 12px;}
+        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; color: #94a3b8; font-size: 10px;}
         .sort-icon.active { color: #3b82f6; }
-        .qb-checkbox { transform: scale(1.3); cursor: pointer; }
+        .qb-checkbox { transform: scale(1.3); cursor: pointer; accent-color: #0ea5e9;}
+        
+        /* 表格数据列辅助样式 */
+        .col-name { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;}
+        .col-size { width: 80px; font-size: 13px; color: #64748b; white-space: nowrap;}
+        .col-date { width: 120px; font-size: 12px; color: #64748b; white-space: nowrap;}
+        .col-progress { width: 120px; }
+        .col-ratio { width: 70px; font-size: 13px; font-weight: bold; color: #0ea5e9;}
+        .col-state { width: 90px; font-size: 13px; font-weight: bold; white-space: nowrap;}
+        .col-speed { width: 110px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap;}
 
-        /* Pro 工厂与详情页 */
+        /* Pro 工厂表单 */
         .pro-form-group { margin-bottom: 15px; }
-        .pro-form-group label { display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b; font-size: 14px;}
-        .pro-form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; background: #f8fafc;}
+        .pro-form-group label { display: block; font-weight: bold; margin-bottom: 8px; color: #334155; font-size: 14px;}
+        .pro-form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; background: #f8fafc; outline: none;}
+        .pro-form-control:focus { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.1);}
         .pro-row { display: flex; gap: 20px; align-items: center;} .pro-col { flex: 1; }
         .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; margin-top: 8px; font-weight: normal!important;}
-        .btn-pro-submit { background: #0f172a; width: 100%; font-size: 16px; font-weight: bold; padding: 14px; border-radius: 6px; margin-top: 15px;}
-        .btn-pro-submit:hover { background: #000000; }
-        
+        .btn-pro-submit { background: #0f172a; width: 100%; font-size: 16px; font-weight: bold; padding: 14px; border-radius: 8px; margin-top: 15px;}
+        .btn-pro-submit:hover { background: #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transform: translateY(-1px);}
+
+        /* 详情页样式 */
         #detail-view { display: none; background: #ffffff; min-height: 100vh; padding: 40px 20px; }
         .detail-container { max-width: 1100px; margin: 0 auto; text-align: center; }
         .success-title { color: #16a34a; font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;}
@@ -106,6 +130,7 @@
         @media (max-width: 768px) {
             .preview-container { flex-direction: column; } .preview-box { width: 100%; } .preview-header { display: none;} .pro-row { flex-direction: column; gap: 0; }
             .cluster-input { width: 100%; flex: none !important;}
+            .module-title { font-size: 16px; }
         }
     </style>
 </head>
@@ -114,22 +139,27 @@
     <div id="main-dashboard">
         
         <div class="card" style="border-top: 4px solid #3b82f6;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h2 style="margin:0; border:none; padding:0; font-size: 20px; color: #1e3a8a;">🌐 局域网集群管理 (Fleet Manager)</h2>
-                <button id="btn-fleet-toggle" class="btn-fleet-toggle" onclick="toggleFleetConfig()">⚙️ 展开节点详情 ▼</button>
-            </div>
-            
-            <div class="dashboard-stats" id="global-stats">
-                <div class="stat-item">🖥️ 活跃节点: <span class="stat-value" id="stat-nodes">0</span></div>
-                <div class="stat-item">📂 全网任务: <span class="stat-value" id="stat-total">0</span></div>
-                <div class="stat-item">✅ 已完成: <span class="stat-value" style="background:#16a34a;" id="stat-ready">0</span></div>
-                <div class="stat-item">⏳ 排队中: <span class="stat-value" style="background:#f59e0b;" id="stat-pending">0</span></div>
+            <div style="padding: 15px 25px 0 25px;">
+                <h2 style="margin:0; border:none; padding:0; font-size: 22px; color: #1e3a8a; display: flex; align-items: center; gap: 10px;">
+                    🌐 集群总控大盘
+                </h2>
+                <div class="dashboard-stats" id="global-stats">
+                    <div class="stat-item">🖥️ 活跃节点: <span class="stat-value" id="stat-nodes">0</span></div>
+                    <div class="stat-item">📂 全网任务: <span class="stat-value" id="stat-total">0</span></div>
+                    <div class="stat-item">✅ 已完成: <span class="stat-value" style="background:#16a34a;" id="stat-ready">0</span></div>
+                    <div class="stat-item">⏳ 排队中: <span class="stat-value" style="background:#f59e0b;" id="stat-pending">0</span></div>
+                </div>
             </div>
 
-            <div id="fleet-config-container">
-                <div class="cluster-panel">
+            <div class="module-header" onclick="toggleModule('fleet')" style="border-top: 1px solid #f1f5f9; padding: 12px 25px;">
+                <div style="font-size: 14px; font-weight: bold; color: #64748b;">⚙️ 节点探针与集群管理</div>
+                <div class="module-chevron" id="icon-fleet">▼</div>
+            </div>
+            
+            <div class="module-content" id="content-fleet">
+                <div class="cluster-panel" style="margin-top: 10px;">
                     <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入节点 API 地址 (例: http://192.168.1.10:8080)" style="flex: 2; min-width: 250px;">
-                    <input type="text" id="newNodeName" class="cluster-input" placeholder="节点备注名 (选填)" style="flex: 1; min-width: 150px;">
+                    <input type="text" id="newNodeName" class="cluster-input" placeholder="节点备注名 (选填)" style="flex: 1; min-width: 120px;">
                     <button class="cluster-btn" onclick="addNode()">➕ 添加节点</button>
                 </div>
                 <div id="active-nodes"></div>
@@ -137,114 +167,126 @@
         </div>
 
         <div class="card" style="border-top: 4px solid #0ea5e9;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #0369a1; border:none; padding:0; margin:0; font-size: 20px;">
-                    <span>🔵 全网 qBittorrent 控制中心</span>
-                </h2>
-                <div id="qb-batch-bar" style="display: none;">
-                    <button class="cluster-btn" style="background: #ef4444; padding: 8px 16px; font-size:13px;" onclick="qbBatchDelete()">
-                        🗑️ 批量删除选中 (<span id="qb-sel-count">0</span>)
-                    </button>
+            <div class="module-header" onclick="toggleModule('qb')">
+                <div class="module-title" style="color: #0369a1;">🔵 全网 qBittorrent 调度中心</div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div id="qb-batch-bar" style="display: none;">
+                        <button style="background: #ef4444; padding: 6px 12px; font-size:12px; border-radius: 4px;" onclick="event.stopPropagation(); qbBatchDelete();">
+                            🗑️ 批量删除 (<span id="qb-sel-count">0</span>)
+                        </button>
+                    </div>
+                    <div class="module-chevron" id="icon-qb">▼</div>
                 </div>
             </div>
             
-            <div class="cluster-panel" style="background: #f0f9ff; border: 1px solid #bae6fd;">
-                <select id="qb-node-select" class="cluster-input" style="flex: 1; min-width: 150px; font-weight:bold; color:#0ea5e9;" onchange="loadQbConfig()"></select>
-                <input type="text" id="qb-url" class="cluster-input" placeholder="qB 访问地址 (例: http://127.0.0.1:8081)" style="flex: 2; min-width: 200px;">
-                <input type="text" id="qb-user" class="cluster-input" placeholder="账号 (留空免密)" style="flex: 1; min-width: 100px;">
-                <input type="password" id="qb-pwd" class="cluster-input" placeholder="密码" style="flex: 1; min-width: 100px;">
-                <button class="cluster-btn" style="background: #0ea5e9;" onclick="connectQb()">🔗 连 接 远 程 控 制</button>
-            </div>
-            
-            <div id="qb-status-msg" style="font-size: 13px; margin-bottom: 10px; color: #64748b;">请选择左侧的宿主机节点并点击连接，连接后将自动实时刷新任务列表。</div>
-            
-            <div style="overflow-x: auto;">
-                <table class="qb-table" id="qb-table" style="width: 100%; border-collapse: collapse; min-width: 900px; display: none;">
-                    <thead>
-                        <tr style="text-align: left;">
-                            <th class="no-sort" style="padding: 12px; width: 40px; text-align:center;">
-                                <input type="checkbox" id="qb-chk-all" class="qb-checkbox" onclick="toggleQbAll(this.checked)">
-                            </th>
-                            <th onclick="setQbSort('name')" style="padding: 12px;">任务名称 <span class="sort-icon" id="sort-icon-name"></span></th>
-                            <th onclick="setQbSort('size')" style="padding: 12px; width: 80px;">大小 <span class="sort-icon" id="sort-icon-size"></span></th>
-                            <th onclick="setQbSort('progress')" style="padding: 12px; width: 140px;">进度 <span class="sort-icon" id="sort-icon-progress"></span></th>
-                            <th onclick="setQbSort('ratio')" style="padding: 12px; width: 80px;">分享率 <span class="sort-icon" id="sort-icon-ratio"></span></th>
-                            <th onclick="setQbSort('state')" style="padding: 12px; width: 90px;">状态 <span class="sort-icon" id="sort-icon-state"></span></th>
-                            <th onclick="setQbSort('speed')" style="padding: 12px; width: 120px;">下载/上传 <span class="sort-icon" id="sort-icon-speed"></span></th>
-                            <th class="no-sort" style="padding: 12px; width: 100px; text-align: right;">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="qb-table-body"></tbody>
-                </table>
+            <div class="module-content" id="content-qb">
+                <div class="cluster-panel" style="background: #f0f9ff; border-color: #bae6fd; margin-top: 5px;">
+                    <select id="qb-node-select" class="cluster-input" style="flex: 1; min-width: 150px; font-weight:bold; color:#0ea5e9;" onchange="loadQbConfig()">
+                        <option value="">-- 载入节点数据中... --</option>
+                    </select>
+                    <input type="text" id="qb-url" class="cluster-input" placeholder="qB 访问地址 (例: http://127.0.0.1:8081)" style="flex: 2; min-width: 200px;">
+                    <input type="text" id="qb-user" class="cluster-input" placeholder="账号 (留空免密)" style="flex: 1; min-width: 90px;">
+                    <input type="password" id="qb-pwd" class="cluster-input" placeholder="密码" style="flex: 1; min-width: 90px;">
+                    <button class="cluster-btn" style="background: #0ea5e9;" onclick="connectQb()">🔗 连 接</button>
+                </div>
+                
+                <div id="qb-status-msg" style="font-size: 13px; margin-bottom: 10px; color: #64748b;">请选择宿主机节点并点击连接，接管该节点的下载任务。</div>
+                
+                <div class="qb-table-wrapper" id="qb-table-container" style="display: none;">
+                    <table class="qb-table">
+                        <thead>
+                            <tr>
+                                <th class="no-sort" style="width: 40px; text-align:center;">
+                                    <input type="checkbox" id="qb-chk-all" class="qb-checkbox" onclick="toggleQbAll(this.checked)">
+                                </th>
+                                <th onclick="setQbSort('name')">任务名称 <span class="sort-icon" id="sort-icon-name"></span></th>
+                                <th onclick="setQbSort('size')" class="col-size">大小 <span class="sort-icon" id="sort-icon-size"></span></th>
+                                <th onclick="setQbSort('progress')" class="col-progress">进度 <span class="sort-icon" id="sort-icon-progress"></span></th>
+                                <th onclick="setQbSort('added_on')" class="col-date">添加于 <span class="sort-icon" id="sort-icon-added_on"></span></th>
+                                <th onclick="setQbSort('ratio')" class="col-ratio">分享率 <span class="sort-icon" id="sort-icon-ratio"></span></th>
+                                <th onclick="setQbSort('state')" class="col-state">状态 <span class="sort-icon" id="sort-icon-state"></span></th>
+                                <th onclick="setQbSort('speed')" class="col-speed">下/上 速度 <span class="sort-icon" id="sort-icon-speed"></span></th>
+                                <th class="no-sort" style="width: 80px; text-align: right;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="qb-table-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
         <div class="card" style="border-top: 4px solid #f59e0b;">
-            <h2 style="color: #334155; margin-bottom: 20px; border:none; padding:0; font-size: 20px;">
-                <span>🏭 分布式种子工厂 Pro</span>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-auto" onclick="triggerTaskAllNodes('auto')">⚡ 一键并发全盘扫描</button>
-                    <button class="btn-update" onclick="hotUpdateAllNodes()">🔄 集群引擎同步全量更新</button>
+            <div class="module-header" onclick="toggleModule('factory')">
+                <div class="module-title" style="color: #b45309;">🏭 分布式种子工厂 Pro</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-auto" onclick="event.stopPropagation(); triggerTaskAllNodes('auto')">⚡ 并发全盘扫描</button>
+                    <button class="btn-update" onclick="event.stopPropagation(); hotUpdateAllNodes()">🔄 引擎 OTA 同步</button>
+                    <div class="module-chevron" id="icon-factory" style="margin-left: 10px;">▼</div>
                 </div>
-            </h2>
-
-            <div class="pro-form-group">
-                <label>1. 目标目录 (已聚合全网节点)</label>
-                <select id="pro-folder" class="pro-form-control">
-                    <option value="">-- 正在读取集群数据... --</option>
-                </select>
             </div>
 
-            <div class="pro-form-group">
-                <label>2. Tracker URL</label>
-                <input type="text" id="pro-tracker" class="pro-form-control" placeholder="留空则使用内置默认 Tracker">
-                <label class="checkbox-label"><input type="checkbox" id="pro-save-tracker"> 设为默认 (保存在浏览器)</label>
-            </div>
+            <div class="module-content" id="content-factory">
+                <div class="pro-form-group" style="margin-top: 10px;">
+                    <label>1. 目标目录 (已聚合全网节点)</label>
+                    <select id="pro-folder" class="pro-form-control">
+                        <option value="">-- 正在读取集群数据... --</option>
+                    </select>
+                </div>
 
-            <div class="pro-row">
-                <div class="pro-col">
-                    <div class="pro-form-group">
-                        <label>3. 截图排版</label>
-                        <select id="pro-layout" class="pro-form-control">
-                            <option value="auto">🤖 智能自动探测 (根据视频分辨率)</option>
-                            <option value="standard">🎥 强制标准模式 (16张 2x8网格)</option>
-                            <option value="vr">🥽 强制VR巨幕模式 (8张 单列竖排)</option>
-                        </select>
+                <div class="pro-form-group">
+                    <label>2. Tracker URL</label>
+                    <input type="text" id="pro-tracker" class="pro-form-control" placeholder="留空则使用内置默认 Tracker">
+                    <label class="checkbox-label"><input type="checkbox" id="pro-save-tracker"> 设为默认 (保存在浏览器)</label>
+                </div>
+
+                <div class="pro-row">
+                    <div class="pro-col">
+                        <div class="pro-form-group">
+                            <label>3. 截图排版</label>
+                            <select id="pro-layout" class="pro-form-control">
+                                <option value="auto">🤖 智能自动探测 (根据视频分辨率)</option>
+                                <option value="standard">🎥 强制标准模式 (16张 2x8网格)</option>
+                                <option value="vr">🥽 强制VR巨幕模式 (8张 单列竖排)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pro-col">
+                        <div class="pro-form-group">
+                            <label>4. 分块大小 (Piece Size)</label>
+                            <select id="pro-piece" class="pro-form-control">
+                                <option value="">🤖 智能自动计算 (推荐)</option>
+                                <option value="21">2 MB</option>
+                                <option value="22">4 MB</option>
+                                <option value="23">8 MB</option>
+                                <option value="24">16 MB</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                <div class="pro-col">
-                    <div class="pro-form-group">
-                        <label>4. 分块大小 (Piece Size)</label>
-                        <select id="pro-piece" class="pro-form-control">
-                            <option value="">🤖 智能自动计算 (推荐)</option>
-                            <option value="21">2 MB</option>
-                            <option value="22">4 MB</option>
-                            <option value="23">8 MB</option>
-                            <option value="24">16 MB</option>
-                        </select>
-                    </div>
-                </div>
+                <button class="btn-pro-submit" onclick="submitProTask()">🚀 向目标节点下发定制任务</button>
             </div>
-
-            <button class="btn-pro-submit" onclick="submitProTask()">🚀 向目标节点下发定制任务</button>
         </div>
 
-        <div class="card">
-            <div class="toolbar">
-                <h3 style="margin:0; font-size: 18px; color: #334155;">📂 全网下载目录监控</h3>
-                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <div class="card" style="border-top: 4px solid #10b981;">
+            <div class="module-header" onclick="toggleModule('monitor')">
+                <div class="module-title" style="color: #047857;">📂 全网成品目录监控</div>
+                <div class="module-chevron" id="icon-monitor">▼</div>
+            </div>
+            
+            <div class="module-content" id="content-monitor">
+                <div class="toolbar" style="margin-top: 10px;">
                     <div class="view-toggle">
                         <button id="btn-view-list" class="active" onclick="switchViewMode('list')">🀄 列表视图</button>
                         <button id="btn-view-grid" onclick="switchViewMode('grid')">▦ 网格视图</button>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                        <button class="btn-batch" onclick="selectAllPending()">全选待处理</button>
-                        <button class="btn-batch" onclick="triggerBatch()">执行分布式批量</button>
+                        <button class="btn-batch" onclick="selectAllPending()">☑️ 全选待处理</button>
+                        <button class="btn-batch" onclick="triggerBatch()" style="background:#4f46e5;">🚀 执行批量装载</button>
                     </div>
                 </div>
-            </div>
-            <div id="folder-list">
-                <div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点...</div>
+                <div id="folder-list">
+                    <div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -273,6 +315,7 @@
     </div>
 
     <script>
+        // ================= 全局状态与记忆 =================
         let clusterNodes = [];
         let currentFolders = [];
         let currentActiveFolder = "";
@@ -281,39 +324,62 @@
         
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
-        let isFleetConfigCollapsed = localStorage.getItem('fleet_config_collapsed') === 'true';
         
-        // qBittorrent 状态与数据管理
+        // 模块折叠状态记忆管理器
+        const defaultModules = { fleet: true, qb: false, factory: true, monitor: false };
+        let moduleStates = JSON.parse(localStorage.getItem('module_states')) || defaultModules;
+        
+        // qB 状态管理器
         let qbInterval = null;
-        let qbTorrentsData = []; // 存储最新的 qb 列表数据
-        let qbSortKey = 'name';  // 默认按名字排序
-        let qbSortAsc = true;    // 默认升序
-        let qbSelectedHashes = new Set(); // 存储用户打钩的哈希值，防止刷新时丢失
+        let qbTorrentsData = []; 
+        let qbSortKey = 'added_on'; // 默认按添加时间排序
+        let qbSortAsc = false;      // 默认最新添加的在最上面 (降序)
+        let qbSelectedHashes = new Set(); 
 
+        // 工具函数：格式化容量
         function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
+            if (bytes === 0 || !bytes) return '0 B';
             const k = 1024;
             const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        function toggleFleetConfig() {
-            isFleetConfigCollapsed = !isFleetConfigCollapsed;
-            localStorage.setItem('fleet_config_collapsed', isFleetConfigCollapsed);
-            renderFleetConfigState();
+        // 工具函数：格式化时间戳 (Unix 秒转 YYYY-MM-DD HH:mm)
+        function formatDate(timestamp) {
+            if (!timestamp) return '-';
+            const d = new Date(timestamp * 1000);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
         }
 
-        function renderFleetConfigState() {
-            const container = document.getElementById('fleet-config-container');
-            const btn = document.getElementById('btn-fleet-toggle');
-            if (isFleetConfigCollapsed) {
-                container.style.display = 'none';
-                btn.innerHTML = '⚙️ 展开节点详情 ▼';
-            } else {
-                container.style.display = 'block';
-                btn.innerHTML = '⚙️ 折叠节点详情 ▲';
-            }
+        // ================= UI 交互逻辑 =================
+        
+        // 统一的模块折叠逻辑
+        function toggleModule(modName) {
+            moduleStates[modName] = !moduleStates[modName];
+            localStorage.setItem('module_states', JSON.stringify(moduleStates));
+            renderModuleStates();
+        }
+
+        function renderModuleStates() {
+            Object.keys(moduleStates).forEach(modName => {
+                const content = document.getElementById(`content-${modName}`);
+                const icon = document.getElementById(`icon-${modName}`);
+                if(content && icon) {
+                    if(moduleStates[modName]) {
+                        content.classList.add('collapsed');
+                        icon.classList.add('collapsed');
+                    } else {
+                        content.classList.remove('collapsed');
+                        icon.classList.remove('collapsed');
+                    }
+                }
+            });
         }
 
         function switchViewMode(mode) {
@@ -331,6 +397,7 @@
             renderList();
         }
 
+        // ================= 节点同步与渲染 =================
         async function syncNodesToBackend(nodes) {
             try {
                 await fetch('/api/nodes', {
@@ -338,12 +405,13 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(nodes)
                 });
-            } catch (e) { console.error("同步云端节点失败", e); }
+            } catch (e) {}
         }
 
         async function initNodes() {
             const localOrigin = window.location.origin;
             let savedNodes = [];
+            
             try {
                 const res = await fetch('/api/nodes');
                 savedNodes = await res.json();
@@ -431,7 +499,7 @@
         function populateQbNodes() {
             const select = document.getElementById('qb-node-select');
             const currentVal = select.value;
-            select.innerHTML = '<option value="">-- 选择要控制的宿主机节点 --</option>';
+            select.innerHTML = '<option value="">-- 选择要接管的宿主机 --</option>';
             clusterNodes.forEach(n => {
                 const opt = document.createElement('option');
                 opt.value = n.url;
@@ -449,17 +517,13 @@
                 document.getElementById('qb-url').value = configs[nodeUrl].url || '';
                 document.getElementById('qb-user').value = configs[nodeUrl].user || '';
                 document.getElementById('qb-pwd').value = configs[nodeUrl].pwd || '';
-            } else {
-                document.getElementById('qb-url').value = '';
-                document.getElementById('qb-user').value = '';
-                document.getElementById('qb-pwd').value = '';
             }
             clearInterval(qbInterval);
-            document.getElementById('qb-table').style.display = 'none';
+            document.getElementById('qb-table-container').style.display = 'none';
             document.getElementById('qb-batch-bar').style.display = 'none';
-            qbSelectedHashes.clear(); // 切换节点时清空勾选状态
+            qbSelectedHashes.clear();
             
-            document.getElementById('qb-status-msg').innerText = '请确认密码后，点击连接以接管该节点。';
+            document.getElementById('qb-status-msg').innerText = '请确认配置后，点击连接以接管该节点。';
             document.getElementById('qb-status-msg').style.color = '#64748b';
         }
 
@@ -503,12 +567,12 @@
                     return;
                 }
                 
-                qbTorrentsData = data; // 保存到全局供排序和筛选使用
-                document.getElementById('qb-table').style.display = 'table';
+                qbTorrentsData = data; 
+                document.getElementById('qb-table-container').style.display = 'block';
                 document.getElementById('qb-status-msg').innerText = `✅ [${new Date().toLocaleTimeString()}] 连接成功！底层透传模式已激活，实时刷新中...`;
                 document.getElementById('qb-status-msg').style.color = '#16a34a';
                 
-                renderQbTable(); // 使用保存的数据进行渲染
+                renderQbTable(); 
                 
             } catch(e) {
                 document.getElementById('qb-status-msg').innerText = `❌ 宿主机响应超时，可能节点已离线。`;
@@ -516,15 +580,15 @@
             }
         }
 
-        // --- 排序交互逻辑 ---
+        // --- qB 排序与渲染 ---
         function setQbSort(key) {
             if (qbSortKey === key) {
                 qbSortAsc = !qbSortAsc; 
             } else {
                 qbSortKey = key;
-                qbSortAsc = true; 
+                qbSortAsc = key !== 'added_on'; // 除了时间，其他默认升序
             }
-            if (qbTorrentsData.length > 0) renderQbTable(); // 立即重新渲染表单
+            if (qbTorrentsData.length > 0) renderQbTable();
         }
 
         function sortTorrentsArray(torrents) {
@@ -537,6 +601,7 @@
                     case 'state': valA = a.state; valB = b.state; break;
                     case 'speed': valA = Math.max(a.dlspeed, a.upspeed); valB = Math.max(b.dlspeed, b.upspeed); break;
                     case 'ratio': valA = a.ratio || 0; valB = b.ratio || 0; break;
+                    case 'added_on': valA = a.added_on || 0; valB = b.added_on || 0; break;
                     default: valA = a.name; valB = b.name;
                 }
                 if (valA < valB) return qbSortAsc ? -1 : 1;
@@ -545,13 +610,9 @@
             });
         }
 
-        // --- 多选交互逻辑 ---
         function toggleQbAll(checked) {
-            if (checked) {
-                qbTorrentsData.forEach(t => qbSelectedHashes.add(t.hash));
-            } else {
-                qbSelectedHashes.clear();
-            }
+            if (checked) { qbTorrentsData.forEach(t => qbSelectedHashes.add(t.hash)); } 
+            else { qbSelectedHashes.clear(); }
             renderQbTable(); 
         }
 
@@ -576,12 +637,10 @@
             }
         }
 
-        // --- 渲染 qB 交互式数据网格 ---
         function renderQbTable() {
             const tbody = document.getElementById('qb-table-body');
             tbody.innerHTML = '';
             
-            // 重置并更新所有的排序箭头图标
             document.querySelectorAll('.sort-icon').forEach(el => { el.innerHTML = ''; el.className = 'sort-icon'; });
             const activeIcon = document.getElementById(`sort-icon-${qbSortKey}`);
             if(activeIcon) {
@@ -590,13 +649,12 @@
             }
             
             if (!Array.isArray(qbTorrentsData) || qbTorrentsData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">qBittorrent 中暂无任何任务</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#64748b;">📭 qBittorrent 中暂无任何任务</td></tr>';
                 updateQbBatchBar();
                 return;
             }
 
             const sortedTorrents = sortTorrentsArray(qbTorrentsData);
-
             const stateMap = {
                 'downloading': ['下载中', '#3b82f6'], 'stalledDL': ['等待下载', '#94a3b8'],
                 'uploading': ['做种中', '#10b981'], 'stalledUP': ['做种(空闲)', '#10b981'],
@@ -615,42 +673,40 @@
                 let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6;">↑ ${formatBytes(t.upspeed)}/s</span>` : '';
                 if(!dlSpeed && !upSpeed) dlSpeed = '<span style="color:#94a3b8;">0 B/s</span>';
                 
-                // 处理分享率
                 let ratioText = t.ratio === -1 || t.ratio > 9999 ? '∞' : (t.ratio || 0).toFixed(2);
+                let addedTime = formatDate(t.added_on);
 
-                // 操作按钮
                 let actionBtns = '';
                 if (t.state.includes('paused')) {
-                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" style="background:#10b981; padding:4px 10px; margin-right:5px;">▶</button>`;
+                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" style="background:#10b981; margin-right:4px;">▶</button>`;
                 } else {
-                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; padding:4px 10px; margin-right:5px;">⏸</button>`;
+                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; margin-right:4px;">⏸</button>`;
                 }
                 const safeName = t.name.replace(/'/g, "\\'");
-                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" style="background:#ef4444; padding:4px 10px;">✖</button>`;
+                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" style="background:#ef4444;">✖</button>`;
 
-                // 检查记忆的选中状态
                 let isChecked = qbSelectedHashes.has(t.hash) ? 'checked' : '';
 
                 tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; text-align:center;"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}', this.checked)" ${isChecked}></td>
-                        <td style="padding: 10px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${t.name}"><strong>${t.name}</strong></td>
-                        <td style="padding: 10px; font-size:13px; color:#475569;">${formatBytes(t.size)}</td>
-                        <td style="padding: 10px; font-size:13px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${progressPct}%</span></div>
+                    <tr>
+                        <td style="text-align:center;"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}', this.checked)" ${isChecked}></td>
+                        <td><div class="col-name" title="${t.name}">${t.name}</div></td>
+                        <td class="col-size">${formatBytes(t.size)}</td>
+                        <td class="col-progress">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:2px; font-size:12px;"><span>${progressPct}%</span></div>
                             <div style="background:#e2e8f0; height:6px; border-radius:3px; width:100%; overflow:hidden;">
                                 <div style="background:${stateColor}; height:100%; width:${progressPct}%;"></div>
                             </div>
                         </td>
-                        <td style="padding: 10px; font-size:13px; font-weight:bold; color:#0ea5e9;">${ratioText}</td>
-                        <td style="padding: 10px; font-size:13px; font-weight:bold; color:${stateColor};">${stateText}</td>
-                        <td style="padding: 10px; font-size:12px; font-family:Consolas,monospace;">${dlSpeed}${upSpeed}</td>
-                        <td style="padding: 10px; text-align:right;">${actionBtns}</td>
+                        <td class="col-date">${addedTime}</td>
+                        <td class="col-ratio">${ratioText}</td>
+                        <td class="col-state" style="color:${stateColor};">${stateText}</td>
+                        <td class="col-speed">${dlSpeed}${upSpeed}</td>
+                        <td style="text-align:right;">${actionBtns}</td>
                     </tr>
                 `;
             });
-            
-            updateQbBatchBar(); // 确保刷新后多选操作栏状态正确
+            updateQbBatchBar(); 
         }
 
         async function qbAction(hash, action) {
@@ -662,41 +718,35 @@
                     body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hash })
                 });
                 fetchQbData(); 
-            } catch(e) { alert("操作失败！节点可能响应超时。"); }
+            } catch(e) {}
         }
 
         async function qbDelete(hash, name) {
             if(!confirm(`⚠️ 危险操作：确认要删除任务 [ ${name} ] 吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时从硬盘彻底删除已下载的本地视频文件，以及生成的种子、截图等附属文件？\n\n点击【确定】彻底粉碎所有相关文件\n点击【取消】仅移除任务列表，保留文件`);
+            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时彻底删除相关视频及生成的截图等附属文件？\n\n[确定] 粉碎所有文件 | [取消] 仅移除任务`);
             
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
             try {
                 await fetch(`${nodeUrl}/api/qbittorrent`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ 
-                        url: config.url, user: config.user, pwd: config.pwd, action: "delete", 
-                        hashes: hash, delete_files: deleteFiles, name: name 
-                    })
+                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "delete", hashes: hash, delete_files: deleteFiles, name: name })
                 });
-                qbSelectedHashes.delete(hash); // 清理内存状态
+                qbSelectedHashes.delete(hash);
                 fetchQbData();
-            } catch(e) { alert("删除指令下发失败！"); }
+            } catch(e) {}
         }
 
-        // --- 批量删除交互逻辑 ---
         async function qbBatchDelete() {
             if(qbSelectedHashes.size === 0) return;
             const hashesArr = Array.from(qbSelectedHashes);
-            
-            // 智能映射：把哈希值转换成对应的任务名字（用于后端执行深度垃圾清理）
             const namesArr = hashesArr.map(h => {
                 const target = qbTorrentsData.find(t => t.hash === h);
                 return target ? target.name : "";
             }).filter(n => n !== "");
             
-            if(!confirm(`⚠️ 危险操作：确认要批量删除选中的 ${hashesArr.length} 个任务吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [批量深度清理] 是否同时从硬盘彻底粉碎这 ${hashesArr.length} 个任务对应的所有视频及附属垃圾文件？\n\n点击【确定】彻底清空硬盘空间\n点击【取消】仅移除任务，保留文件`);
+            if(!confirm(`⚠️ 确认要批量删除 ${hashesArr.length} 个任务吗？`)) return;
+            const deleteFiles = confirm(`🗑️ [批量深度清理] 是否同时彻底粉碎这 ${hashesArr.length} 个任务对应的所有文件？`);
             
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
@@ -706,19 +756,18 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ 
                         url: config.url, user: config.user, pwd: config.pwd, action: "delete", 
-                        hashes: hashesArr.join('|'), // qB API 支持用 | 分隔多哈希
-                        delete_files: deleteFiles,
-                        name: namesArr.join('|')     // 后端也支持用 | 提取多名字进行深度清理
+                        hashes: hashesArr.join('|'), delete_files: deleteFiles, name: namesArr.join('|')
                     })
                 });
-                qbSelectedHashes.clear(); // 清理打钩状态
+                qbSelectedHashes.clear();
                 fetchQbData();
-            } catch(e) { alert("批量删除指令下发失败！"); }
+            } catch(e) {}
         }
 
-
-        // ================= 硬件探针与全网数据轮询 =================
+        // ================= 高频轮询：硬件探针数据 =================
         async function fetchSysInfo() {
+            if (moduleStates['fleet']) return; // 如果大盘面板折叠了，探针也无需高频刷新以节省性能
+            
             clusterNodes.forEach(async (node, index) => {
                 if (node.status === 'offline') return;
                 try {
@@ -775,6 +824,7 @@
             });
         }
 
+        // ================= 低频轮询：全网业务大盘 =================
         async function fetchAllNodesFolders() {
             currentFolders = [];
             let onlineCount = 0;
@@ -807,8 +857,10 @@
             document.getElementById('stat-ready').innerText = readyTasks;
             document.getElementById('stat-pending').innerText = totalTasks - readyTasks;
             
-            renderList();
-            updateProDropdown();
+            if(!moduleStates['monitor'] || !moduleStates['factory']) {
+                renderList();
+                updateProDropdown();
+            }
         }
 
         function renderList() {
@@ -888,7 +940,9 @@
 
         function fillProForm(nodeUrl, folderName) {
             document.getElementById("pro-folder").value = `${nodeUrl}|${folderName}`;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // 自动展开工厂模块以便用户操作
+            if (moduleStates['factory']) toggleModule('factory');
+            document.getElementById("pro-folder").scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         async function submitProTask() {
@@ -1017,7 +1071,8 @@
             
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
-            renderFleetConfigState();
+            
+            renderModuleStates();
 
             await initNodes();
             fetchAllNodesFolders();
