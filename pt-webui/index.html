@@ -5,57 +5,124 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PT 终极流水线</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 40px auto; background-color: #f5f7fa; color: #333; padding: 0 15px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f5f7fa; color: #333; }
+        
+        /* ================= 仪表盘列表视图样式 ================= */
+        #main-dashboard { max-width: 1000px; margin: 40px auto; padding: 0 15px; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         
-        /* 按钮样式优化 */
-        button { background: #4f46e5; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background 0.2s;}
-        button:hover { background: #4338ca; }
-        button:disabled { background: #a5b4fc; cursor: not-allowed; }
+        button { border: none; border-radius: 5px; cursor: pointer; transition: background 0.2s; color: white; }
+        button:disabled { background: #a5b4fc !important; cursor: not-allowed; }
         
-        .btn-auto { background: #10b981; font-size: 16px; padding: 12px 20px; }
-        .btn-auto:hover { background: #059669; }
-        .btn-update { background: #f59e0b; font-size: 16px; padding: 12px 20px; }
-        .btn-update:hover { background: #d97706; }
-        .btn-batch { background: #ec4899; }
-        .btn-batch:hover { background: #db2777; }
+        .btn-auto { background: #10b981; font-size: 16px; padding: 12px 20px; } .btn-auto:hover { background: #059669; }
+        .btn-update { background: #f59e0b; font-size: 16px; padding: 12px 20px; } .btn-update:hover { background: #d97706; }
+        .btn-batch { background: #ec4899; padding: 8px 12px;} .btn-batch:hover { background: #db2777; }
+        .btn-action { background: #4f46e5; padding: 8px 12px; font-size: 14px;} .btn-action:hover { background: #4338ca; }
+        .btn-view { background: #0ea5e9; padding: 8px 12px; font-size: 14px;} .btn-view:hover { background: #0284c7; }
 
         .header-actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
         .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px;}
         
-        /* 列表与长文换行修复 */
         .item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
         .item:last-child { border-bottom: none; }
-        
         .item-info { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
         .item-info input[type="checkbox"] { margin-top: 5px; transform: scale(1.2); cursor: pointer; }
         .item-title { flex: 1; word-wrap: break-word; word-break: break-all; white-space: normal; line-height: 1.4; padding-right: 15px;}
+        .item-actions { white-space: nowrap; flex-shrink: 0; display: flex; gap: 8px;}
+
+        /* ================= 任务完成详情页样式 (复刻截图) ================= */
+        #detail-view { display: none; background: #ffffff; min-height: 100vh; padding: 40px 20px; }
+        .detail-container { max-width: 1100px; margin: 0 auto; text-align: center; }
         
-        .item-actions { white-space: nowrap; flex-shrink: 0; }
+        .success-title { color: #16a34a; font-size: 32px; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px;}
+        .success-title svg { width: 36px; height: 36px; fill: currentColor; }
+        
+        .btn-return { background: #1d4ed8; font-size: 18px; padding: 12px 30px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
+        .btn-return:hover { background: #1e3a8a; }
+        
+        .save-path { color: #64748b; font-size: 15px; margin-bottom: 25px; }
+        
+        .download-bar { display: flex; gap: 15px; justify-content: center; margin-bottom: 40px; }
+        .download-bar button { font-size: 16px; padding: 12px 25px; font-weight: bold; border-radius: 6px; display: flex; align-items: center; gap: 6px;}
+        .dl-torrent { background: #15803d; } .dl-torrent:hover { background: #166534; }
+        .dl-info { background: #06b6d4; } .dl-info:hover { background: #0891b2; }
+        .dl-img { background: #eab308; color: #422006; } .dl-img:hover { background: #ca8a04; }
+
+        .preview-header { display: flex; justify-content: space-between; font-size: 18px; color: #334155; margin-bottom: 10px; text-align: left; padding: 0 10px;}
+        .preview-container { display: flex; gap: 20px; align-items: stretch; text-align: left;}
+        .preview-box { flex: 1; background: #fff; width: 50%; }
+        
+        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; color: #334155; height: 500px; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 6px;}
+        .preview-image { width: 100%; height: 532px; object-fit: contain; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: block;}
+        
+        @media (max-width: 768px) {
+            .preview-container { flex-direction: column; }
+            .preview-box { width: 100%; }
+            .preview-header { flex-direction: column; gap: 10px; display: none;}
+            .download-bar { flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
-    <h2>🚀 PT 自动化处理流水线</h2>
-    
-    <div class="header-actions">
-        <button class="btn-auto" onclick="triggerTask('auto', '')">⚡ 全盘增量扫描 (跳过已完成)</button>
-        <button class="btn-update" onclick="hotUpdate()">🔄 一键热更新核心脚本</button>
+
+    <div id="main-dashboard">
+        <h2>🚀 PT 自动化处理流水线</h2>
+        
+        <div class="header-actions">
+            <button class="btn-auto" onclick="triggerTask('auto', '')">⚡ 全盘增量扫描</button>
+            <button class="btn-update" onclick="hotUpdate()">🔄 一键热更新核心脚本</button>
+        </div>
+
+        <div class="card">
+            <div class="toolbar">
+                <h3>📂 下载目录状态监控</h3>
+                <div>
+                    <button class="btn-batch" onclick="selectAllPending()">全选待处理</button>
+                    <button class="btn-batch" onclick="triggerBatch()">执行批量处理</button>
+                </div>
+            </div>
+            <div id="folder-list">加载中...</div>
+        </div>
     </div>
 
-    <div class="card">
-        <div class="toolbar">
-            <h3>📂 下载目录状态监控</h3>
-            <div>
-                <button class="btn-batch" onclick="selectAllPending()">全选待处理</button>
-                <button class="btn-batch" onclick="triggerBatch()">执行批量处理</button>
+    <div id="detail-view">
+        <div class="detail-container">
+            <div class="success-title">
+                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+                任务完成
+            </div>
+            
+            <button class="btn-return" onclick="closeDetailView()">🔄 制作新种子 (返回首页)</button>
+            
+            <div class="save-path">所有生成文件已覆盖保存至： <span id="detailPath" style="font-weight:bold; color:#333;"></span> 目录</div>
+            
+            <div class="download-bar">
+                <button class="dl-torrent" onclick="downloadFile('torrent')">⬇️ 下载种子</button>
+                <button class="dl-info" onclick="downloadFile('mediainfo')">⬇️ 下载 Info</button>
+                <button class="dl-img" onclick="downloadFile('image')">⬇️ 下载缩略图</button>
+            </div>
+
+            <div class="preview-header">
+                <div style="flex: 1;">MediaInfo:</div>
+                <div style="flex: 1;">缩略图预览:</div>
+            </div>
+            
+            <div class="preview-container">
+                <div class="preview-box">
+                    <pre class="mediainfo-content" id="detailMediaInfo">读取中...</pre>
+                </div>
+                <div class="preview-box">
+                    <img class="preview-image" id="detailImage" src="" alt="预览图加载中...">
+                </div>
             </div>
         </div>
-        <div id="folder-list">加载中...</div>
     </div>
 
     <script>
         let currentFolders = [];
+        let currentActiveFolder = "";
 
+        // ================= 数据加载与渲染 =================
         async function fetchFolders() {
             const res = await fetch('/api/folders');
             const data = await res.json();
@@ -68,6 +135,12 @@
             list.innerHTML = '';
             currentFolders.forEach(f => {
                 const color = f.ready ? 'green' : '#f59e0b';
+                
+                const actionsHtml = f.ready 
+                    ? `<button class="btn-view" onclick="openDetailView('${f.name}')">👁️ 查看结果</button>
+                       <button class="btn-action" onclick="triggerTask('folder', '${f.name}')" style="background:#64748b;">重新处理</button>`
+                    : `<button class="btn-action" onclick="triggerTask('folder', '${f.name}')">手动处理</button>`;
+                    
                 list.innerHTML += `
                     <div class="item">
                         <div class="item-info">
@@ -78,52 +151,82 @@
                             </div>
                         </div>
                         <div class="item-actions">
-                            <button onclick="triggerTask('folder', '${f.name}')">手动处理</button>
+                            ${actionsHtml}
                         </div>
                     </div>`;
             });
         }
 
-        // 全选待处理项
+        // ================= 视图切换核心逻辑 =================
+        function openDetailView(folderName) {
+            currentActiveFolder = folderName;
+            
+            // 隐藏列表，显示详情
+            document.getElementById('main-dashboard').style.display = 'none';
+            document.getElementById('detail-view').style.display = 'block';
+            
+            // 更新路径文本
+            document.getElementById('detailPath').innerText = `/downloads/${folderName}`;
+            
+            // 1. 加载图片 (加时间戳防止缓存)
+            document.getElementById('detailImage').src = `/api/files/${encodeURIComponent(folderName)}/image?t=${new Date().getTime()}`;
+            
+            // 2. 加载 MediaInfo
+            document.getElementById('detailMediaInfo').innerText = "读取中...";
+            fetch(`/api/preview/mediainfo/${encodeURIComponent(folderName)}`)
+                .then(res => res.text())
+                .then(text => { document.getElementById('detailMediaInfo').innerText = text; })
+                .catch(() => { document.getElementById('detailMediaInfo').innerText = "❌ 读取失败！请检查文件是否生成完整。"; });
+                
+            // 滚回顶部
+            window.scrollTo(0, 0);
+        }
+
+        function closeDetailView() {
+            // 隐藏详情，恢复列表
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById('main-dashboard').style.display = 'block';
+            document.getElementById('detailImage').src = ""; // 清理内存
+            
+            // 返回首页时刷新一次最新状态
+            fetchFolders();
+        }
+
+        function downloadFile(type) {
+            if(!currentActiveFolder) return;
+            window.open(`/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank');
+        }
+
+        // ================= 操作指令逻辑 =================
         function selectAllPending() {
             const checkboxes = document.querySelectorAll('.folder-check:not(:disabled)');
             checkboxes.forEach(cb => cb.checked = true);
         }
 
-        // 批量处理选中项
         async function triggerBatch() {
             const checkboxes = document.querySelectorAll('.folder-check:checked');
             const selectedFolders = Array.from(checkboxes).map(cb => cb.value);
-            
-            if (selectedFolders.length === 0) {
-                alert("请先勾选需要处理的文件夹！");
-                return;
-            }
+            if (selectedFolders.length === 0) { alert("请先勾选需要处理的文件夹！"); return; }
 
-            alert(`已将 ${selectedFolders.length} 个任务加入后台排队处理，请稍后刷新页面查看状态。`);
+            alert(`已将 ${selectedFolders.length} 个任务加入后台队列，请稍后刷新页面查看状态。`);
             await fetch('/api/run_batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ folders: selectedFolders })
             });
-            
-            // 取消勾选并刷新
             checkboxes.forEach(cb => cb.checked = false);
             setTimeout(fetchFolders, 3000);
         }
 
         async function triggerTask(mode, folderName) {
-            alert('任务已触发！将默默在后台执行，请稍后刷新页面。');
+            alert('任务已触发！将在后台默默执行，请稍后刷新页面。');
             await fetch(`/api/run/${mode}?folder=${encodeURIComponent(folderName)}`, { method: 'POST' });
             setTimeout(fetchFolders, 3000); 
         }
 
-        // 无感热更新
         async function hotUpdate() {
             const btn = document.querySelector('.btn-update');
-            btn.innerText = "更新中...";
-            btn.disabled = true;
-            
+            btn.innerText = "更新中..."; btn.disabled = true;
             try {
                 const res = await fetch('/api/update', { method: 'POST' });
                 const data = await res.json();
@@ -131,11 +234,10 @@
             } catch(e) {
                 alert("网络请求失败，请检查容器网络！");
             }
-            
-            btn.innerText = "🔄 一键热更新核心脚本";
-            btn.disabled = false;
+            btn.innerText = "🔄 一键热更新核心脚本"; btn.disabled = false;
         }
 
+        // 初始化加载
         fetchFolders();
     </script>
 </body>
