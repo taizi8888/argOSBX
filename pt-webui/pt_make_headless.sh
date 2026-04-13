@@ -88,7 +88,7 @@ process_folder() {
             -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
             -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
             -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
-            -filter_complex "xstack=grid=2x8:fill=black" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            -filter_complex "xstack=inputs=16:layout=0_0|1920_0|0_1080|1920_1080|0_2160|1920_2160|0_3240|1920_3240|0_4320|1920_4320|0_5400|1920_5400|0_6480|1920_6480|0_7560|1920_7560" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
             
             if [ -f "$STITCHED_IMG" ]; then
                 rm -f "$LOG_FILE" # 拼合成功，销毁日志
