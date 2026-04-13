@@ -63,7 +63,7 @@ process_folder() {
             [ -z "$DUR" ] && DUR=300
             TIMESTAMP=$(( DUR * (5 + i * 5) / 100 ))
             
-            # 使用强制 1920x1080 居中补黑边算法，彻底消灭 xstack 像素对齐报错
+            # 使用强制 1920x1080 居中补黑边算法
             ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
               -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black" \
               "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
@@ -72,7 +72,7 @@ process_folder() {
         done
         wait
 
-        # 二次校验防翻车：确保 16 张图一张没少
+        # 二次校验防翻车
         MISSING=0
         for i in {0..15}; do
             if [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ]; then
@@ -91,7 +91,7 @@ process_folder() {
             -filter_complex "xstack=grid=2x8:fill=black" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
             
             if [ -f "$STITCHED_IMG" ]; then
-                rm -f "$LOG_FILE" # 拼合成功，销毁日志文件（深藏功与名）
+                rm -f "$LOG_FILE" # 拼合成功，销毁日志
             else
                 echo "❌ 拼合失败，请查看上方报错信息。" >> "$LOG_FILE"
             fi
@@ -101,3 +101,13 @@ process_folder() {
         
         rm -rf "$TMP_IMG_DIR"
     fi
+} # <--- 就是这个大括号之前被弄丢了！
+
+# 路由控制
+if [ "$1" == "--auto" ]; then
+    for dir in "$BASE_DIR"/*; do 
+        [ -d "$dir" ] && process_folder "$(basename "$dir")"
+    done 
+elif [ "$1" == "--folder" ] && [ -n "$2" ]; then
+    process_folder "$2"
+fi
