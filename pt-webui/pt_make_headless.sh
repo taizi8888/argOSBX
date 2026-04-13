@@ -27,9 +27,9 @@ process_folder() {
     # 1. 终极防御：拦截 .!qB
     if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
 
-    # 2. 净网与去水印 (【修复】新增对 *.log 垃圾文件的自动清理)
+    # 2. 净网与去水印 (【修复】阈值提升至 250M，并增加多格式拦截)
     find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
-    find "$FOLDER_PATH" -type f -iname "*.mp4" -size -50M -delete > /dev/null 2>&1
+    find "$FOLDER_PATH" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) -size -250M -delete > /dev/null 2>&1
     for file in "$FOLDER_PATH"/*; do
         if [ -f "$file" ]; then
             filename=$(basename "$file")
@@ -45,11 +45,11 @@ process_folder() {
     if [ "$NEED_MAKE_TORRENT" = false ] && [ "$NEED_FFMPEG" = false ]; then return; fi
 
     # 4. 制作种子与参数
-    mapfile -t VIDEO_FILES < <(find "$FOLDER_PATH" -maxdepth 1 -iname "*.mp4" | sort)
+    mapfile -t VIDEO_FILES < <(find "$FOLDER_PATH" -maxdepth 1 \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) | sort)
     NUM_FILES=${#VIDEO_FILES[@]}
     
     if [ "$NUM_FILES" -gt 0 ]; then
-        MAIN_VIDEO=$(find "$FOLDER_PATH" -maxdepth 1 -iname "*.mp4" -printf "%s\t%p\n" | sort -nr | head -n1 | cut -f2)
+        MAIN_VIDEO=$(find "$FOLDER_PATH" -maxdepth 1 \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) -printf "%s\t%p\n" | sort -nr | head -n1 | cut -f2)
         
         if [ "$NEED_MAKE_TORRENT" = true ]; then
             [ -n "$MAIN_VIDEO" ] && mediainfo "$MAIN_VIDEO" > "$INFO_FILE"
@@ -77,7 +77,6 @@ process_folder() {
     if [ "$NEED_FFMPEG" = true ] && [ "$NUM_FILES" -gt 0 ]; then
         mkdir -p "$TMP_IMG_DIR"
         MAX_JOBS=4
-        # 【修复】将日志生成路径移出视频文件夹，放在根目录作为临时文件，杜绝污染种子
         LOG_FILE="$BASE_DIR/${FOLDER_NAME}_ffmpeg_debug.log"
         
         FILE_NAME=$(basename "$MAIN_VIDEO")
