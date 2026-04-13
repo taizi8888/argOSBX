@@ -2,14 +2,16 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 import urllib.request
 import subprocess
 import os
 import time
+import json
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
+CONFIG_FILE = os.path.join(BASE_DIR, ".config", "nodes.json")
 
 # ================= 集群核心设置 =================
 app.add_middleware(
@@ -34,6 +36,25 @@ class BatchRequest(BaseModel):
 def index():
     return FileResponse("index.html")
 
+# ================= 新增：集群节点云端持久化 API =================
+@app.get("/api/nodes")
+def get_nodes():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return []
+
+@app.post("/api/nodes")
+def save_nodes(nodes: List[Any]):
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(nodes, f, ensure_ascii=False, indent=2)
+    return {"status": "success"}
+
+# ================= 业务接口 =================
 @app.get("/api/folders")
 def list_folders():
     folders = []
@@ -53,11 +74,9 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# ================= Nezha 探针级硬件监控 (已修复 Symlink 陷阱) =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
-        # 1. 提取物理内存 (强制优先读取宿主机)
         mem_path = '/host_proc/meminfo' if os.path.exists('/host_proc/meminfo') else '/proc/meminfo'
         with open(mem_path, 'r') as f:
             mem_lines = f.readlines()
@@ -65,17 +84,13 @@ def sysinfo():
         mem_available = int(mem_lines[2].split()[1]) * 1024
         mem_used = mem_total - mem_available
 
-        # 2. 提取 CPU 滴答数 (强制优先读取宿主机)
         stat_path = '/host_proc/stat' if os.path.exists('/host_proc/stat') else '/proc/stat'
         with open(stat_path, 'r') as f:
             cpu_line = f.readline().split()
         cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
         cpu_total = sum(float(x) for x in cpu_line[1:8])
 
-        # 3. 提取网卡真实物理流量
         net_tx, net_rx = 0, 0
-        
-        # 【核心黑科技】：绕开 /proc/net 的 self 陷阱，直接监听宿主机 PID 1 (systemd) 的网卡
         if os.path.exists('/host_proc/1/net/dev'):
             net_path = '/host_proc/1/net/dev'
         elif os.path.exists('/host_proc/net/dev'):
@@ -88,7 +103,6 @@ def sysinfo():
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    # 彻底过滤本地回环、Docker虚拟网卡和网桥，只统计真实物理网卡 (如 enp0s6, eth0)
                     if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth") and not iface.startswith("br-"):
                         vals = parts[1].split()
                         net_rx += int(vals[0])
@@ -131,7 +145,6 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
-# ================= OTA 全量热更新引擎 =================
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
     try:
@@ -151,7 +164,6 @@ def update_system(background_tasks: BackgroundTasks):
         with open("/app/app.py", "w", encoding="utf-8") as f: f.write(app_content)
 
         def restart_server():
-            import time
             time.sleep(2)
             os._exit(0) 
             
