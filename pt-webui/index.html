@@ -76,30 +76,30 @@
         .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
         .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px; accent-color: #3b82f6;}
 
-        /* qBittorrent 表格样式 (增加水平滚动与美化) */
+        /* qBittorrent 表格样式 (增加宽度与列宽分配) */
         .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
-        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; text-align: left; }
-        .qb-table th { background: #f8fafc; color: #475569; padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none; transition: background 0.2s; position: sticky; top: 0;}
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1100px; text-align: left; }
+        .qb-table th { background: #f8fafc; color: #475569; padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none; transition: background 0.2s; position: sticky; top: 0;}
         .qb-table th:hover { background: #e2e8f0; }
         .qb-table th.no-sort { cursor: default; }
         .qb-table th.no-sort:hover { background: #f8fafc; }
-        .qb-table td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .qb-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .qb-table tr:last-child td { border-bottom: none; }
         .qb-table tr:hover { background-color: #f8fafc; }
-        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s; padding: 4px 10px; font-size: 12px;}
+        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s; padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; min-width: 24px;}
         .qb-btn:hover { opacity: 0.8; }
-        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; color: #94a3b8; font-size: 10px;}
+        .sort-icon { display: inline-block; width: 12px; margin-left: 2px; color: #94a3b8; font-size: 10px;}
         .sort-icon.active { color: #3b82f6; }
         .qb-checkbox { transform: scale(1.3); cursor: pointer; accent-color: #0ea5e9;}
         
-        /* 表格数据列辅助样式 */
-        .col-name { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;}
-        .col-size { width: 80px; font-size: 13px; color: #64748b; white-space: nowrap;}
-        .col-date { width: 120px; font-size: 12px; color: #64748b; white-space: nowrap;}
+        /* 表格数据列专属排版 */
+        .col-name { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;}
+        .col-size { width: 70px; font-size: 13px; color: #64748b; white-space: nowrap;}
         .col-progress { width: 120px; }
-        .col-ratio { width: 70px; font-size: 13px; font-weight: bold; color: #0ea5e9;}
-        .col-state { width: 90px; font-size: 13px; font-weight: bold; white-space: nowrap;}
-        .col-speed { width: 110px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap;}
+        .col-ratio { width: 60px; font-size: 13px; font-weight: bold; color: #0ea5e9;}
+        .col-state { width: 80px; font-size: 13px; font-weight: bold; white-space: nowrap;}
+        .col-speed { width: 90px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap;}
+        .col-date { width: 110px; font-size: 12px; color: #64748b; white-space: nowrap;}
 
         /* Pro 工厂表单 */
         .pro-form-group { margin-bottom: 15px; }
@@ -170,8 +170,14 @@
             <div class="module-header" onclick="toggleModule('qb')">
                 <div class="module-title" style="color: #0369a1;">🔵 全网 qBittorrent 调度中心</div>
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <div id="qb-batch-bar" style="display: none;">
-                        <button style="background: #ef4444; padding: 6px 12px; font-size:12px; border-radius: 4px;" onclick="event.stopPropagation(); qbBatchDelete();">
+                    <div id="qb-batch-bar" style="display: none; gap: 8px;">
+                        <button style="background: #10b981; padding: 6px 12px; font-size:12px; border-radius: 4px; border:none; color:white; font-weight:bold; cursor:pointer;" onclick="event.stopPropagation(); qbBatchAction('resume');">
+                            ▶ 批量开始
+                        </button>
+                        <button style="background: #f59e0b; padding: 6px 12px; font-size:12px; border-radius: 4px; border:none; color:white; font-weight:bold; cursor:pointer;" onclick="event.stopPropagation(); qbBatchAction('pause');">
+                            ⏸ 批量暂停
+                        </button>
+                        <button style="background: #ef4444; padding: 6px 12px; font-size:12px; border-radius: 4px; border:none; color:white; font-weight:bold; cursor:pointer;" onclick="event.stopPropagation(); qbBatchDelete();">
                             🗑️ 批量删除 (<span id="qb-sel-count">0</span>)
                         </button>
                     </div>
@@ -202,11 +208,12 @@
                                 <th onclick="setQbSort('name')">任务名称 <span class="sort-icon" id="sort-icon-name"></span></th>
                                 <th onclick="setQbSort('size')" class="col-size">大小 <span class="sort-icon" id="sort-icon-size"></span></th>
                                 <th onclick="setQbSort('progress')" class="col-progress">进度 <span class="sort-icon" id="sort-icon-progress"></span></th>
-                                <th onclick="setQbSort('added_on')" class="col-date">添加于 <span class="sort-icon" id="sort-icon-added_on"></span></th>
                                 <th onclick="setQbSort('ratio')" class="col-ratio">分享率 <span class="sort-icon" id="sort-icon-ratio"></span></th>
                                 <th onclick="setQbSort('state')" class="col-state">状态 <span class="sort-icon" id="sort-icon-state"></span></th>
-                                <th onclick="setQbSort('speed')" class="col-speed">下/上 速度 <span class="sort-icon" id="sort-icon-speed"></span></th>
-                                <th class="no-sort" style="width: 80px; text-align: right;">操作</th>
+                                <th onclick="setQbSort('dlspeed')" class="col-speed">下行速度 <span class="sort-icon" id="sort-icon-dlspeed"></span></th>
+                                <th onclick="setQbSort('upspeed')" class="col-speed">上行速度 <span class="sort-icon" id="sort-icon-upspeed"></span></th>
+                                <th onclick="setQbSort('added_on')" class="col-date">添加于 <span class="sort-icon" id="sort-icon-added_on"></span></th>
+                                <th class="no-sort" style="width: 105px; text-align: right;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="qb-table-body"></tbody>
@@ -326,14 +333,14 @@
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
         
         // 模块折叠状态记忆管理器
-        const defaultModules = { fleet: true, qb: false, factory: true, monitor: false };
+        const defaultModules = { fleet: false, qb: false, factory: true, monitor: false };
         let moduleStates = JSON.parse(localStorage.getItem('module_states')) || defaultModules;
         
         // qB 状态管理器
         let qbInterval = null;
         let qbTorrentsData = []; 
-        let qbSortKey = 'added_on'; // 默认按添加时间排序
-        let qbSortAsc = false;      // 默认最新添加的在最上面 (降序)
+        let qbSortKey = 'added_on'; 
+        let qbSortAsc = false;      
         let qbSelectedHashes = new Set(); 
 
         // 工具函数：格式化容量
@@ -359,7 +366,6 @@
 
         // ================= UI 交互逻辑 =================
         
-        // 统一的模块折叠逻辑
         function toggleModule(modName) {
             moduleStates[modName] = !moduleStates[modName];
             localStorage.setItem('module_states', JSON.stringify(moduleStates));
@@ -548,6 +554,8 @@
         }
 
         async function fetchQbData() {
+            if (moduleStates['qb']) return; // 如果 qB 面板被折叠，暂停高频刷新以节省性能
+            
             const nodeUrl = document.getElementById('qb-node-select').value;
             if (!nodeUrl) return;
             let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
@@ -599,7 +607,8 @@
                     case 'size': valA = a.size; valB = b.size; break;
                     case 'progress': valA = a.progress; valB = b.progress; break;
                     case 'state': valA = a.state; valB = b.state; break;
-                    case 'speed': valA = Math.max(a.dlspeed, a.upspeed); valB = Math.max(b.dlspeed, b.upspeed); break;
+                    case 'dlspeed': valA = a.dlspeed || 0; valB = b.dlspeed || 0; break;
+                    case 'upspeed': valA = a.upspeed || 0; valB = b.upspeed || 0; break;
                     case 'ratio': valA = a.ratio || 0; valB = b.ratio || 0; break;
                     case 'added_on': valA = a.added_on || 0; valB = b.added_on || 0; break;
                     default: valA = a.name; valB = b.name;
@@ -628,7 +637,7 @@
             const chkAll = document.getElementById('qb-chk-all');
             
             countSpan.innerText = qbSelectedHashes.size;
-            bar.style.display = qbSelectedHashes.size > 0 ? 'block' : 'none';
+            bar.style.display = qbSelectedHashes.size > 0 ? 'flex' : 'none';
             
             if (qbTorrentsData.length > 0 && qbSelectedHashes.size === qbTorrentsData.length) {
                 chkAll.checked = true;
@@ -649,7 +658,7 @@
             }
             
             if (!Array.isArray(qbTorrentsData) || qbTorrentsData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#64748b;">📭 qBittorrent 中暂无任何任务</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#64748b;">📭 qBittorrent 中暂无任何任务</td></tr>';
                 updateQbBatchBar();
                 return;
             }
@@ -669,21 +678,19 @@
                 let stateText = stateInfo[0]; let stateColor = stateInfo[1];
                 let progressPct = (t.progress * 100).toFixed(1);
                 
-                let dlSpeed = t.dlspeed > 0 ? `<span style="color:#16a34a;">↓ ${formatBytes(t.dlspeed)}/s</span><br>` : '';
-                let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6;">↑ ${formatBytes(t.upspeed)}/s</span>` : '';
-                if(!dlSpeed && !upSpeed) dlSpeed = '<span style="color:#94a3b8;">0 B/s</span>';
+                let dlSpeed = t.dlspeed > 0 ? `<span style="color:#16a34a; font-weight:bold;">↓ ${formatBytes(t.dlspeed)}/s</span>` : '<span style="color:#94a3b8;">0 B/s</span>';
+                let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6; font-weight:bold;">↑ ${formatBytes(t.upspeed)}/s</span>` : '<span style="color:#94a3b8;">0 B/s</span>';
                 
                 let ratioText = t.ratio === -1 || t.ratio > 9999 ? '∞' : (t.ratio || 0).toFixed(2);
                 let addedTime = formatDate(t.added_on);
 
+                // 【修复：固定显示开始和暂停两个按钮，不再切换，保证点按可靠】
                 let actionBtns = '';
-                if (t.state.includes('paused')) {
-                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" style="background:#10b981; margin-right:4px;">▶</button>`;
-                } else {
-                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; margin-right:4px;">⏸</button>`;
-                }
+                actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" title="开始" style="background:#10b981; margin-right:4px;">▶</button>`;
+                actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" title="暂停" style="background:#f59e0b; margin-right:4px;">⏸</button>`;
+                
                 const safeName = t.name.replace(/'/g, "\\'");
-                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" style="background:#ef4444;">✖</button>`;
+                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" title="删除" style="background:#ef4444;">✖</button>`;
 
                 let isChecked = qbSelectedHashes.has(t.hash) ? 'checked' : '';
 
@@ -698,10 +705,11 @@
                                 <div style="background:${stateColor}; height:100%; width:${progressPct}%;"></div>
                             </div>
                         </td>
-                        <td class="col-date">${addedTime}</td>
                         <td class="col-ratio">${ratioText}</td>
                         <td class="col-state" style="color:${stateColor};">${stateText}</td>
-                        <td class="col-speed">${dlSpeed}${upSpeed}</td>
+                        <td class="col-speed">${dlSpeed}</td>
+                        <td class="col-speed">${upSpeed}</td>
+                        <td class="col-date">${addedTime}</td>
                         <td style="text-align:right;">${actionBtns}</td>
                     </tr>
                 `;
@@ -713,12 +721,30 @@
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
             try {
-                await fetch(`${nodeUrl}/api/qbittorrent`, {
+                // 不等待直接发指令，并立刻强制刷一次数据，解决用户觉得“没反应”的问题
+                fetch(`${nodeUrl}/api/qbittorrent`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hash })
-                });
-                fetchQbData(); 
+                }).then(() => fetchQbData());
             } catch(e) {}
+        }
+
+        async function qbBatchAction(action) {
+            if(qbSelectedHashes.size === 0) return;
+            const hashesArr = Array.from(qbSelectedHashes);
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
+
+            try {
+                await fetch(`${nodeUrl}/api/qbittorrent`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        url: config.url, user: config.user, pwd: config.pwd, action: action, 
+                        hashes: hashesArr.join('|')
+                    })
+                });
+                fetchQbData();
+            } catch(e) { alert("批量操作指令下发失败！"); }
         }
 
         async function qbDelete(hash, name) {
@@ -766,7 +792,7 @@
 
         // ================= 高频轮询：硬件探针数据 =================
         async function fetchSysInfo() {
-            if (moduleStates['fleet']) return; // 如果大盘面板折叠了，探针也无需高频刷新以节省性能
+            if (moduleStates['fleet']) return; 
             
             clusterNodes.forEach(async (node, index) => {
                 if (node.status === 'offline') return;
@@ -940,8 +966,10 @@
 
         function fillProForm(nodeUrl, folderName) {
             document.getElementById("pro-folder").value = `${nodeUrl}|${folderName}`;
-            // 自动展开工厂模块以便用户操作
-            if (moduleStates['factory']) toggleModule('factory');
+            // 如果工厂模块被折叠了，自动打开它
+            if (moduleStates['factory']) {
+                toggleModule('factory');
+            }
             document.getElementById("pro-folder").scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
@@ -1061,7 +1089,7 @@
             btn.innerText = "🔄 集群引擎同步全量更新"; btn.disabled = false;
         }
 
-        // ================= 初始化挂载点 =================
+        // ================= 初始化 =================
         document.addEventListener("DOMContentLoaded", async () => {
             const savedTracker = localStorage.getItem("saved_tracker");
             if(savedTracker) {
