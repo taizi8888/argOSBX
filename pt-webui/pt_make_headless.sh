@@ -2,27 +2,21 @@
 # 强制设置基础环境变量
 export LANG=zh_CN.UTF-8
 
-# 从环境变量读取目录，Docker 内统一挂载到 /downloads
+# 从环境变量读取目录，Docker 内我们统一挂载到 /downloads
 BASE_DIR="${BASE_DIR:-/downloads}"
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
-# ================= 字体环境初始化 (修复国内墙与0字节空文件 Bug) =================
+# ================= 字体环境初始化 =================
 FONT_DIR="$BASE_DIR/.config"
 mkdir -p "$FONT_DIR"
-FONT_FILE="$FONT_DIR/NotoSansSC-Regular.ttf"
+# 【核心修复1】使用开源全量中文字体：霞鹜文楷 (彻底解决 Google 阉割版字体导致的 [] 乱码方块)
+FONT_FILE="$FONT_DIR/LXGWWenKaiLite-Regular.ttf"
 
-# 如果文件不存在，或者大小为0，则重新下载
 if [ ! -s "$FONT_FILE" ]; then
-    echo "正在从 jsdelivr CDN 拉取中文字体..."
-    curl -Ls "https://fastly.jsdelivr.net/gh/google/fonts@main/ofl/notosanssc/NotoSansSC-Regular.ttf" -o "$FONT_FILE"
-    
-    # 容灾：如果第一个 CDN 挂了，切第二个
-    if [ ! -s "$FONT_FILE" ]; then
-        echo "切换备用 CDN 拉取字体..."
-        curl -Ls "https://ghp.ci/https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC-Regular.ttf" -o "$FONT_FILE"
-    fi
+    echo "正在拉取全量 CJK 中文字体库 (霞鹜文楷)..."
+    curl -L "https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf" -o "$FONT_FILE"
 fi
-# ===============================================================================
+# =================================================
 
 process_folder() {
     local FOLDER_NAME=$1
@@ -35,7 +29,7 @@ process_folder() {
     # 1. 终极防御：拦截 .!qB
     if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
 
-    # 2. 净网与去水印
+    # 2. 净网与去水印 (250M阈值，多格式，拦截 log)
     find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
     find "$FOLDER_PATH" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) -size -250M -delete > /dev/null 2>&1
     for file in "$FOLDER_PATH"/*; do
@@ -132,23 +126,78 @@ process_folder() {
             if [ "$VID_WIDTH" -ge 5000 ]; then LAYOUT="vr"; else LAYOUT="standard"; fi
         fi
 
-        if [ "$LAYOUT" == "vr" ]; then
-            echo "提取 8 张 VR 截图..." >> "$LOG_FILE"
-            for i in {0..7}; do
-                FILE_IDX=$(( i % NUM_FILES ))
-                CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
-                CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
-                [ -z "$CUR_DUR" ] && CUR_DUR=300
-                TIMESTAMP=$(( CUR_DUR * (5 + i * 12) / 100 ))
-                TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
-                printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
+        # ================= 【核心修复2】全局连续时间线架构 (Continuous Timeline Algorithm) =================
+        # 原理：将所有分P视频当成一部超长的电影，提取时间点从总时长的 5% 匀速递增至 95%。
+        # 效果：截图时间线绝对按照剧情发展顺序排列，左上至右下，并智能打上 [P1] [P2] 标记。
+        
+        extract_screenshots() {
+            local TOTAL_SHOTS=$1
+            local LAYOUT_TYPE=$2
+
+            echo "正在提取 $TOTAL_SHOTS 张连续截图 ($LAYOUT_TYPE 模式)..." >> "$LOG_FILE"
+            
+            for (( i=0; i<$TOTAL_SHOTS; i++ )); do
+                # 1. 计算全局绝对时间点 (5% 到 95% 均匀分布)
+                local PCT=$(( 5 + i * 90 / (TOTAL_SHOTS > 1 ? TOTAL_SHOTS - 1 : 1) ))
+                local TARGET_ABS_TIME=$(( TOTAL_DUR * PCT / 100 ))
+
+                local ACCUMULATED=0
+                local CUR_FILE=""
+                local REL_TIME=0
+                local PART_NUM=1
+
+                # 2. 定位该绝对时间点属于哪一个子分卷
+                for vf in "${VIDEO_FILES[@]}"; do
+                    local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1)
+                    [ -z "$fd" ] && fd=0
+                    if (( TARGET_ABS_TIME < ACCUMULATED + fd )); then
+                        CUR_FILE="$vf"
+                        REL_TIME=$(( TARGET_ABS_TIME - ACCUMULATED ))
+                        break
+                    fi
+                    ACCUMULATED=$(( ACCUMULATED + fd ))
+                    PART_NUM=$(( PART_NUM + 1 ))
+                done
+
+                # 兜底容错机制：防止精度丢失越界
+                if [ -z "$CUR_FILE" ]; then
+                    CUR_FILE="${VIDEO_FILES[-1]}"
+                    local last_fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
+                    REL_TIME=$(( last_fd > 10 ? last_fd - 5 : 0 ))
+                    PART_NUM=${#VIDEO_FILES[@]}
+                fi
+
+                # 3. 格式化并输出优雅的时间戳文本
+                local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
+                local DISP_TEXT="$TIME_STR"
+                # 如果是多分卷视频，加上高级排版 [P1], [P2] 标记
+                if [ "$NUM_FILES" -gt 1 ]; then
+                    DISP_TEXT="[P${PART_NUM}] ${TIME_STR}"
+                fi
                 
-                ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-                  -vf "scale=3840:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=64:x=40:y=h-th-40:box=1:boxcolor=black@0.6:boxborderw=15" \
-                  "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
+                local TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
+                echo "$DISP_TEXT" > "$TIME_TXT"
+
+                # 4. 执行 FFmpeg 截图
+                if [ "$LAYOUT_TYPE" == "vr" ]; then
+                    ( ffmpeg -y -ss "$REL_TIME" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
+                      -vf "scale=3840:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=64:x=40:y=h-th-40:box=1:boxcolor=black@0.6:boxborderw=15" \
+                      "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
+                else
+                    ( ffmpeg -y -ss "$REL_TIME" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
+                      -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" \
+                      "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
+                fi
+
+                # 控制并发上限
                 if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
             done
             wait
+        }
+
+        # 根据检测模式执行不同的排版策略
+        if [ "$LAYOUT" == "vr" ]; then
+            extract_screenshots 8 "vr"
 
             MISSING=0
             for i in {0..7}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
@@ -160,22 +209,7 @@ process_folder() {
                 [ -f "$STITCHED_IMG" ] && rm -f "$LOG_FILE"
             fi
         else
-            echo "提取 16 张标准截图..." >> "$LOG_FILE"
-            for i in {0..15}; do
-                FILE_IDX=$(( i % NUM_FILES ))
-                CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
-                CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
-                [ -z "$CUR_DUR" ] && CUR_DUR=300
-                TIMESTAMP=$(( CUR_DUR * (5 + i * 5) / 100 ))
-                TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
-                printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
-                
-                ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-                  -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" \
-                  "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
-                if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
-            done
-            wait
+            extract_screenshots 16 "standard"
 
             MISSING=0
             for i in {0..15}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
