@@ -76,23 +76,22 @@
         .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
         .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px; accent-color: #3b82f6;}
 
-        /* qBittorrent 表格样式 (增加宽度与列宽分配) */
+        /* qBittorrent 表格样式 */
         .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
-        .qb-table { width: 100%; border-collapse: collapse; min-width: 1100px; text-align: left; }
-        .qb-table th { background: #f8fafc; color: #475569; padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none; transition: background 0.2s; position: sticky; top: 0;}
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; text-align: left; }
+        .qb-table th { background: #f8fafc; color: #475569; padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none; transition: background 0.2s; position: sticky; top: 0;}
         .qb-table th:hover { background: #e2e8f0; }
         .qb-table th.no-sort { cursor: default; }
         .qb-table th.no-sort:hover { background: #f8fafc; }
-        .qb-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .qb-table td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .qb-table tr:last-child td { border-bottom: none; }
         .qb-table tr:hover { background-color: #f8fafc; }
-        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s; padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; min-width: 24px;}
+        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s; padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; min-width: 24px;}
         .qb-btn:hover { opacity: 0.8; }
         .sort-icon { display: inline-block; width: 12px; margin-left: 2px; color: #94a3b8; font-size: 10px;}
         .sort-icon.active { color: #3b82f6; }
         .qb-checkbox { transform: scale(1.3); cursor: pointer; accent-color: #0ea5e9;}
         
-        /* 表格数据列专属排版 */
         .col-name { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;}
         .col-size { width: 70px; font-size: 13px; color: #64748b; white-space: nowrap;}
         .col-progress { width: 120px; }
@@ -332,18 +331,15 @@
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
         
-        // 模块折叠状态记忆管理器
-        const defaultModules = { fleet: false, qb: false, factory: true, monitor: false };
+        const defaultModules = { fleet: false, qb: false, factory: true, monitor: true };
         let moduleStates = JSON.parse(localStorage.getItem('module_states')) || defaultModules;
         
-        // qB 状态管理器
         let qbInterval = null;
         let qbTorrentsData = []; 
         let qbSortKey = 'added_on'; 
         let qbSortAsc = false;      
         let qbSelectedHashes = new Set(); 
 
-        // 工具函数：格式化容量
         function formatBytes(bytes) {
             if (bytes === 0 || !bytes) return '0 B';
             const k = 1024;
@@ -352,7 +348,6 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // 工具函数：格式化时间戳 (Unix 秒转 YYYY-MM-DD HH:mm)
         function formatDate(timestamp) {
             if (!timestamp) return '-';
             const d = new Date(timestamp * 1000);
@@ -365,7 +360,6 @@
         }
 
         // ================= UI 交互逻辑 =================
-        
         function toggleModule(modName) {
             moduleStates[modName] = !moduleStates[modName];
             localStorage.setItem('module_states', JSON.stringify(moduleStates));
@@ -554,7 +548,7 @@
         }
 
         async function fetchQbData() {
-            if (moduleStates['qb']) return; // 如果 qB 面板被折叠，暂停高频刷新以节省性能
+            if (moduleStates['qb']) return; 
             
             const nodeUrl = document.getElementById('qb-node-select').value;
             if (!nodeUrl) return;
@@ -588,13 +582,12 @@
             }
         }
 
-        // --- qB 排序与渲染 ---
         function setQbSort(key) {
             if (qbSortKey === key) {
                 qbSortAsc = !qbSortAsc; 
             } else {
                 qbSortKey = key;
-                qbSortAsc = key !== 'added_on'; // 除了时间，其他默认升序
+                qbSortAsc = key !== 'added_on'; 
             }
             if (qbTorrentsData.length > 0) renderQbTable();
         }
@@ -684,7 +677,6 @@
                 let ratioText = t.ratio === -1 || t.ratio > 9999 ? '∞' : (t.ratio || 0).toFixed(2);
                 let addedTime = formatDate(t.added_on);
 
-                // 【修复：固定显示开始和暂停两个按钮，不再切换，保证点按可靠】
                 let actionBtns = '';
                 actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" title="开始" style="background:#10b981; margin-right:4px;">▶</button>`;
                 actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" title="暂停" style="background:#f59e0b; margin-right:4px;">⏸</button>`;
@@ -721,7 +713,6 @@
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
             try {
-                // 不等待直接发指令，并立刻强制刷一次数据，解决用户觉得“没反应”的问题
                 fetch(`${nodeUrl}/api/qbittorrent`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hash })
@@ -966,7 +957,6 @@
 
         function fillProForm(nodeUrl, folderName) {
             document.getElementById("pro-folder").value = `${nodeUrl}|${folderName}`;
-            // 如果工厂模块被折叠了，自动打开它
             if (moduleStates['factory']) {
                 toggleModule('factory');
             }
@@ -977,7 +967,11 @@
             const composite = document.getElementById("pro-folder").value;
             if(!composite) return alert("请先选择目标目录！");
             
-            const [nodeUrl, folderName] = composite.split('|');
+            // 安全分割
+            const pipeIndex = composite.indexOf('|');
+            const nodeUrl = composite.substring(0, pipeIndex);
+            const folderName = composite.substring(pipeIndex + 1);
+            
             const tracker = document.getElementById("pro-tracker").value.trim();
             const piece_size = document.getElementById("pro-piece").value;
             const layout = document.getElementById("pro-layout").value;
@@ -1025,7 +1019,9 @@
             
             let batches = {};
             selected.forEach(comp => {
-                const [nUrl, fName] = comp.split('|');
+                const pipeIndex = comp.indexOf('|');
+                const nUrl = comp.substring(0, pipeIndex);
+                const fName = comp.substring(pipeIndex + 1);
                 if(!batches[nUrl]) batches[nUrl] = [];
                 batches[nUrl].push(fName);
             });
@@ -1086,7 +1082,7 @@
             
             let results = await Promise.all(promises);
             alert("集群全网 OTA 闪刷结果：\n\n" + results.join("\n") + "\n\n后台容器正在重启，请等待 3 秒后手动刷新本网页！");
-            btn.innerText = "🔄 集群引擎同步全量更新"; btn.disabled = false;
+            btn.innerText = "🔄 引擎 OTA 同步"; btn.disabled = false;
         }
 
         // ================= 初始化 =================
