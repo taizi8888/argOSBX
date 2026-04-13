@@ -67,13 +67,19 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
 def update_system():
     try:
         script_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui/pt_make_headless.sh"
-        urllib.request.urlretrieve(script_url, "/app/pt_make_headless.sh")
+        
+        # 使用 Python 原生读取并清理 Windows 换行符 (\r)，彻底摆脱 dos2unix 依赖
+        response = urllib.request.urlopen(script_url)
+        script_content = response.read().decode('utf-8')
+        clean_content = script_content.replace('\r\n', '\n').replace('\r', '')
+        
+        with open("/app/pt_make_headless.sh", "w", encoding="utf-8", newline='\n') as f:
+            f.write(clean_content)
+            
         os.chmod("/app/pt_make_headless.sh", 0o755)
-        subprocess.run(["dos2unix", "/app/pt_make_headless.sh"])
-        return {"message": "✅ 核心逻辑热更新成功！无需重启容器。"}
+        return {"message": "✅ 核心逻辑热更新成功！(已原生过滤 Windows 换行符)"}
     except Exception as e:
         return {"message": f"❌ 更新失败: {str(e)}"}
-
 # 文件下载与预览接口
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
