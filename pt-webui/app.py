@@ -53,7 +53,7 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# ================= 新增：Nezha 探针级硬件监控 =================
+# ================= Nezha 探针级硬件监控 =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
@@ -70,15 +70,20 @@ def sysinfo():
         cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
         cpu_total = sum(float(x) for x in cpu_line[1:8])
 
-        # 3. 提取网卡实时流量
+        # 3. 提取网卡真实物理流量
         net_tx, net_rx = 0, 0
-        with open('/proc/net/dev', 'r') as f:
+        # 优先读取透视映射的宿主机网卡数据，如果没有映射，则读容器自己的
+        net_path = '/host_proc/net/dev' if os.path.exists('/host_proc/net/dev') else '/proc/net/dev'
+        with open(net_path, 'r') as f:
             for line in f.readlines()[2:]:
                 parts = line.split(':')
-                if len(parts) == 2 and parts[0].strip() != "lo":
-                    vals = parts[1].split()
-                    net_rx += int(vals[0])
-                    net_tx += int(vals[8])
+                if len(parts) == 2:
+                    iface = parts[0].strip()
+                    # 彻底过滤本地回环、Docker虚拟网卡和网桥，只统计物理网卡 (如 enp0s6, eth0)
+                    if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth") and not iface.startswith("br-"):
+                        vals = parts[1].split()
+                        net_rx += int(vals[0])
+                        net_tx += int(vals[8])
 
         return {
             "mem_total": mem_total,
@@ -117,7 +122,7 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
-# ================= OTA 全量自杀式热更新引擎 =================
+# ================= OTA 全量热更新引擎 =================
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
     try:
