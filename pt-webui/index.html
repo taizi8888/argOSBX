@@ -89,7 +89,7 @@
                 <span>🏭 分布式种子工厂 Pro</span>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn-auto" onclick="triggerTaskAllNodes('auto')">⚡ 一键并发全盘扫描</button>
-                    <button class="btn-update" onclick="hotUpdateAllNodes()">🔄 集群引擎同步更新</button>
+                    <button class="btn-update" onclick="hotUpdateAllNodes()">🔄 集群引擎同步全量更新</button>
                 </div>
             </h2>
 
@@ -167,7 +167,6 @@
     </div>
 
     <script>
-        // 现在 clusterNodes 升级为对象数组: [{url: "http://...", name: "备注名"}]
         let clusterNodes = [];
         let currentFolders = [];
         let currentActiveFolder = "";
@@ -178,7 +177,6 @@
             const localOrigin = window.location.origin;
             let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
             
-            // 数据迁移：兼容旧版本的纯字符串数组，自动转换为对象格式
             let savedNodes = rawSaved.map(n => {
                 if (typeof n === 'string') {
                     try { return { url: n, name: new URL(n).host }; } 
@@ -187,7 +185,6 @@
                 return n;
             });
 
-            // 本机节点强制放在第一位
             clusterNodes = [{ url: localOrigin, name: "本机主控台" }];
             
             savedNodes.forEach(n => { 
@@ -196,7 +193,6 @@
                 }
             });
             
-            // 同步最新的对象格式回本地存储
             localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
             renderNodes();
         }
@@ -222,7 +218,6 @@
             if(!ip.startsWith('http')) ip = 'http://' + ip; 
             if(ip.endsWith('/')) ip = ip.slice(0, -1);
             
-            // 如果没填备注名，尝试提取域名作为默认名称
             if(!name) {
                 try { name = new URL(ip).host; } 
                 catch(e) { name = ip; }
@@ -239,7 +234,7 @@
                 document.getElementById('newNodeName').value = '';
                 
                 initNodes();
-                fetchAllNodesFolders(); // 添加成功后重新拉取全网数据
+                fetchAllNodesFolders(); 
             } else {
                 alert("该节点 IP 已存在！");
             }
@@ -261,12 +256,10 @@
             const list = document.getElementById('folder-list');
             list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点数据...</div>';
             
-            // 并发向所有已知节点请求数据
             const promises = clusterNodes.map(async (node) => {
                 try {
                     const res = await fetch(`${node.url}/api/folders`);
                     const data = await res.json();
-                    // 给拉取到的文件夹打上对应节点的标记（包含 URL 和 友好的备注名）
                     return data.folders.map(f => ({...f, nodeUrl: node.url, nodeName: node.name}));
                 } catch(e) {
                     console.error(`节点 ${node.name} 失联:`, e);
@@ -277,7 +270,6 @@
             const results = await Promise.all(promises);
             results.forEach(res => currentFolders = currentFolders.concat(res));
             
-            // 终极排序：待处理优先，然后按时间倒序
             currentFolders.sort((a, b) => {
                 if (a.ready === b.ready) return b.mtime - a.mtime;
                 return a.ready ? 1 : -1;
@@ -298,7 +290,6 @@
 
             currentFolders.forEach(f => {
                 const color = f.ready ? '#16a34a' : '#f59e0b';
-                // 复选框和下拉菜单的值绑定为 节点URL|文件夹名
                 const compositeKey = `${f.nodeUrl}|${f.name}`;
                 
                 const actionsHtml = f.ready 
@@ -352,13 +343,11 @@
             if(saveTracker && tracker) localStorage.setItem("saved_tracker", tracker);
             else localStorage.removeItem("saved_tracker");
             
-            // 找一下发往节点的备注名用于提示
             const targetNode = clusterNodes.find(n => n.url === nodeUrl);
             const targetName = targetNode ? targetNode.name : nodeUrl;
 
             alert(`【指令已下发至：${targetName}】\n目录: ${folderName}\n后台处理中，请稍后刷新。`);
             
-            // 精确向对应的宿主机发送 POST 请求
             await fetch(`${nodeUrl}/api/run/folder`, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -389,7 +378,6 @@
             
             alert(`已将 ${selected.length} 个任务分配给对应的物理机排队。`);
             
-            // 分组处理：将任务按 nodeUrl 归类，各自发送给对应机器
             let batches = {};
             selected.forEach(comp => {
                 const [nUrl, fName] = comp.split('|');
@@ -416,7 +404,6 @@
             document.getElementById('detail-view').style.display = 'block';
             document.getElementById('detailPath').innerText = `[${nodeName}] /downloads/${folderName}`;
             
-            // 跨域读取图片和文本
             document.getElementById('detailImage').src = `${nodeUrl}/api/files/${encodeURIComponent(folderName)}/image?t=${new Date().getTime()}`;
             document.getElementById('detailMediaInfo').innerText = "跨节点读取中...";
             fetch(`${nodeUrl}/api/preview/mediainfo/${encodeURIComponent(folderName)}`)
@@ -442,24 +429,29 @@
         // ================= 同步更新所有节点引擎 =================
         async function hotUpdateAllNodes() {
             const btn = document.querySelector('.btn-update');
-            btn.innerText = "全网更新中..."; btn.disabled = true;
+            btn.innerText = "全网升级中..."; btn.disabled = true;
             
             let promises = clusterNodes.map(async (node) => {
                 try {
-                    await fetch(`${node.url}/api/update`, { method: 'POST' });
-                    return `[${node.name}]: ✅ 更新成功`;
+                    const res = await fetch(`${node.url}/api/update`, { method: 'POST' });
+                    const data = await res.json();
+                    // 检测是否含有OTA成功的消息
+                    if(data.message.includes("OTA")) {
+                        return `[${node.name}]: ✅ OTA 全量覆盖成功 (即将重启)`;
+                    } else {
+                        return `[${node.name}]: ✅ 基础更新成功`;
+                    }
                 } catch(e) {
-                    return `[${node.name}]: ❌ 更新失败或离线`;
+                    return `[${node.name}]: ❌ 更新失败或节点离线`;
                 }
             });
             
             let results = await Promise.all(promises);
-            alert("集群全网更新结果：\n\n" + results.join("\n"));
+            alert("集群全网 OTA 更新结果：\n\n" + results.join("\n") + "\n\n请等待 3 秒后手动刷新本网页！");
             
-            btn.innerText = "🔄 集群引擎同步更新"; btn.disabled = false;
+            btn.innerText = "🔄 集群引擎同步全量更新"; btn.disabled = false;
         }
 
-        // 启动初始化
         document.addEventListener("DOMContentLoaded", () => {
             const savedTracker = localStorage.getItem("saved_tracker");
             if(savedTracker) {
