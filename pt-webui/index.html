@@ -28,7 +28,7 @@
         .stat-item { display: flex; align-items: center; gap: 8px; }
         .stat-value { background: #3730a3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;}
 
-        /* --- 新增：Nezha 探针矩阵样式 --- */
+        /* Nezha 探针矩阵样式 */
         .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 15px; }
         .sys-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; color: #1e3a8a;}
@@ -208,12 +208,11 @@
         let currentFolders = [];
         let currentActiveFolder = "";
         let currentActiveNodeUrl = "";
-        let nodeStats = {}; // 用于存储探针的前后快照，计算差值
+        let nodeStats = {}; 
         
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
 
-        // 工具：格式化容量单位
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
             const k = 1024;
@@ -241,7 +240,6 @@
         function initNodes() {
             const localOrigin = window.location.origin;
             let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
-            
             let savedNodes = rawSaved.map(n => typeof n === 'string' ? { url: n, name: new URL(n).host } : n);
 
             clusterNodes = [{ url: localOrigin, name: "本机主控台", status: "online" }];
@@ -256,7 +254,6 @@
             renderNodes();
         }
 
-        // --- Nezha 探针矩阵渲染 ---
         function renderNodes() {
             const container = document.getElementById('active-nodes');
             container.innerHTML = '<div class="node-matrix" id="node-matrix-container"></div>';
@@ -267,7 +264,6 @@
                 const statusIcon = node.status === 'offline' ? '🔴' : '🟢';
                 const tooltip = node.status === 'offline' ? '节点已失联！点击修改' : '点击修改备注名';
 
-                // 生成骨架，数据由 fetchSysInfo 异步填充
                 matrix.innerHTML += `
                     <div class="sys-card" id="sys-card-${index}">
                         <div class="sys-card-header">
@@ -338,21 +334,19 @@
                         if (prev) {
                             let timeDiff = current.timestamp - prev.timestamp;
                             if (timeDiff > 0) {
-                                // 计算 CPU
                                 let cpuTotalDiff = current.cpu_total - prev.cpu_total;
                                 let cpuIdleDiff = current.cpu_idle - prev.cpu_idle;
                                 let cpuUsage = cpuTotalDiff > 0 ? ((cpuTotalDiff - cpuIdleDiff) / cpuTotalDiff * 100) : 0;
+                                cpuUsage = Math.max(0, Math.min(100, cpuUsage)); 
                                 let cpuColor = cpuUsage > 80 ? '#ef4444' : '#3b82f6';
                                 
-                                // 计算 RAM
                                 let memUsage = (current.mem_used / current.mem_total) * 100;
                                 let memColor = memUsage > 80 ? '#ef4444' : '#10b981';
 
-                                // 计算网络速度 (Byte/s)
-                                let txSpeed = (current.net_tx - prev.net_tx) / timeDiff;
-                                let rxSpeed = (current.net_rx - prev.net_rx) / timeDiff;
+                                // 安全数学算法：防负数越界
+                                let txSpeed = Math.max(0, (current.net_tx - prev.net_tx) / timeDiff);
+                                let rxSpeed = Math.max(0, (current.net_rx - prev.net_rx) / timeDiff);
 
-                                // 注入动态探针卡片
                                 const dataBox = document.getElementById(`sys-data-${index}`);
                                 if (dataBox) {
                                     dataBox.innerHTML = `
@@ -371,7 +365,7 @@
                         nodeStats[node.url] = current;
                     }
                 } catch (e) {
-                    // Fail silently, folder fetch will mark it offline
+                    // Fail silently, low-freq folder fetch will mark it offline
                 }
             });
         }
@@ -404,7 +398,6 @@
                 return a.ready ? 1 : -1;
             });
             
-            // 更新算力大盘
             const totalTasks = currentFolders.length;
             const readyTasks = currentFolders.filter(f => f.ready).length;
             document.getElementById('stat-nodes').innerText = `${onlineCount} / ${clusterNodes.length}`;
@@ -497,7 +490,6 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // ================= 任务下发 =================
         async function submitProTask() {
             const composite = document.getElementById("pro-folder").value;
             if(!composite) return alert("请先选择目标目录！");
@@ -565,7 +557,6 @@
             setTimeout(fetchAllNodesFolders, 2000);
         }
 
-        // ================= 跨域详情查看与下载 =================
         function openDetailView(nodeUrl, folderName, nodeName) {
             currentActiveNodeUrl = nodeUrl;
             currentActiveFolder = folderName;
@@ -595,7 +586,6 @@
             }
         }
 
-        // ================= OTA 全量引擎 =================
         async function hotUpdateAllNodes() {
             const btn = document.querySelector('.btn-update');
             btn.innerText = "全网OTA闪刷中..."; btn.disabled = true;
@@ -627,8 +617,6 @@
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
 
             initNodes();
-            
-            // 首次立即拉取业务数据
             fetchAllNodesFolders();
             
             // 设定高频心跳：每 2 秒读取一次各节点的 CPU/内存/网速
