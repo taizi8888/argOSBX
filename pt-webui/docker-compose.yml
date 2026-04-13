@@ -9,5 +9,7 @@ services:
     environment:
       - BASE_DIR=/downloads
     volumes:
-      # 【极其重要】冒号前面换成你 3+12 宿主机真实的下载路径！
-      - /home/docker/qbittorrent/downloads:/downloads
+      # 【重要】请根据不同宿主机，将冒号前面的路径改为真实的下载目录
+      - ./downloads:/downloads
+      # 探针透视眼：读取宿主机真实物理硬件数据
+      - /proc:/host_proc:ro
