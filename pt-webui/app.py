@@ -149,7 +149,7 @@ def sysinfo():
     except Exception as e:
         return {"error": str(e)}
 
-# ================= qBittorrent API 代理透传 & 深度清理 =================
+# ================= qBittorrent API 代理透传 & 批量深度清理 =================
 @app.post("/api/qbittorrent")
 def qbittorrent_proxy(req: dict):
     qb_url = req.get("url", "").rstrip("/")
@@ -189,18 +189,24 @@ def qbittorrent_proxy(req: dict):
         elif action == "delete":
             del_files = req.get('delete_files')
             del_flag = "true" if del_files else "false"
+            # 下发删除请求 (支持 hashes 被 | 分隔，进行批量删除)
             data = urllib.parse.urlencode({'hashes': req.get('hashes', ''), 'deleteFiles': del_flag}).encode('utf-8')
             r = urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers)
             urllib.request.urlopen(r, timeout=5)
             
-            # 【核心逻辑】：如果用户勾选了删除本地文件，连带抹除所有生成的附属文件，防止遗留垃圾
+            # 【核心逻辑升级】：支持批量任务名称解析，进行深度强迫症清理
             if del_files and name:
+                names_list = name.split("|") # 支持前端传过来的 | 分隔的多任务名
                 garbage_extensions = [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]
-                for ext in garbage_extensions:
-                    garbage_path = os.path.join(BASE_DIR, f"{name}{ext}")
-                    if os.path.exists(garbage_path):
-                        try: os.remove(garbage_path)
-                        except: pass
+                
+                for n in names_list:
+                    n = n.strip()
+                    if not n: continue
+                    for ext in garbage_extensions:
+                        garbage_path = os.path.join(BASE_DIR, f"{n}{ext}")
+                        if os.path.exists(garbage_path):
+                            try: os.remove(garbage_path)
+                            except: pass
             
             return {"status": "ok"}
             
