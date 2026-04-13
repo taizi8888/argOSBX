@@ -202,10 +202,20 @@ def qbittorrent_proxy(req: dict):
     except Exception as e:
         return {"error": f"qB API 请求失败: 请检查 IP、端口或账号密码 ({str(e)})"}
 
-# ================= 任务下发 (引入上帝视角日志捕获) =================
+# ================= 任务下发 =================
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
+        # 【💡 核心修复】：如果用户指定了单目录重做，强制抹除旧产物，打破底层增量保护！
+        if mode == "folder" and req.folder:
+            folder_name = req.folder
+            garbage_extensions = [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]
+            for ext in garbage_extensions:
+                old_file = os.path.join(BASE_DIR, f"{folder_name}{ext}")
+                if os.path.exists(old_file):
+                    try: os.remove(old_file)
+                    except: pass
+                    
         cmd = ["/bin/bash", "/app/pt_make_headless.sh", f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
         
@@ -214,7 +224,6 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
         
-        # 将底层 Bash 执行的日志和错误全部重定向捕获，方便排障
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
             subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
