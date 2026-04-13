@@ -6,6 +6,7 @@ from typing import List, Optional
 import urllib.request
 import subprocess
 import os
+import time
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
@@ -52,6 +53,45 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
+# ================= 新增：Nezha 探针级硬件监控 =================
+@app.get("/api/sysinfo")
+def sysinfo():
+    try:
+        # 1. 提取内存信息
+        with open('/proc/meminfo', 'r') as f:
+            mem_lines = f.readlines()
+        mem_total = int(mem_lines[0].split()[1]) * 1024
+        mem_available = int(mem_lines[2].split()[1]) * 1024
+        mem_used = mem_total - mem_available
+
+        # 2. 提取 CPU 滴答数
+        with open('/proc/stat', 'r') as f:
+            cpu_line = f.readline().split()
+        cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
+        cpu_total = sum(float(x) for x in cpu_line[1:8])
+
+        # 3. 提取网卡实时流量
+        net_tx, net_rx = 0, 0
+        with open('/proc/net/dev', 'r') as f:
+            for line in f.readlines()[2:]:
+                parts = line.split(':')
+                if len(parts) == 2 and parts[0].strip() != "lo":
+                    vals = parts[1].split()
+                    net_rx += int(vals[0])
+                    net_tx += int(vals[8])
+
+        return {
+            "mem_total": mem_total,
+            "mem_used": mem_used,
+            "cpu_idle": cpu_idle,
+            "cpu_total": cpu_total,
+            "net_tx": net_tx,
+            "net_rx": net_rx,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
@@ -83,26 +123,19 @@ def update_system(background_tasks: BackgroundTasks):
     try:
         base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
         
-        # 1. 更新前端 UI
         html_url = f"{base_url}/index.html"
         html_content = urllib.request.urlopen(html_url).read().decode('utf-8')
-        with open("index.html", "w", encoding="utf-8") as f:
-            f.write(html_content)
+        with open("index.html", "w", encoding="utf-8") as f: f.write(html_content)
 
-        # 2. 更新底层 Bash
         bash_url = f"{base_url}/pt_make_headless.sh"
         bash_content = urllib.request.urlopen(bash_url).read().decode('utf-8').replace('\r\n', '\n')
-        with open("/app/pt_make_headless.sh", "w", encoding="utf-8", newline='\n') as f:
-            f.write(bash_content)
+        with open("/app/pt_make_headless.sh", "w", encoding="utf-8", newline='\n') as f: f.write(bash_content)
         os.chmod("/app/pt_make_headless.sh", 0o755)
 
-        # 3. 更新核心 Python
         app_url = f"{base_url}/app.py"
         app_content = urllib.request.urlopen(app_url).read().decode('utf-8')
-        with open("/app/app.py", "w", encoding="utf-8") as f:
-            f.write(app_content)
+        with open("/app/app.py", "w", encoding="utf-8") as f: f.write(app_content)
 
-        # 4. 触发 Docker 重启
         def restart_server():
             import time
             time.sleep(2)
