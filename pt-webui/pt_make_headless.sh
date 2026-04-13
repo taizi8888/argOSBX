@@ -27,7 +27,7 @@ process_folder() {
     # 1. 终极防御：拦截 .!qB
     if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
 
-    # 2. 净网与去水印 (【修复】阈值提升至 250M，并增加多格式拦截)
+    # 2. 净网与去水印 (250M阈值，多格式，拦截 log)
     find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
     find "$FOLDER_PATH" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) -size -250M -delete > /dev/null 2>&1
     for file in "$FOLDER_PATH"/*; do
@@ -154,50 +154,3 @@ process_folder() {
                 -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
                 -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
                 -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
-                [ -f "$STITCHED_IMG" ] && rm -f "$LOG_FILE"
-            fi
-        else
-            echo "提取 16 张标准截图..." >> "$LOG_FILE"
-            for i in {0..15}; do
-                FILE_IDX=$(( i % NUM_FILES ))
-                CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
-                
-                CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
-                [ -z "$CUR_DUR" ] && CUR_DUR=300
-                TIMESTAMP=$(( CUR_DUR * (5 + i * 5) / 100 ))
-                
-                TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
-                printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
-                
-                ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-                  -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" \
-                  "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
-                if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
-            done
-            wait
-
-            MISSING=0
-            for i in {0..15}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
-            if [ "$MISSING" -eq 0 ]; then
-                ffmpeg -y \
-                -i "$HEADER_IMG" \
-                -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
-                -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
-                -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
-                -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
-                -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[grid];[0:v][grid]vstack=inputs=2" \
-                -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
-                [ -f "$STITCHED_IMG" ] && rm -f "$LOG_FILE"
-            fi
-        fi
-        rm -rf "$TMP_IMG_DIR"
-    fi
-}
-
-if [ "$1" == "--auto" ]; then
-    for dir in "$BASE_DIR"/*; do 
-        [ -d "$dir" ] && [[ "$(basename "$dir")" != .* ]] && process_folder "$(basename "$dir")"
-    done 
-elif [ "$1" == "--folder" ] && [ -n "$2" ]; then
-    process_folder "$2"
-fi
