@@ -29,9 +29,14 @@
         .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .view-toggle button:hover:not(.active) { color: #334155; }
 
-        /* 节点分组标题样式 */
+        /* 节点分组标题与折叠样式 */
         .node-group { margin-bottom: 25px; }
-        .node-header { font-size: 16px; font-weight: bold; color: #1e3a8a; padding: 10px 15px; background: #eff6ff; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; border-left: 4px solid #3b82f6;}
+        .node-header { font-size: 16px; font-weight: bold; color: #1e3a8a; padding: 12px 15px; background: #eff6ff; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; border-left: 4px solid #3b82f6; cursor: pointer; user-select: none; transition: background 0.2s;}
+        .node-header:hover { background: #e0f2fe; }
+        
+        .chevron { display: inline-block; font-size: 12px; transition: transform 0.3s ease; color: #3b82f6;}
+        .chevron.collapsed { transform: rotate(-90deg); }
+        .items-container.collapsed { display: none !important; }
 
         /* --- 列表视图 (List View) --- */
         .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; }
@@ -201,8 +206,9 @@
         let currentActiveFolder = "";
         let currentActiveNodeUrl = "";
         
-        // 读取本地保存的视图偏好，默认为 list
+        // 记忆状态：视图偏好与节点折叠状态
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
+        let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
 
         // ================= 视图模式切换逻辑 =================
         function switchViewMode(mode) {
@@ -212,7 +218,18 @@
             document.getElementById('btn-view-list').className = mode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = mode === 'grid' ? 'active' : '';
             
-            // 切换完立马重新渲染列表
+            renderList();
+        }
+
+        // ================= 节点折叠切换逻辑 =================
+        function toggleNodeGroup(nodeName) {
+            if(collapsedNodes.has(nodeName)) {
+                collapsedNodes.delete(nodeName);
+            } else {
+                collapsedNodes.add(nodeName);
+            }
+            // 保存到 localStorage 以便刷新记忆
+            localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes]));
             renderList();
         }
 
@@ -298,7 +315,9 @@
         async function fetchAllNodesFolders() {
             currentFolders = [];
             const list = document.getElementById('folder-list');
-            list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点数据...</div>';
+            if (list.innerHTML.trim() === '') {
+                list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点数据...</div>';
+            }
             
             const promises = clusterNodes.map(async (node) => {
                 try {
@@ -324,7 +343,7 @@
             updateProDropdown();
         }
 
-        // --- 重构：树状分组渲染 (节点 -> 目录) ---
+        // --- 重构：树状分组渲染与折叠动画 ---
         function renderList() {
             const list = document.getElementById('folder-list');
             list.innerHTML = '';
@@ -334,7 +353,7 @@
                 return;
             }
 
-            // 1. 按 nodeName (节点备注名) 进行分组聚合
+            // 1. 按 nodeName 进行分组聚合
             let groupedFolders = {};
             currentFolders.forEach(f => {
                 if(!groupedFolders[f.nodeName]) {
@@ -343,17 +362,28 @@
                 groupedFolders[f.nodeName].push(f);
             });
 
-            // 2. 遍历分组，渲染两级树状结构
+            // 2. 遍历分组，渲染带折叠功能的二级结构
             for (const [nodeName, foldersInNode] of Object.entries(groupedFolders)) {
                 
-                // 渲染第一级：节点大标题
+                // 判断当前节点是否处于折叠状态
+                const isCollapsed = collapsedNodes.has(nodeName);
+                const chevronClass = isCollapsed ? 'chevron collapsed' : 'chevron';
+                const containerClass = isCollapsed ? 'collapsed' : '';
+                
+                // 为了防止单引号导致 onclick 报错，对 nodeName 进行转义
+                const safeNodeName = nodeName.replace(/'/g, "\\'");
+                
                 let groupHtml = `
                 <div class="node-group">
-                    <div class="node-header">📁 节点: ${nodeName} <span style="font-weight:normal; font-size:13px; color:#64748b;">(共 ${foldersInNode.length} 个目录)</span></div>
-                    <div class="items-container ${currentViewMode}-view">
+                    <div class="node-header" onclick="toggleNodeGroup('${safeNodeName}')" title="点击折叠/展开该节点">
+                        <span class="${chevronClass}">▼</span>
+                        📁 节点: ${nodeName} 
+                        <span style="font-weight:normal; font-size:13px; color:#64748b;">(共 ${foldersInNode.length} 个目录)</span>
+                    </div>
+                    <div class="items-container ${currentViewMode}-view ${containerClass}">
                 `;
                 
-                // 渲染第二级：目录列表/网格
+                // 渲染第二级目录列表/网格
                 foldersInNode.forEach(f => {
                     const color = f.ready ? '#16a34a' : '#f59e0b';
                     const compositeKey = `${f.nodeUrl}|${f.name}`;
@@ -376,7 +406,7 @@
                         </div>`;
                 });
 
-                groupHtml += `</div></div>`; // 闭合 items-container 和 node-group
+                groupHtml += `</div></div>`;
                 list.innerHTML += groupHtml;
             }
         }
@@ -439,7 +469,8 @@
         }
 
         function selectAllPending() {
-            document.querySelectorAll('.folder-check:not(:disabled)').forEach(cb => cb.checked = true);
+            // 只全选当前没有被折叠隐藏的节点下的待处理项（防误触）
+            document.querySelectorAll('.items-container:not(.collapsed) .folder-check:not(:disabled)').forEach(cb => cb.checked = true);
         }
 
         async function triggerBatch() {
@@ -528,12 +559,14 @@
                 document.getElementById("pro-save-tracker").checked = true;
             }
             
-            // 初始化视图按钮状态
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
 
             initNodes();
             fetchAllNodesFolders();
+            
+            // 设置每 10 秒自动后台静默拉取一次全网数据，保持面板实时性
+            setInterval(fetchAllNodesFolders, 10000);
         });
     </script>
 </body>
