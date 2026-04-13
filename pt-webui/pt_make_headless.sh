@@ -104,7 +104,8 @@ process_folder() {
         echo -e "File: $FILE_NAME\nSize: $FILE_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR, bitrate: $BITRATE_KBPS kb/s\nVideo: $V_CODEC, $V_RES, $V_FPS_CALC fps\nAudio: $A_CODEC, $A_SR Hz" > "$INFO_TXT"
 
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-        ffmpeg -y -f lavfi -i color=c=white:s=3840x250 -frames:v 1 \
+        # 【修复】：将 s=3840x250 改为 s=3840x350，给4行文字留出充足高度防截断
+        ffmpeg -y -f lavfi -i color=c=white:s=3840x350 -frames:v 1 \
         -vf "drawtext=fontfile='$FONT_FILE':textfile='$INFO_TXT':fontcolor=black:fontsize=48:x=30:y=30:line_spacing=20" \
         "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
@@ -124,7 +125,6 @@ process_folder() {
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 TIMESTAMP=$(( DUR_SECS * (5 + i * 12) / 100 ))
                 
-                # 写入文本文件，完美避开 FFmpeg 冒号转义 BUG
                 TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
                 printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
                 
@@ -152,7 +152,6 @@ process_folder() {
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 TIMESTAMP=$(( DUR_SECS * (5 + i * 5) / 100 ))
                 
-                # 写入文本文件，完美避开 FFmpeg 冒号转义 BUG
                 TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
                 printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
                 
@@ -166,7 +165,6 @@ process_folder() {
             MISSING=0
             for i in {0..15}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
             if [ "$MISSING" -eq 0 ]; then
-                # 彻底抛弃 xstack 算坐标，改用最稳定的 hstack(横向)+vstack(纵向) 级联拼合，完美兼容所有 FFmpeg 版本
                 ffmpeg -y \
                 -i "$HEADER_IMG" \
                 -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
@@ -184,7 +182,6 @@ process_folder() {
 
 if [ "$1" == "--auto" ]; then
     for dir in "$BASE_DIR"/*; do 
-        # 过滤掉 .config 等隐藏文件夹
         [ -d "$dir" ] && [[ "$(basename "$dir")" != .* ]] && process_folder "$(basename "$dir")"
     done 
 elif [ "$1" == "--folder" ] && [ -n "$2" ]; then
