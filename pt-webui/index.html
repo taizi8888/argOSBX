@@ -50,7 +50,7 @@
         .success-title svg { width: 36px; height: 36px; fill: currentColor; }
         .btn-return { background: #1d4ed8; font-size: 18px; padding: 12px 30px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
         .save-path { color: #64748b; font-size: 15px; margin-bottom: 25px; }
-        .download-bar { display: flex; gap: 15px; justify-content: center; margin-bottom: 40px; }
+        .download-bar { display: flex; gap: 15px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap;}
         .download-bar button { font-size: 16px; padding: 12px 25px; font-weight: bold; border-radius: 6px;}
         .dl-torrent { background: #15803d; } .dl-info { background: #06b6d4; } .dl-img { background: #eab308; color: #422006; }
         .preview-header { display: flex; justify-content: space-between; font-size: 18px; color: #334155; margin-bottom: 10px; text-align: left; padding: 0 10px;}
@@ -58,6 +58,13 @@
         .preview-box { flex: 1; background: #fff; width: 50%; }
         .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; color: #334155; height: 500px; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 6px;}
         .preview-image { width: 100%; height: 532px; object-fit: contain; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: block;}
+        
+        @media (max-width: 768px) {
+            .preview-container { flex-direction: column; }
+            .preview-box { width: 100%; }
+            .preview-header { display: none;}
+            .pro-row { flex-direction: column; gap: 0; }
+        }
     </style>
 </head>
 <body>
@@ -66,8 +73,8 @@
         <div class="card" style="border-top: 4px solid #f59e0b;">
             <h2 style="color: #334155; margin-bottom: 20px; border:none; padding:0;">
                 <span>🏭 种子工厂 Pro</span>
-                <div>
-                    <button class="btn-auto" onclick="triggerTask('auto', '')">⚡ 一键全盘自动处理</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-auto" onclick="triggerTask('auto', '')">⚡ 一键全盘自动</button>
                     <button class="btn-update" onclick="hotUpdate()">🔄 更新引擎</button>
                 </div>
             </h2>
@@ -90,9 +97,11 @@
             <div class="pro-row">
                 <div class="pro-col">
                     <div class="pro-form-group">
-                        <label>3. 模式</label>
-                        <select class="pro-form-control" disabled>
-                            <option>PT 站种子 (标准模式)</option>
+                        <label>3. 截图排版</label>
+                        <select id="pro-layout" class="pro-form-control">
+                            <option value="auto">🤖 智能自动探测 (根据视频分辨率)</option>
+                            <option value="standard">🎥 强制标准模式 (16张 2x8网格)</option>
+                            <option value="vr">🥽 强制VR巨幕模式 (8张 单列竖排)</option>
                         </select>
                     </div>
                 </div>
@@ -101,7 +110,6 @@
                         <label>4. 分块大小 (Piece Size)</label>
                         <select id="pro-piece" class="pro-form-control">
                             <option value="">🤖 智能自动计算 (推荐)</option>
-                            <option value="20">1 MB</option>
                             <option value="21">2 MB</option>
                             <option value="22">4 MB</option>
                             <option value="23">8 MB</option>
@@ -119,7 +127,7 @@
                 <h3 style="margin:0;">📂 下载目录状态监控</h3>
                 <div>
                     <button class="btn-batch" onclick="selectAllPending()">全选待处理</button>
-                    <button class="btn-batch" onclick="triggerBatch()">执行批量处理</button>
+                    <button class="btn-batch" onclick="triggerBatch()">批量处理</button>
                 </div>
             </div>
             <div id="folder-list">加载中...</div>
@@ -150,7 +158,6 @@
         let currentFolders = [];
         let currentActiveFolder = "";
 
-        // 初始化读取本地缓存的 Tracker
         document.addEventListener("DOMContentLoaded", () => {
             const savedTracker = localStorage.getItem("saved_tracker");
             if(savedTracker) {
@@ -209,38 +216,38 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // --- 核心：提交 Pro 定制任务 ---
         async function submitProTask() {
             const folder = document.getElementById("pro-folder").value;
             const tracker = document.getElementById("pro-tracker").value.trim();
             const piece_size = document.getElementById("pro-piece").value;
+            const layout = document.getElementById("pro-layout").value;
             const saveTracker = document.getElementById("pro-save-tracker").checked;
 
             if(!folder) { alert("请先选择目标目录！"); return; }
-            
-            // 处理本地存储
             if(saveTracker && tracker) localStorage.setItem("saved_tracker", tracker);
             else localStorage.removeItem("saved_tracker");
 
-            alert(`【定制任务已启动】\n目录: ${folder}\n将在后台处理，请稍后刷新。`);
+            let layoutName = "自动探测";
+            if(layout === 'vr') layoutName = "强制 VR瀑布流";
+            if(layout === 'standard') layoutName = "强制 标准模式";
+
+            alert(`【定制任务已启动】\n目录: ${folder}\n排版: ${layoutName}\n将在后台处理，请稍后刷新。`);
             
             await fetch(`/api/run/folder`, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder: folder, tracker: tracker, piece_size: piece_size })
+                body: JSON.stringify({ folder: folder, tracker: tracker, piece_size: piece_size, layout: layout }) 
             });
             setTimeout(fetchFolders, 3000); 
         }
 
-        // 基础功能
         async function triggerTask(mode, folderName) {
-            // 基础功能不再携带自定义 tracker，走脚本默认逻辑
             await fetch(`/api/run/${mode}`, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ folder: folderName })
             });
-            alert('任务已触发！将在后台默默执行。');
+            alert('一键全盘扫描已触发！将在后台默默执行。');
             setTimeout(fetchFolders, 3000); 
         }
 
@@ -259,7 +266,6 @@
             setTimeout(fetchFolders, 3000);
         }
 
-        // 详情页逻辑
         function openDetailView(f) {
             currentActiveFolder = f;
             document.getElementById('main-dashboard').style.display = 'none';
@@ -271,12 +277,14 @@
                 .then(r => r.text()).then(t => document.getElementById('detailMediaInfo').innerText = t);
             window.scrollTo(0, 0);
         }
+        
         function closeDetailView() {
             document.getElementById('detail-view').style.display = 'none';
             document.getElementById('main-dashboard').style.display = 'block';
             document.getElementById('detailImage').src = ""; 
             fetchFolders();
         }
+        
         function downloadFile(type) { if(currentActiveFolder) window.open(`/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
 
         async function hotUpdate() {
