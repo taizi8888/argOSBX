@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  pt-webui:
+    build: .
+    container_name: pt-webui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - BASE_DIR=/downloads
+    volumes:
+      # 【极其重要】冒号前面换成你 3+12 宿主机真实的下载路径！
+      - /home/docker/qbittorrent/downloads:/downloads

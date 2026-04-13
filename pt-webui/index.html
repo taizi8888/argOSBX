@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PT 终极自愈流水线 WebUI</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 40px auto; background-color: #f5f7fa; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        button { background: #4f46e5; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #4338ca; }
+        button.auto { background: #10b981; width: 100%; font-size: 16px; padding: 15px; margin-bottom: 20px;}
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <h2>🚀 PT 自动化处理流水线</h2>
+    
+    <button class="auto" onclick="triggerTask('auto', '')">⚡ 一键全盘增量扫描</button>
+
+    <div class="card">
+        <h3>📂 下载目录状态监控</h3>
+        <div id="folder-list">加载中...</div>
+    </div>
+
+    <script>
+        async function fetchFolders() {
+            const res = await fetch('/api/folders');
+            const data = await res.json();
+            const list = document.getElementById('folder-list');
+            list.innerHTML = '';
+            data.folders.forEach(f => {
+                list.innerHTML += `
+                    <div class="item">
+                        <span><strong>${f.name}</strong> - <span style="color:${f.ready ? 'green' : 'orange'}">${f.status}</span></span>
+                        <button onclick="triggerTask('folder', '${f.name}')">手动处理</button>
+                    </div>`;
+            });
+        }
+
+        async function triggerTask(mode, folderName) {
+            alert('任务已提交到后台运行，请稍后刷新页面查看状态。');
+            await fetch(`/api/run/${mode}?folder=${encodeURIComponent(folderName)}`, { method: 'POST' });
+            setTimeout(fetchFolders, 3000); 
+        }
+
+        fetchFolders();
+    </script>
+</body>
+</html>
