@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Any
 import urllib.request
+import urllib.parse
 import subprocess
 import os
 import time
@@ -75,7 +76,7 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# ================= Nezha 探针级硬件监控 (新增按月流量统计) =================
+# ================= Nezha 探针级硬件监控 =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
@@ -110,7 +111,6 @@ def sysinfo():
                         net_rx += int(vals[0])
                         net_tx += int(vals[8])
 
-        # --- 核心：按月流量累计算法 (防重启丢失) ---
         current_month = time.strftime("%Y-%m")
         traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
         
@@ -121,13 +121,11 @@ def sysinfo():
                     traffic_data.update(saved_data)
             except: pass
 
-        # 检查是否跨月，跨月清零
         if traffic_data.get("month") != current_month:
             traffic_data["month"] = current_month
             traffic_data["month_tx"] = 0
             traffic_data["month_rx"] = 0
 
-        # 计算增量流量 (防 Linux 重启导致计数器归零)
         delta_tx = net_tx - traffic_data.get("last_tx", 0)
         delta_rx = net_rx - traffic_data.get("last_rx", 0)
 
@@ -139,40 +137,78 @@ def sysinfo():
         traffic_data["last_tx"] = net_tx
         traffic_data["last_rx"] = net_rx
 
-        # 持久化保存
         os.makedirs(os.path.dirname(TRAFFIC_FILE), exist_ok=True)
         with open(TRAFFIC_FILE, "w") as f:
             json.dump(traffic_data, f)
-        # ------------------------------------------
 
         return {
-            "mem_total": mem_total,
-            "mem_used": mem_used,
-            "cpu_idle": cpu_idle,
-            "cpu_total": cpu_total,
-            "net_tx": net_tx,
-            "net_rx": net_rx,
-            "month_tx": traffic_data["month_tx"],  # 传出本月累计发送
-            "month_rx": traffic_data["month_rx"],  # 传出本月累计接收
+            "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total,
+            "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"],
             "timestamp": time.time()
         }
     except Exception as e:
         return {"error": str(e)}
 
+# ================= 新增：qBittorrent API 代理透传 =================
+@app.post("/api/qbittorrent")
+def qbittorrent_proxy(req: dict):
+    qb_url = req.get("url", "").rstrip("/")
+    action = req.get("action")
+    user = req.get("user", "")
+    pwd = req.get("pwd", "")
+    
+    if not qb_url: return {"error": "未提供 qBittorrent 地址"}
+    
+    cookie = ""
+    # 1. 尝试登录获取 Cookie
+    if user:
+        try:
+            login_data = urllib.parse.urlencode({'username': user, 'password': pwd}).encode('utf-8')
+            l_req = urllib.request.Request(f"{qb_url}/api/v2/auth/login", data=login_data)
+            l_resp = urllib.request.urlopen(l_req, timeout=5)
+            cookie_header = l_resp.headers.get('Set-Cookie')
+            if cookie_header:
+                cookie = cookie_header.split(';')[0]
+        except Exception as e:
+            return {"error": f"qBittorrent 登录失败: {str(e)}"}
+            
+    headers = {"Cookie": cookie} if cookie else {}
+    
+    # 2. 执行具体指令转发
+    try:
+        if action == "list":
+            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/info", headers=headers)
+            resp = urllib.request.urlopen(r, timeout=5)
+            return json.loads(resp.read().decode('utf-8'))
+            
+        elif action in ["pause", "resume"]:
+            data = urllib.parse.urlencode({'hashes': req.get('hashes', '')}).encode('utf-8')
+            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/{action}", data=data, headers=headers)
+            urllib.request.urlopen(r, timeout=5)
+            return {"status": "ok"}
+            
+        elif action == "delete":
+            del_files = "true" if req.get('delete_files') else "false"
+            data = urllib.parse.urlencode({'hashes': req.get('hashes', ''), 'deleteFiles': del_files}).encode('utf-8')
+            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers)
+            urllib.request.urlopen(r, timeout=5)
+            return {"status": "ok"}
+            
+        else: return {"error": "未知的执行指令"}
+            
+    except Exception as e:
+        return {"error": f"qB API 请求失败: 请检查 IP、端口或账号密码 ({str(e)})"}
+
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         cmd = ["/bin/bash", "/app/pt_make_headless.sh", f"--{mode}"]
-        if mode == "folder" and req.folder:
-            cmd.append(req.folder)
-            
+        if mode == "folder" and req.folder: cmd.append(req.folder)
         env = os.environ.copy()
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = req.piece_size
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
-            
         subprocess.run(cmd, env=env)
-        
     background_tasks.add_task(execute_script)
     return {"message": "任务已在后台启动！"}
 
@@ -214,25 +250,16 @@ def update_system(background_tasks: BackgroundTasks):
 
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
-    if file_type == "torrent":
-        file_path = os.path.join(BASE_DIR, f"{folder}.torrent")
-        media_type = "application/x-bittorrent"
-    elif file_type == "mediainfo":
-        file_path = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
-        media_type = "text/plain"
-    elif file_type == "image":
-        file_path = os.path.join(BASE_DIR, f"{folder}_Stitched_4K.jpg")
-        media_type = "image/jpeg"
+    if file_type == "torrent": file_path = os.path.join(BASE_DIR, f"{folder}.torrent")
+    elif file_type == "mediainfo": file_path = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
+    elif file_type == "image": file_path = os.path.join(BASE_DIR, f"{folder}_Stitched_4K.jpg")
     else: return {"error": "未知的格式"}
-
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type=media_type, filename=os.path.basename(file_path))
+    if os.path.exists(file_path): return FileResponse(file_path, filename=os.path.basename(file_path))
     return {"error": "文件不存在"}
 
 @app.get("/api/preview/mediainfo/{folder}")
 def preview_mediainfo(folder: str):
     file_path = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
     if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return PlainTextResponse(f.read())
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
     return PlainTextResponse("数据不存在或正在生成中...")
