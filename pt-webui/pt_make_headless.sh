@@ -11,7 +11,6 @@ FONT_DIR="$BASE_DIR/.config"
 mkdir -p "$FONT_DIR"
 FONT_FILE="$FONT_DIR/NotoSansSC-Regular.ttf"
 
-# 自动下载中文字体，确保证据水印和中文文件名不乱码
 if [ ! -f "$FONT_FILE" ]; then
     curl -Ls "https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC-Regular.ttf" -o "$FONT_FILE"
 fi
@@ -74,13 +73,12 @@ process_folder() {
         fi
     fi
 
-    # 5. 截图与拼合 (加入元数据顶部面板和时间码)
+    # 5. 截图与拼合
     if [ "$NEED_FFMPEG" = true ] && [ "$NUM_FILES" -gt 0 ]; then
         mkdir -p "$TMP_IMG_DIR"
         MAX_JOBS=4
         LOG_FILE="$FOLDER_PATH/ffmpeg_debug.log"
         
-        # 提取视频元数据生成顶部面板信息
         FILE_NAME=$(basename "$MAIN_VIDEO")
         FILE_SIZE=$(stat -c%s "$MAIN_VIDEO")
         FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $FILE_SIZE/1073741824}")
@@ -102,43 +100,36 @@ process_folder() {
         A_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | head -n1)
         A_SR=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | head -n1)
 
-        # 生成信息文本文件
         INFO_TXT="$TMP_IMG_DIR/header_info.txt"
         echo -e "File: $FILE_NAME\nSize: $FILE_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR, bitrate: $BITRATE_KBPS kb/s\nVideo: $V_CODEC, $V_RES, $V_FPS_CALC fps\nAudio: $A_CODEC, $A_SR Hz" > "$INFO_TXT"
 
-        # 生成 3840 宽度的白底信息图片
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
         ffmpeg -y -f lavfi -i color=c=white:s=3840x250 -frames:v 1 \
         -vf "drawtext=fontfile='$FONT_FILE':textfile='$INFO_TXT':fontcolor=black:fontsize=48:x=30:y=30:line_spacing=20" \
         "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
-        # ---------------- 智能嗅探排版逻辑 ----------------
+        # ---------------- 智能嗅探逻辑 ----------------
         LAYOUT="${CUSTOM_LAYOUT:-auto}"
         if [ "$LAYOUT" == "auto" ]; then
             VID_WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
             [ -z "$VID_WIDTH" ] && VID_WIDTH=1920
-            if [ "$VID_WIDTH" -ge 5000 ]; then
-                LAYOUT="vr"
-                echo "🤖 智能探测：视频宽度为 $VID_WIDTH，判定为 VR，自动切换为瀑布流模式..." > "$LOG_FILE"
-            else
-                LAYOUT="standard"
-                echo "🤖 智能探测：视频宽度为 $VID_WIDTH，判定为标准画幅..." > "$LOG_FILE"
-            fi
+            if [ "$VID_WIDTH" -ge 5000 ]; then LAYOUT="vr"; else LAYOUT="standard"; fi
         fi
 
-        # ================= 根据最终 LAYOUT 决定截图策略 =================
+        # ================= 截图策略 =================
         if [ "$LAYOUT" == "vr" ]; then
-            # 🥽 VR 瀑布流模式 (1列 x 8行)
-            echo "开始提取 8 张 VR 截图..." >> "$LOG_FILE"
+            echo "提取 8 张 VR 截图..." >> "$LOG_FILE"
             for i in {0..7}; do
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 TIMESTAMP=$(( DUR_SECS * (5 + i * 12) / 100 ))
-                FORMATTED_TIME=$(date -u -d @"$TIMESTAMP" +'%H:%M:%S')
                 
-                # 截图并打上时间码
+                # 写入文本文件，完美避开 FFmpeg 冒号转义 BUG
+                TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
+                printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
+                
                 ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-                  -vf "scale=3840:-2,drawtext=fontfile='$FONT_FILE':text='$FORMATTED_TIME':fontcolor=white:fontsize=64:x=40:y=h-th-40:box=1:boxcolor=black@0.6:boxborderw=15" \
+                  -vf "scale=3840:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=64:x=40:y=h-th-40:box=1:boxcolor=black@0.6:boxborderw=15" \
                   "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
                 if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
             done
@@ -146,10 +137,7 @@ process_folder() {
 
             MISSING=0
             for i in {0..7}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
-
             if [ "$MISSING" -eq 0 ]; then
-                echo "✅ 8张VR截图就绪，使用 vstack 垂直拼合..." >> "$LOG_FILE"
-                # 直接将 Header 和 8张截图 一次性垂直堆叠
                 ffmpeg -y \
                 -i "$HEADER_IMG" \
                 -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
@@ -157,19 +145,19 @@ process_folder() {
                 -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                 [ -f "$STITCHED_IMG" ] && rm -f "$LOG_FILE"
             fi
-
         else
-            # 🎥 标准电影模式 (16张 2列 x 8行)
-            echo "开始提取 16 张标准截图..." >> "$LOG_FILE"
+            echo "提取 16 张标准截图..." >> "$LOG_FILE"
             for i in {0..15}; do
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 TIMESTAMP=$(( DUR_SECS * (5 + i * 5) / 100 ))
-                FORMATTED_TIME=$(date -u -d @"$TIMESTAMP" +'%H:%M:%S')
                 
-                # 截图并打上时间码
+                # 写入文本文件，完美避开 FFmpeg 冒号转义 BUG
+                TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
+                printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
+                
                 ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-                  -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':text='$FORMATTED_TIME':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" \
+                  -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" \
                   "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
                 if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
             done
@@ -177,17 +165,15 @@ process_folder() {
 
             MISSING=0
             for i in {0..15}; do [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ] && MISSING=1; done
-
             if [ "$MISSING" -eq 0 ]; then
-                echo "✅ 16张截图就绪，开始拼合带 Header 的 4K 巨幕..." >> "$LOG_FILE"
-                # 先用 xstack 把16张图拼成网格，再用 vstack 把 Header 压在最上面
+                # 彻底抛弃 xstack 算坐标，改用最稳定的 hstack(横向)+vstack(纵向) 级联拼合，完美兼容所有 FFmpeg 版本
                 ffmpeg -y \
                 -i "$HEADER_IMG" \
                 -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
                 -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
                 -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
                 -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
-                -filter_complex "[1:v][2:v][3:v][4:v][5:v][6:v][7:v][8:v][9:v][10:v][11:v][12:v][13:v][14:v][15:v][16:v]xstack=inputs=16:layout=0_0|w0_0|0_h0|w0_h0|0_h0*2|w0_h0*2|0_h0*3|w0_h0*3|0_h0*4|w0_h0*4|0_h0*5|w0_h0*5|0_h0*6|w0_h0*6|0_h0*7|w0_h0*7[grid];[0:v][grid]vstack=inputs=2" \
+                -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[grid];[0:v][grid]vstack=inputs=2" \
                 -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                 [ -f "$STITCHED_IMG" ] && rm -f "$LOG_FILE"
             fi
@@ -196,10 +182,10 @@ process_folder() {
     fi
 }
 
-# 路由控制
 if [ "$1" == "--auto" ]; then
     for dir in "$BASE_DIR"/*; do 
-        [ -d "$dir" ] && process_folder "$(basename "$dir")"
+        # 过滤掉 .config 等隐藏文件夹
+        [ -d "$dir" ] && [[ "$(basename "$dir")" != .* ]] && process_folder "$(basename "$dir")"
     done 
 elif [ "$1" == "--folder" ] && [ -n "$2" ]; then
     process_folder "$2"
