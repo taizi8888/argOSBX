@@ -12,8 +12,13 @@ import json
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
-CONFIG_FILE = os.path.join(BASE_DIR, ".config", "nodes.json")
-TRAFFIC_FILE = os.path.join(BASE_DIR, ".config", "traffic.json")
+CONFIG_DIR = os.path.join(BASE_DIR, ".config")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
+TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
+LOG_FILE = os.path.join(CONFIG_DIR, "last_task.log")
+
+# 确保配置目录存在
+os.makedirs(CONFIG_DIR, exist_ok=True)
 
 # ================= 集群核心设置 =================
 app.add_middleware(
@@ -43,15 +48,12 @@ def index():
 def get_nodes():
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
+        except: pass
     return []
 
 @app.post("/api/nodes")
 def save_nodes(nodes: List[Any]):
-    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(nodes, f, ensure_ascii=False, indent=2)
     return {"status": "success"}
@@ -62,8 +64,7 @@ def list_folders():
     folders = []
     if os.path.exists(BASE_DIR):
         for item in os.listdir(BASE_DIR):
-            if item.startswith("."):
-                continue
+            if item.startswith("."): continue
             path = os.path.join(BASE_DIR, item)
             if os.path.isdir(path):
                 has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
@@ -81,25 +82,20 @@ def list_folders():
 def sysinfo():
     try:
         mem_path = '/host_proc/meminfo' if os.path.exists('/host_proc/meminfo') else '/proc/meminfo'
-        with open(mem_path, 'r') as f:
-            mem_lines = f.readlines()
+        with open(mem_path, 'r') as f: mem_lines = f.readlines()
         mem_total = int(mem_lines[0].split()[1]) * 1024
         mem_available = int(mem_lines[2].split()[1]) * 1024
         mem_used = mem_total - mem_available
 
         stat_path = '/host_proc/stat' if os.path.exists('/host_proc/stat') else '/proc/stat'
-        with open(stat_path, 'r') as f:
-            cpu_line = f.readline().split()
+        with open(stat_path, 'r') as f: cpu_line = f.readline().split()
         cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
         cpu_total = sum(float(x) for x in cpu_line[1:8])
 
         net_tx, net_rx = 0, 0
-        if os.path.exists('/host_proc/1/net/dev'):
-            net_path = '/host_proc/1/net/dev'
-        elif os.path.exists('/host_proc/net/dev'):
-            net_path = '/host_proc/net/dev'
-        else:
-            net_path = '/proc/net/dev'
+        if os.path.exists('/host_proc/1/net/dev'): net_path = '/host_proc/1/net/dev'
+        elif os.path.exists('/host_proc/net/dev'): net_path = '/host_proc/net/dev'
+        else: net_path = '/proc/net/dev'
             
         with open(net_path, 'r') as f:
             for line in f.readlines()[2:]:
@@ -128,7 +124,6 @@ def sysinfo():
 
         delta_tx = net_tx - traffic_data.get("last_tx", 0)
         delta_rx = net_rx - traffic_data.get("last_rx", 0)
-
         if delta_tx < 0: delta_tx = net_tx
         if delta_rx < 0: delta_rx = net_rx
 
@@ -137,9 +132,7 @@ def sysinfo():
         traffic_data["last_tx"] = net_tx
         traffic_data["last_rx"] = net_rx
 
-        os.makedirs(os.path.dirname(TRAFFIC_FILE), exist_ok=True)
-        with open(TRAFFIC_FILE, "w") as f:
-            json.dump(traffic_data, f)
+        with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
 
         return {
             "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total,
@@ -149,7 +142,7 @@ def sysinfo():
     except Exception as e:
         return {"error": str(e)}
 
-# ================= qBittorrent API 代理透传 & 批量深度清理 =================
+# ================= qBittorrent API 代理透传 =================
 @app.post("/api/qbittorrent")
 def qbittorrent_proxy(req: dict):
     qb_url = req.get("url", "").rstrip("/")
@@ -167,8 +160,7 @@ def qbittorrent_proxy(req: dict):
             l_req = urllib.request.Request(f"{qb_url}/api/v2/auth/login", data=login_data)
             l_resp = urllib.request.urlopen(l_req, timeout=5)
             cookie_header = l_resp.headers.get('Set-Cookie')
-            if cookie_header:
-                cookie = cookie_header.split(';')[0]
+            if cookie_header: cookie = cookie_header.split(';')[0]
         except Exception as e:
             return {"error": f"qBittorrent 登录失败: {str(e)}"}
             
@@ -189,16 +181,13 @@ def qbittorrent_proxy(req: dict):
         elif action == "delete":
             del_files = req.get('delete_files')
             del_flag = "true" if del_files else "false"
-            # 下发删除请求 (支持 hashes 被 | 分隔，进行批量删除)
             data = urllib.parse.urlencode({'hashes': req.get('hashes', ''), 'deleteFiles': del_flag}).encode('utf-8')
             r = urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers)
             urllib.request.urlopen(r, timeout=5)
             
-            # 【核心逻辑升级】：支持批量任务名称解析，进行深度强迫症清理
             if del_files and name:
-                names_list = name.split("|") # 支持前端传过来的 | 分隔的多任务名
+                names_list = name.split("|") 
                 garbage_extensions = [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]
-                
                 for n in names_list:
                     n = n.strip()
                     if not n: continue
@@ -207,32 +196,40 @@ def qbittorrent_proxy(req: dict):
                         if os.path.exists(garbage_path):
                             try: os.remove(garbage_path)
                             except: pass
-            
             return {"status": "ok"}
-            
         else: return {"error": "未知的执行指令"}
             
     except Exception as e:
         return {"error": f"qB API 请求失败: 请检查 IP、端口或账号密码 ({str(e)})"}
 
+# ================= 任务下发 (引入上帝视角日志捕获) =================
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         cmd = ["/bin/bash", "/app/pt_make_headless.sh", f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
+        
         env = os.environ.copy()
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
-        if req.piece_size: env["CUSTOM_PIECE_L"] = req.piece_size
+        if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
-        subprocess.run(cmd, env=env)
+        
+        # 将底层 Bash 执行的日志和错误全部重定向捕获，方便排障
+        with open(LOG_FILE, "a") as f:
+            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
+            subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
+            
     background_tasks.add_task(execute_script)
     return {"message": "任务已在后台启动！"}
 
 @app.post("/api/run_batch")
 def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     def execute_batch():
-        for folder in req.folders:
-            subprocess.run(["/bin/bash", "/app/pt_make_headless.sh", "--folder", folder])
+        with open(LOG_FILE, "a") as f:
+            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
+            for folder in req.folders:
+                cmd = ["/bin/bash", "/app/pt_make_headless.sh", "--folder", folder]
+                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
@@ -240,7 +237,6 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
 def update_system(background_tasks: BackgroundTasks):
     try:
         base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
-        
         html_url = f"{base_url}/index.html"
         html_content = urllib.request.urlopen(html_url).read().decode('utf-8')
         with open("index.html", "w", encoding="utf-8") as f: f.write(html_content)
@@ -260,7 +256,6 @@ def update_system(background_tasks: BackgroundTasks):
             
         background_tasks.add_task(restart_server)
         return {"message": "✅ OTA 全量升级包已覆盖！\n前端已更新，后端容器将在 2 秒后自动重启重生，请稍后刷新网页。"}
-        
     except Exception as e:
         return {"message": f"❌ OTA 升级失败: {str(e)}\n请检查网络或 GitHub 路径。"}
 
