@@ -53,33 +53,42 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# ================= Nezha 探针级硬件监控 =================
+# ================= Nezha 探针级硬件监控 (已修复 Symlink 陷阱) =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
-        # 1. 提取内存信息
-        with open('/proc/meminfo', 'r') as f:
+        # 1. 提取物理内存 (强制优先读取宿主机)
+        mem_path = '/host_proc/meminfo' if os.path.exists('/host_proc/meminfo') else '/proc/meminfo'
+        with open(mem_path, 'r') as f:
             mem_lines = f.readlines()
         mem_total = int(mem_lines[0].split()[1]) * 1024
         mem_available = int(mem_lines[2].split()[1]) * 1024
         mem_used = mem_total - mem_available
 
-        # 2. 提取 CPU 滴答数
-        with open('/proc/stat', 'r') as f:
+        # 2. 提取 CPU 滴答数 (强制优先读取宿主机)
+        stat_path = '/host_proc/stat' if os.path.exists('/host_proc/stat') else '/proc/stat'
+        with open(stat_path, 'r') as f:
             cpu_line = f.readline().split()
         cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
         cpu_total = sum(float(x) for x in cpu_line[1:8])
 
         # 3. 提取网卡真实物理流量
         net_tx, net_rx = 0, 0
-        # 优先读取透视映射的宿主机网卡数据，如果没有映射，则读容器自己的
-        net_path = '/host_proc/net/dev' if os.path.exists('/host_proc/net/dev') else '/proc/net/dev'
+        
+        # 【核心黑科技】：绕开 /proc/net 的 self 陷阱，直接监听宿主机 PID 1 (systemd) 的网卡
+        if os.path.exists('/host_proc/1/net/dev'):
+            net_path = '/host_proc/1/net/dev'
+        elif os.path.exists('/host_proc/net/dev'):
+            net_path = '/host_proc/net/dev'
+        else:
+            net_path = '/proc/net/dev'
+            
         with open(net_path, 'r') as f:
             for line in f.readlines()[2:]:
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    # 彻底过滤本地回环、Docker虚拟网卡和网桥，只统计物理网卡 (如 enp0s6, eth0)
+                    # 彻底过滤本地回环、Docker虚拟网卡和网桥，只统计真实物理网卡 (如 enp0s6, eth0)
                     if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth") and not iface.startswith("br-"):
                         vals = parts[1].split()
                         net_rx += int(vals[0])
