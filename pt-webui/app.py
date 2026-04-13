@@ -12,6 +12,7 @@ import json
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
 CONFIG_FILE = os.path.join(BASE_DIR, ".config", "nodes.json")
+TRAFFIC_FILE = os.path.join(BASE_DIR, ".config", "traffic.json")
 
 # ================= 集群核心设置 =================
 app.add_middleware(
@@ -36,7 +37,7 @@ class BatchRequest(BaseModel):
 def index():
     return FileResponse("index.html")
 
-# ================= 新增：集群节点云端持久化 API =================
+# ================= 集群节点云端持久化 API =================
 @app.get("/api/nodes")
 def get_nodes():
     if os.path.exists(CONFIG_FILE):
@@ -74,6 +75,7 @@ def list_folders():
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
+# ================= Nezha 探针级硬件监控 (新增按月流量统计) =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
@@ -108,6 +110,41 @@ def sysinfo():
                         net_rx += int(vals[0])
                         net_tx += int(vals[8])
 
+        # --- 核心：按月流量累计算法 (防重启丢失) ---
+        current_month = time.strftime("%Y-%m")
+        traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
+        
+        if os.path.exists(TRAFFIC_FILE):
+            try:
+                with open(TRAFFIC_FILE, "r") as f:
+                    saved_data = json.load(f)
+                    traffic_data.update(saved_data)
+            except: pass
+
+        # 检查是否跨月，跨月清零
+        if traffic_data.get("month") != current_month:
+            traffic_data["month"] = current_month
+            traffic_data["month_tx"] = 0
+            traffic_data["month_rx"] = 0
+
+        # 计算增量流量 (防 Linux 重启导致计数器归零)
+        delta_tx = net_tx - traffic_data.get("last_tx", 0)
+        delta_rx = net_rx - traffic_data.get("last_rx", 0)
+
+        if delta_tx < 0: delta_tx = net_tx
+        if delta_rx < 0: delta_rx = net_rx
+
+        traffic_data["month_tx"] += delta_tx
+        traffic_data["month_rx"] += delta_rx
+        traffic_data["last_tx"] = net_tx
+        traffic_data["last_rx"] = net_rx
+
+        # 持久化保存
+        os.makedirs(os.path.dirname(TRAFFIC_FILE), exist_ok=True)
+        with open(TRAFFIC_FILE, "w") as f:
+            json.dump(traffic_data, f)
+        # ------------------------------------------
+
         return {
             "mem_total": mem_total,
             "mem_used": mem_used,
@@ -115,6 +152,8 @@ def sysinfo():
             "cpu_total": cpu_total,
             "net_tx": net_tx,
             "net_rx": net_rx,
+            "month_tx": traffic_data["month_tx"],  # 传出本月累计发送
+            "month_rx": traffic_data["month_rx"],  # 传出本月累计接收
             "timestamp": time.time()
         }
     except Exception as e:
