@@ -1,5 +1,6 @@
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import urllib.request
@@ -8,6 +9,17 @@ import os
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
+
+# ================= 集群核心设置 =================
+# 允许跨域请求，这是分布式控制台能够向其他宿主机发送指令的关键
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# ===============================================
 
 class RunRequest(BaseModel):
     folder: str = ""
@@ -27,7 +39,6 @@ def list_folders():
     folders = []
     if os.path.exists(BASE_DIR):
         for item in os.listdir(BASE_DIR):
-            # 彻底屏蔽 .config 等隐藏目录
             if item.startswith("."):
                 continue
             path = os.path.join(BASE_DIR, item)
@@ -39,7 +50,6 @@ def list_folders():
                 mtime = os.path.getmtime(path)
                 folders.append({"name": item, "status": status, "ready": ready, "mtime": mtime})
                 
-    # 核心排序逻辑：待处理 (ready=False) 排前面，然后按修改时间倒序（最新排上面）
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
