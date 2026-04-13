@@ -266,7 +266,7 @@
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
         let isFleetConfigCollapsed = localStorage.getItem('fleet_config_collapsed') === 'true';
         
-        let qbInterval = null; // 控制 qBittorrent 的自动刷新钩子
+        let qbInterval = null;
 
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -344,7 +344,7 @@
             });
             
             renderNodes();
-            populateQbNodes(); // 同时更新 qBittorrent 的下拉菜单
+            populateQbNodes(); 
         }
 
         function renderNodes() {
@@ -525,7 +525,10 @@
                 } else {
                     actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; padding:4px 10px; margin-right:5px;">⏸</button>`;
                 }
-                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${t.name.replace(/'/g, "\\'")}')" style="background:#ef4444; padding:4px 10px;">✖</button>`;
+                
+                // 【核心修改】：在前端界面调用删除时，将任务的名称安全地传递给后端，用于触发深度清理
+                const safeName = t.name.replace(/'/g, "\\'");
+                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" style="background:#ef4444; padding:4px 10px;">✖</button>`;
 
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -557,21 +560,29 @@
             } catch(e) { alert("操作失败！节点可能响应超时。"); }
         }
 
+        // 【核心修改】：深度洁癖清理交互，将文件名称传入请求体中
         async function qbDelete(hash, name) {
             if(!confirm(`⚠️ 危险操作：确认要删除任务 [ ${name} ] 吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [文件清理] 是否同时从硬盘彻底删除已下载的本地物理文件？\n\n点击【确定】删除文件并清空任务\n点击【取消】仅移除任务列表，保留文件`);
+            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时从硬盘彻底删除已下载的本地视频文件，以及生成的种子、截图、Info等附属文件？\n\n点击【确定】彻底粉碎所有相关文件\n点击【取消】仅移除任务列表，保留文件`);
             
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
             try {
                 await fetch(`${nodeUrl}/api/qbittorrent`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "delete", hashes: hash, delete_files: deleteFiles })
+                    body: JSON.stringify({ 
+                        url: config.url, 
+                        user: config.user, 
+                        pwd: config.pwd, 
+                        action: "delete", 
+                        hashes: hash, 
+                        delete_files: deleteFiles,
+                        name: name   // 把任务名称传给后端，作为寻找附属文件的钥匙
+                    })
                 });
                 fetchQbData();
             } catch(e) { alert("删除指令下发失败！"); }
         }
-
 
         // ================= 高频轮询：硬件探针数据 (2秒一次) =================
         async function fetchSysInfo() {
@@ -874,6 +885,7 @@
             
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
+            
             renderFleetConfigState();
 
             await initNodes();
