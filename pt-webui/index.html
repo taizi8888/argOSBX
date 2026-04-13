@@ -67,11 +67,17 @@
         .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
         .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px;}
 
-        /* qBittorrent 表格样式 */
-        .qb-table th { background: #f8fafc; color: #334155; border-bottom: 2px solid #e2e8f0; font-size: 14px;}
+        /* --- 新增：qBittorrent 交互式表格与排序样式 --- */
+        .qb-table th { background: #f8fafc; color: #334155; border-bottom: 2px solid #e2e8f0; font-size: 14px; cursor: pointer; user-select: none; transition: background 0.2s;}
+        .qb-table th:hover { background: #e2e8f0; }
+        .qb-table th.no-sort { cursor: default; background: #f8fafc; }
+        .qb-table th.no-sort:hover { background: #f8fafc; }
         .qb-table tr:hover { background: #f8fafc; }
         .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s;}
         .qb-btn:hover { opacity: 0.8; }
+        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; color: #94a3b8; font-size: 12px;}
+        .sort-icon.active { color: #3b82f6; }
+        .qb-checkbox { transform: scale(1.3); cursor: pointer; }
 
         /* Pro 工厂与详情页 */
         .pro-form-group { margin-bottom: 15px; }
@@ -131,9 +137,16 @@
         </div>
 
         <div class="card" style="border-top: 4px solid #0ea5e9;">
-            <h2 style="color: #0369a1; margin-bottom: 20px; border:none; padding:0; font-size: 20px;">
-                <span>🔵 全网 qBittorrent 控制中心</span>
-            </h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #0369a1; border:none; padding:0; margin:0; font-size: 20px;">
+                    <span>🔵 全网 qBittorrent 控制中心</span>
+                </h2>
+                <div id="qb-batch-bar" style="display: none;">
+                    <button class="cluster-btn" style="background: #ef4444; padding: 8px 16px; font-size:13px;" onclick="qbBatchDelete()">
+                        🗑️ 批量删除选中 (<span id="qb-sel-count">0</span>)
+                    </button>
+                </div>
+            </div>
             
             <div class="cluster-panel" style="background: #f0f9ff; border: 1px solid #bae6fd;">
                 <select id="qb-node-select" class="cluster-input" style="flex: 1; min-width: 150px; font-weight:bold; color:#0ea5e9;" onchange="loadQbConfig()"></select>
@@ -146,15 +159,19 @@
             <div id="qb-status-msg" style="font-size: 13px; margin-bottom: 10px; color: #64748b;">请选择左侧的宿主机节点并点击连接，连接后将自动实时刷新任务列表。</div>
             
             <div style="overflow-x: auto;">
-                <table class="qb-table" id="qb-table" style="width: 100%; border-collapse: collapse; min-width: 800px; display: none;">
+                <table class="qb-table" id="qb-table" style="width: 100%; border-collapse: collapse; min-width: 900px; display: none;">
                     <thead>
                         <tr style="text-align: left;">
-                            <th style="padding: 12px;">任务名称</th>
-                            <th style="padding: 12px; width: 80px;">大小</th>
-                            <th style="padding: 12px; width: 140px;">进度</th>
-                            <th style="padding: 12px; width: 80px;">状态</th>
-                            <th style="padding: 12px; width: 100px;">下载/上传</th>
-                            <th style="padding: 12px; width: 100px; text-align: right;">操作</th>
+                            <th class="no-sort" style="padding: 12px; width: 40px; text-align:center;">
+                                <input type="checkbox" id="qb-chk-all" class="qb-checkbox" onclick="toggleQbAll(this.checked)">
+                            </th>
+                            <th onclick="setQbSort('name')" style="padding: 12px;">任务名称 <span class="sort-icon" id="sort-icon-name"></span></th>
+                            <th onclick="setQbSort('size')" style="padding: 12px; width: 80px;">大小 <span class="sort-icon" id="sort-icon-size"></span></th>
+                            <th onclick="setQbSort('progress')" style="padding: 12px; width: 140px;">进度 <span class="sort-icon" id="sort-icon-progress"></span></th>
+                            <th onclick="setQbSort('ratio')" style="padding: 12px; width: 80px;">分享率 <span class="sort-icon" id="sort-icon-ratio"></span></th>
+                            <th onclick="setQbSort('state')" style="padding: 12px; width: 90px;">状态 <span class="sort-icon" id="sort-icon-state"></span></th>
+                            <th onclick="setQbSort('speed')" style="padding: 12px; width: 120px;">下载/上传 <span class="sort-icon" id="sort-icon-speed"></span></th>
+                            <th class="no-sort" style="padding: 12px; width: 100px; text-align: right;">操作</th>
                         </tr>
                     </thead>
                     <tbody id="qb-table-body"></tbody>
@@ -266,7 +283,12 @@
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
         let isFleetConfigCollapsed = localStorage.getItem('fleet_config_collapsed') === 'true';
         
+        // qBittorrent 状态与数据管理
         let qbInterval = null;
+        let qbTorrentsData = []; // 存储最新的 qb 列表数据
+        let qbSortKey = 'name';  // 默认按名字排序
+        let qbSortAsc = true;    // 默认升序
+        let qbSelectedHashes = new Set(); // 存储用户打钩的哈希值，防止刷新时丢失
 
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -276,7 +298,6 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // ================= 集群面板折叠 =================
         function toggleFleetConfig() {
             isFleetConfigCollapsed = !isFleetConfigCollapsed;
             localStorage.setItem('fleet_config_collapsed', isFleetConfigCollapsed);
@@ -310,7 +331,6 @@
             renderList();
         }
 
-        // ================= 节点同步与渲染 =================
         async function syncNodesToBackend(nodes) {
             try {
                 await fetch('/api/nodes', {
@@ -324,11 +344,10 @@
         async function initNodes() {
             const localOrigin = window.location.origin;
             let savedNodes = [];
-            
             try {
                 const res = await fetch('/api/nodes');
                 savedNodes = await res.json();
-            } catch (e) { console.log("从云端获取节点失败", e); }
+            } catch (e) {}
 
             if (savedNodes.length === 0) {
                 let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
@@ -437,6 +456,9 @@
             }
             clearInterval(qbInterval);
             document.getElementById('qb-table').style.display = 'none';
+            document.getElementById('qb-batch-bar').style.display = 'none';
+            qbSelectedHashes.clear(); // 切换节点时清空勾选状态
+            
             document.getElementById('qb-status-msg').innerText = '请确认密码后，点击连接以接管该节点。';
             document.getElementById('qb-status-msg').style.color = '#64748b';
         }
@@ -481,10 +503,12 @@
                     return;
                 }
                 
+                qbTorrentsData = data; // 保存到全局供排序和筛选使用
                 document.getElementById('qb-table').style.display = 'table';
                 document.getElementById('qb-status-msg').innerText = `✅ [${new Date().toLocaleTimeString()}] 连接成功！底层透传模式已激活，实时刷新中...`;
                 document.getElementById('qb-status-msg').style.color = '#16a34a';
-                renderQbTable(data);
+                
+                renderQbTable(); // 使用保存的数据进行渲染
                 
             } catch(e) {
                 document.getElementById('qb-status-msg').innerText = `❌ 宿主机响应超时，可能节点已离线。`;
@@ -492,14 +516,86 @@
             }
         }
 
-        function renderQbTable(torrents) {
+        // --- 排序交互逻辑 ---
+        function setQbSort(key) {
+            if (qbSortKey === key) {
+                qbSortAsc = !qbSortAsc; 
+            } else {
+                qbSortKey = key;
+                qbSortAsc = true; 
+            }
+            if (qbTorrentsData.length > 0) renderQbTable(); // 立即重新渲染表单
+        }
+
+        function sortTorrentsArray(torrents) {
+            return [...torrents].sort((a, b) => {
+                let valA, valB;
+                switch(qbSortKey) {
+                    case 'name': valA = a.name; valB = b.name; break;
+                    case 'size': valA = a.size; valB = b.size; break;
+                    case 'progress': valA = a.progress; valB = b.progress; break;
+                    case 'state': valA = a.state; valB = b.state; break;
+                    case 'speed': valA = Math.max(a.dlspeed, a.upspeed); valB = Math.max(b.dlspeed, b.upspeed); break;
+                    case 'ratio': valA = a.ratio || 0; valB = b.ratio || 0; break;
+                    default: valA = a.name; valB = b.name;
+                }
+                if (valA < valB) return qbSortAsc ? -1 : 1;
+                if (valA > valB) return qbSortAsc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // --- 多选交互逻辑 ---
+        function toggleQbAll(checked) {
+            if (checked) {
+                qbTorrentsData.forEach(t => qbSelectedHashes.add(t.hash));
+            } else {
+                qbSelectedHashes.clear();
+            }
+            renderQbTable(); 
+        }
+
+        function toggleQbHash(hash, checked) {
+            if (checked) qbSelectedHashes.add(hash);
+            else qbSelectedHashes.delete(hash);
+            updateQbBatchBar();
+        }
+
+        function updateQbBatchBar() {
+            const bar = document.getElementById('qb-batch-bar');
+            const countSpan = document.getElementById('qb-sel-count');
+            const chkAll = document.getElementById('qb-chk-all');
+            
+            countSpan.innerText = qbSelectedHashes.size;
+            bar.style.display = qbSelectedHashes.size > 0 ? 'block' : 'none';
+            
+            if (qbTorrentsData.length > 0 && qbSelectedHashes.size === qbTorrentsData.length) {
+                chkAll.checked = true;
+            } else {
+                chkAll.checked = false;
+            }
+        }
+
+        // --- 渲染 qB 交互式数据网格 ---
+        function renderQbTable() {
             const tbody = document.getElementById('qb-table-body');
             tbody.innerHTML = '';
             
-            if (!Array.isArray(torrents) || torrents.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">qBittorrent 中暂无任何任务</td></tr>';
+            // 重置并更新所有的排序箭头图标
+            document.querySelectorAll('.sort-icon').forEach(el => { el.innerHTML = ''; el.className = 'sort-icon'; });
+            const activeIcon = document.getElementById(`sort-icon-${qbSortKey}`);
+            if(activeIcon) {
+                activeIcon.innerHTML = qbSortAsc ? '▲' : '▼';
+                activeIcon.className = 'sort-icon active';
+            }
+            
+            if (!Array.isArray(qbTorrentsData) || qbTorrentsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">qBittorrent 中暂无任何任务</td></tr>';
+                updateQbBatchBar();
                 return;
             }
+
+            const sortedTorrents = sortTorrentsArray(qbTorrentsData);
 
             const stateMap = {
                 'downloading': ['下载中', '#3b82f6'], 'stalledDL': ['等待下载', '#94a3b8'],
@@ -510,7 +606,7 @@
                 'error': ['错误', '#ef4444'], 'missingFiles': ['文件丢失', '#ef4444']
             };
 
-            torrents.forEach(t => {
+            sortedTorrents.forEach(t => {
                 let stateInfo = stateMap[t.state] || [t.state, '#64748b'];
                 let stateText = stateInfo[0]; let stateColor = stateInfo[1];
                 let progressPct = (t.progress * 100).toFixed(1);
@@ -518,21 +614,27 @@
                 let dlSpeed = t.dlspeed > 0 ? `<span style="color:#16a34a;">↓ ${formatBytes(t.dlspeed)}/s</span><br>` : '';
                 let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6;">↑ ${formatBytes(t.upspeed)}/s</span>` : '';
                 if(!dlSpeed && !upSpeed) dlSpeed = '<span style="color:#94a3b8;">0 B/s</span>';
+                
+                // 处理分享率
+                let ratioText = t.ratio === -1 || t.ratio > 9999 ? '∞' : (t.ratio || 0).toFixed(2);
 
+                // 操作按钮
                 let actionBtns = '';
                 if (t.state.includes('paused')) {
                     actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" style="background:#10b981; padding:4px 10px; margin-right:5px;">▶</button>`;
                 } else {
                     actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; padding:4px 10px; margin-right:5px;">⏸</button>`;
                 }
-                
-                // 【核心修改】：在前端界面调用删除时，将任务的名称安全地传递给后端，用于触发深度清理
                 const safeName = t.name.replace(/'/g, "\\'");
                 actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" style="background:#ef4444; padding:4px 10px;">✖</button>`;
 
+                // 检查记忆的选中状态
+                let isChecked = qbSelectedHashes.has(t.hash) ? 'checked' : '';
+
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${t.name}"><strong>${t.name}</strong></td>
+                        <td style="padding: 10px; text-align:center;"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}', this.checked)" ${isChecked}></td>
+                        <td style="padding: 10px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${t.name}"><strong>${t.name}</strong></td>
                         <td style="padding: 10px; font-size:13px; color:#475569;">${formatBytes(t.size)}</td>
                         <td style="padding: 10px; font-size:13px;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${progressPct}%</span></div>
@@ -540,12 +642,15 @@
                                 <div style="background:${stateColor}; height:100%; width:${progressPct}%;"></div>
                             </div>
                         </td>
+                        <td style="padding: 10px; font-size:13px; font-weight:bold; color:#0ea5e9;">${ratioText}</td>
                         <td style="padding: 10px; font-size:13px; font-weight:bold; color:${stateColor};">${stateText}</td>
                         <td style="padding: 10px; font-size:12px; font-family:Consolas,monospace;">${dlSpeed}${upSpeed}</td>
                         <td style="padding: 10px; text-align:right;">${actionBtns}</td>
                     </tr>
                 `;
             });
+            
+            updateQbBatchBar(); // 确保刷新后多选操作栏状态正确
         }
 
         async function qbAction(hash, action) {
@@ -560,10 +665,9 @@
             } catch(e) { alert("操作失败！节点可能响应超时。"); }
         }
 
-        // 【核心修改】：深度洁癖清理交互，将文件名称传入请求体中
         async function qbDelete(hash, name) {
             if(!confirm(`⚠️ 危险操作：确认要删除任务 [ ${name} ] 吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时从硬盘彻底删除已下载的本地视频文件，以及生成的种子、截图、Info等附属文件？\n\n点击【确定】彻底粉碎所有相关文件\n点击【取消】仅移除任务列表，保留文件`);
+            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时从硬盘彻底删除已下载的本地视频文件，以及生成的种子、截图等附属文件？\n\n点击【确定】彻底粉碎所有相关文件\n点击【取消】仅移除任务列表，保留文件`);
             
             const nodeUrl = document.getElementById('qb-node-select').value;
             let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
@@ -571,20 +675,49 @@
                 await fetch(`${nodeUrl}/api/qbittorrent`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ 
-                        url: config.url, 
-                        user: config.user, 
-                        pwd: config.pwd, 
-                        action: "delete", 
-                        hashes: hash, 
-                        delete_files: deleteFiles,
-                        name: name   // 把任务名称传给后端，作为寻找附属文件的钥匙
+                        url: config.url, user: config.user, pwd: config.pwd, action: "delete", 
+                        hashes: hash, delete_files: deleteFiles, name: name 
                     })
                 });
+                qbSelectedHashes.delete(hash); // 清理内存状态
                 fetchQbData();
             } catch(e) { alert("删除指令下发失败！"); }
         }
 
-        // ================= 高频轮询：硬件探针数据 (2秒一次) =================
+        // --- 批量删除交互逻辑 ---
+        async function qbBatchDelete() {
+            if(qbSelectedHashes.size === 0) return;
+            const hashesArr = Array.from(qbSelectedHashes);
+            
+            // 智能映射：把哈希值转换成对应的任务名字（用于后端执行深度垃圾清理）
+            const namesArr = hashesArr.map(h => {
+                const target = qbTorrentsData.find(t => t.hash === h);
+                return target ? target.name : "";
+            }).filter(n => n !== "");
+            
+            if(!confirm(`⚠️ 危险操作：确认要批量删除选中的 ${hashesArr.length} 个任务吗？`)) return;
+            const deleteFiles = confirm(`🗑️ [批量深度清理] 是否同时从硬盘彻底粉碎这 ${hashesArr.length} 个任务对应的所有视频及附属垃圾文件？\n\n点击【确定】彻底清空硬盘空间\n点击【取消】仅移除任务，保留文件`);
+            
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
+            
+            try {
+                await fetch(`${nodeUrl}/api/qbittorrent`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        url: config.url, user: config.user, pwd: config.pwd, action: "delete", 
+                        hashes: hashesArr.join('|'), // qB API 支持用 | 分隔多哈希
+                        delete_files: deleteFiles,
+                        name: namesArr.join('|')     // 后端也支持用 | 提取多名字进行深度清理
+                    })
+                });
+                qbSelectedHashes.clear(); // 清理打钩状态
+                fetchQbData();
+            } catch(e) { alert("批量删除指令下发失败！"); }
+        }
+
+
+        // ================= 硬件探针与全网数据轮询 =================
         async function fetchSysInfo() {
             clusterNodes.forEach(async (node, index) => {
                 if (node.status === 'offline') return;
@@ -642,7 +775,6 @@
             });
         }
 
-        // ================= 低频轮询：业务文件夹数据 (10秒一次) =================
         async function fetchAllNodesFolders() {
             currentFolders = [];
             let onlineCount = 0;
@@ -885,7 +1017,6 @@
             
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
-            
             renderFleetConfigState();
 
             await initNodes();
