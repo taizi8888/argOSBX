@@ -9,7 +9,6 @@ import os
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
 
-# 定义数据结构
 class RunRequest(BaseModel):
     folder: str = ""
     tracker: Optional[str] = None
@@ -27,16 +26,23 @@ def index():
 def list_folders():
     folders = []
     if os.path.exists(BASE_DIR):
-        for item in sorted(os.listdir(BASE_DIR)):
+        for item in os.listdir(BASE_DIR):
+            # 彻底屏蔽 .config 等隐藏目录
+            if item.startswith("."):
+                continue
             path = os.path.join(BASE_DIR, item)
             if os.path.isdir(path):
                 has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
                 has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
-                status = "✅ 已完成" if (has_torrent and has_img) else "⏳ 待处理"
-                folders.append({"name": item, "status": status, "ready": (has_torrent and has_img)})
+                ready = has_torrent and has_img
+                status = "✅ 已完成" if ready else "⏳ 待处理"
+                mtime = os.path.getmtime(path)
+                folders.append({"name": item, "status": status, "ready": ready, "mtime": mtime})
+                
+    # 核心排序逻辑：待处理 (ready=False) 排前面，然后按修改时间倒序（最新排上面）
+    folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# 执行单一任务并注入环境参数
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
@@ -62,13 +68,10 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
-# 云端无感热更新接口
 @app.post("/api/update")
 def update_system():
     try:
         script_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui/pt_make_headless.sh"
-        
-        # 使用 Python 原生读取并清理 Windows 换行符 (\r)，彻底摆脱 dos2unix 依赖
         response = urllib.request.urlopen(script_url)
         script_content = response.read().decode('utf-8')
         clean_content = script_content.replace('\r\n', '\n').replace('\r', '')
@@ -80,7 +83,7 @@ def update_system():
         return {"message": "✅ 核心逻辑热更新成功！(已原生过滤 Windows 换行符)"}
     except Exception as e:
         return {"message": f"❌ 更新失败: {str(e)}"}
-# 文件下载与预览接口
+
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
     if file_type == "torrent":
