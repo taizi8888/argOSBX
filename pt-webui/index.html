@@ -32,9 +32,9 @@
 
         /* 集群节点样式 */
         .node-badge { background: #e2e8f0; color: #475569; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 8px; white-space: nowrap;}
-        .cluster-panel { display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;}
-        .cluster-input { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
-        .cluster-btn { background: #3b82f6; padding: 10px 20px;} .cluster-btn:hover { background: #2563eb; }
+        .cluster-panel { display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap;}
+        .cluster-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        .cluster-btn { background: #3b82f6; padding: 10px 20px; white-space: nowrap;} .cluster-btn:hover { background: #2563eb; }
         .node-tag { display: inline-flex; align-items: center; background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 20px; font-size: 13px; margin: 4px; font-weight: bold;}
         .node-tag span { cursor: pointer; margin-left: 8px; color: #93c5fd; } .node-tag span:hover { color: #1e3a8a; }
 
@@ -66,6 +66,7 @@
         
         @media (max-width: 768px) {
             .preview-container { flex-direction: column; } .preview-box { width: 100%; } .preview-header { display: none;} .pro-row { flex-direction: column; gap: 0; }
+            .cluster-input { width: 100%; flex: none !important;}
         }
     </style>
 </head>
@@ -76,7 +77,8 @@
         <div class="card" style="border-top: 4px solid #3b82f6;">
             <h2 style="color: #1e3a8a; margin-bottom: 15px; border:none; padding:0; font-size: 20px;">🌐 局域网集群管理 (Fleet Manager)</h2>
             <div class="cluster-panel">
-                <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入其他机器的 API 地址 (例如: http://192.168.1.10:8080)">
+                <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入节点 API 地址 (例: http://192.168.1.10:8080)" style="flex: 2; min-width: 250px;">
+                <input type="text" id="newNodeName" class="cluster-input" placeholder="给机器起个备注名 (选填)" style="flex: 1; min-width: 150px;">
                 <button class="cluster-btn" onclick="addNode()">➕ 添加节点</button>
             </div>
             <div id="active-nodes" style="margin-top: 10px;"></div>
@@ -165,19 +167,37 @@
     </div>
 
     <script>
+        // 现在 clusterNodes 升级为对象数组: [{url: "http://...", name: "备注名"}]
         let clusterNodes = [];
         let currentFolders = [];
         let currentActiveFolder = "";
-        let currentActiveNode = "";
+        let currentActiveNodeUrl = "";
 
         // ================= 集群管理逻辑 =================
         function initNodes() {
-            // 默认一定包含当前提供 WebUI 服务的这台 1+6 本机
             const localOrigin = window.location.origin;
-            const savedNodes = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
+            let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
             
-            clusterNodes = [localOrigin];
-            savedNodes.forEach(n => { if(n !== localOrigin && !clusterNodes.includes(n)) clusterNodes.push(n); });
+            // 数据迁移：兼容旧版本的纯字符串数组，自动转换为对象格式
+            let savedNodes = rawSaved.map(n => {
+                if (typeof n === 'string') {
+                    try { return { url: n, name: new URL(n).host }; } 
+                    catch(e) { return { url: n, name: n }; }
+                }
+                return n;
+            });
+
+            // 本机节点强制放在第一位
+            clusterNodes = [{ url: localOrigin, name: "本机主控台" }];
+            
+            savedNodes.forEach(n => { 
+                if(n.url !== localOrigin && !clusterNodes.find(c => c.url === n.url)) {
+                    clusterNodes.push(n); 
+                }
+            });
+            
+            // 同步最新的对象格式回本地存储
+            localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
             renderNodes();
         }
 
@@ -186,39 +206,51 @@
             container.innerHTML = '';
             clusterNodes.forEach((node, index) => {
                 const isLocal = index === 0;
-                const host = new URL(node).host;
                 container.innerHTML += `
                     <div class="node-tag">
-                        🟢 ${host} ${isLocal ? '(本机主控)' : ''}
-                        ${!isLocal ? `<span onclick="removeNode('${node}')">✖</span>` : ''}
+                        🟢 ${node.name}
+                        ${!isLocal ? `<span onclick="removeNode('${node.url}')">✖</span>` : ''}
                     </div>`;
             });
         }
 
         function addNode() {
             let ip = document.getElementById('newNodeIp').value.trim();
-            if(!ip) return;
-            if(!ip.startsWith('http')) ip = 'http://' + ip; // 容错处理
+            let name = document.getElementById('newNodeName').value.trim();
             
-            // 去除末尾斜杠
+            if(!ip) return;
+            if(!ip.startsWith('http')) ip = 'http://' + ip; 
             if(ip.endsWith('/')) ip = ip.slice(0, -1);
+            
+            // 如果没填备注名，尝试提取域名作为默认名称
+            if(!name) {
+                try { name = new URL(ip).host; } 
+                catch(e) { name = ip; }
+            }
 
-            if(!clusterNodes.includes(ip)) {
-                const savedNodes = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
-                savedNodes.push(ip);
+            if(!clusterNodes.find(n => n.url === ip)) {
+                let savedNodes = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
+                savedNodes = savedNodes.map(n => typeof n === 'string' ? {url: n, name: new URL(n).host} : n);
+                
+                savedNodes.push({ url: ip, name: name });
                 localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
+                
                 document.getElementById('newNodeIp').value = '';
+                document.getElementById('newNodeName').value = '';
+                
                 initNodes();
-                fetchAllNodesFolders(); // 重新拉取
+                fetchAllNodesFolders(); // 添加成功后重新拉取全网数据
             } else {
-                alert("节点已存在！");
+                alert("该节点 IP 已存在！");
             }
         }
 
-        function removeNode(node) {
+        function removeNode(urlToRemove) {
             let savedNodes = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
-            savedNodes = savedNodes.filter(n => n !== node);
+            savedNodes = savedNodes.map(n => typeof n === 'string' ? {url: n, name: new URL(n).host} : n);
+            savedNodes = savedNodes.filter(n => n.url !== urlToRemove);
             localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
+            
             initNodes();
             fetchAllNodesFolders();
         }
@@ -229,15 +261,15 @@
             const list = document.getElementById('folder-list');
             list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点数据...</div>';
             
-            // 发起并发请求
-            const promises = clusterNodes.map(async (nodeUrl) => {
+            // 并发向所有已知节点请求数据
+            const promises = clusterNodes.map(async (node) => {
                 try {
-                    const res = await fetch(`${nodeUrl}/api/folders`);
+                    const res = await fetch(`${node.url}/api/folders`);
                     const data = await res.json();
-                    // 给每个文件夹打上归属节点的 Tag
-                    return data.folders.map(f => ({...f, nodeUrl: nodeUrl, nodeHost: new URL(nodeUrl).host}));
+                    // 给拉取到的文件夹打上对应节点的标记（包含 URL 和 友好的备注名）
+                    return data.folders.map(f => ({...f, nodeUrl: node.url, nodeName: node.name}));
                 } catch(e) {
-                    console.error(`节点 ${nodeUrl} 失联:`, e);
+                    console.error(`节点 ${node.name} 失联:`, e);
                     return []; 
                 }
             });
@@ -266,11 +298,11 @@
 
             currentFolders.forEach(f => {
                 const color = f.ready ? '#16a34a' : '#f59e0b';
-                // 拼接 nodeUrl|folderName 供复选框使用
+                // 复选框和下拉菜单的值绑定为 节点URL|文件夹名
                 const compositeKey = `${f.nodeUrl}|${f.name}`;
                 
                 const actionsHtml = f.ready 
-                    ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}', '${f.name}')">👁️ 跨节点查看</button>
+                    ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}', '${f.name}', '${f.nodeName}')">👁️ 跨节点查看</button>
                        <button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')" style="background:#64748b;">定制重做</button>`
                     : `<button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')">装载至工厂</button>`;
                     
@@ -279,7 +311,7 @@
                         <div class="item-info">
                             <input type="checkbox" class="folder-check" value="${compositeKey}" ${f.ready ? 'disabled' : ''}>
                             <div class="item-title">
-                                <strong>${f.name}</strong> <span class="node-badge">🖥️ ${f.nodeHost}</span><br> 
+                                <strong>${f.name}</strong> <span class="node-badge">🖥️ ${f.nodeName}</span><br> 
                                 <span style="color:${color}; font-size: 13px; font-weight:bold;">${f.status}</span>
                             </div>
                         </div>
@@ -295,7 +327,7 @@
             currentFolders.forEach(f => {
                 const opt = document.createElement("option");
                 opt.value = `${f.nodeUrl}|${f.name}`;
-                opt.text = `[${f.nodeHost}] ${f.name} (${f.ready ? '✅' : '⏳'})`;
+                opt.text = `[${f.nodeName}] ${f.name} (${f.ready ? '✅' : '⏳'})`;
                 select.appendChild(opt);
             });
             if (currentVal) select.value = currentVal;
@@ -319,8 +351,12 @@
 
             if(saveTracker && tracker) localStorage.setItem("saved_tracker", tracker);
             else localStorage.removeItem("saved_tracker");
+            
+            // 找一下发往节点的备注名用于提示
+            const targetNode = clusterNodes.find(n => n.url === nodeUrl);
+            const targetName = targetNode ? targetNode.name : nodeUrl;
 
-            alert(`【指令已下发至 ${new URL(nodeUrl).host}】\n目录: ${folderName}\n后台处理中，请稍后刷新。`);
+            alert(`【指令已下发至：${targetName}】\n目录: ${folderName}\n后台处理中，请稍后刷新。`);
             
             // 精确向对应的宿主机发送 POST 请求
             await fetch(`${nodeUrl}/api/run/folder`, { 
@@ -331,11 +367,10 @@
             setTimeout(fetchAllNodesFolders, 3000); 
         }
 
-        // 分发自动任务给所有节点
         async function triggerTaskAllNodes(mode) {
             alert('【集群并发指令】已向全网所有节点下发全盘扫描指令，各自独立计算中！');
-            clusterNodes.forEach(nodeUrl => {
-                fetch(`${nodeUrl}/api/run/${mode}`, { 
+            clusterNodes.forEach(node => {
+                fetch(`${node.url}/api/run/${mode}`, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ folder: "" })
@@ -352,7 +387,7 @@
             const selected = Array.from(document.querySelectorAll('.folder-check:checked')).map(cb => cb.value);
             if (selected.length === 0) return alert("请先勾选需要处理的文件夹！");
             
-            alert(`已将 ${selected.length} 个任务分配给对应宿主机排队。`);
+            alert(`已将 ${selected.length} 个任务分配给对应的物理机排队。`);
             
             // 分组处理：将任务按 nodeUrl 归类，各自发送给对应机器
             let batches = {};
@@ -373,20 +408,20 @@
         }
 
         // ================= 跨域详情查看与下载 =================
-        function openDetailView(nodeUrl, folderName) {
-            currentActiveNode = nodeUrl;
+        function openDetailView(nodeUrl, folderName, nodeName) {
+            currentActiveNodeUrl = nodeUrl;
             currentActiveFolder = folderName;
             
             document.getElementById('main-dashboard').style.display = 'none';
             document.getElementById('detail-view').style.display = 'block';
-            document.getElementById('detailPath').innerText = `[${new URL(nodeUrl).host}] /downloads/${folderName}`;
+            document.getElementById('detailPath').innerText = `[${nodeName}] /downloads/${folderName}`;
             
             // 跨域读取图片和文本
             document.getElementById('detailImage').src = `${nodeUrl}/api/files/${encodeURIComponent(folderName)}/image?t=${new Date().getTime()}`;
             document.getElementById('detailMediaInfo').innerText = "跨节点读取中...";
             fetch(`${nodeUrl}/api/preview/mediainfo/${encodeURIComponent(folderName)}`)
                 .then(r => r.text()).then(t => document.getElementById('detailMediaInfo').innerText = t)
-                .catch(e => document.getElementById('detailMediaInfo').innerText = "读取失败，节点可能离线。");
+                .catch(e => document.getElementById('detailMediaInfo').innerText = "读取失败，该物理节点可能已离线。");
                 
             window.scrollTo(0, 0);
         }
@@ -399,8 +434,8 @@
         }
         
         function downloadFile(type) { 
-            if(currentActiveNode && currentActiveFolder) {
-                window.open(`${currentActiveNode}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); 
+            if(currentActiveNodeUrl && currentActiveFolder) {
+                window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); 
             }
         }
 
@@ -409,17 +444,17 @@
             const btn = document.querySelector('.btn-update');
             btn.innerText = "全网更新中..."; btn.disabled = true;
             
-            let promises = clusterNodes.map(async (nodeUrl) => {
+            let promises = clusterNodes.map(async (node) => {
                 try {
-                    await fetch(`${nodeUrl}/api/update`, { method: 'POST' });
-                    return `${new URL(nodeUrl).host}: ✅ 更新成功`;
+                    await fetch(`${node.url}/api/update`, { method: 'POST' });
+                    return `[${node.name}]: ✅ 更新成功`;
                 } catch(e) {
-                    return `${new URL(nodeUrl).host}: ❌ 更新失败或离线`;
+                    return `[${node.name}]: ❌ 更新失败或离线`;
                 }
             });
             
             let results = await Promise.all(promises);
-            alert("集群更新结果：\n" + results.join("\n"));
+            alert("集群全网更新结果：\n\n" + results.join("\n"));
             
             btn.innerText = "🔄 集群引擎同步更新"; btn.disabled = false;
         }
