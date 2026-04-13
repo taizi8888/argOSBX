@@ -63,9 +63,9 @@ process_folder() {
             [ -z "$DUR" ] && DUR=300
             TIMESTAMP=$(( DUR * (5 + i * 5) / 100 ))
             
-            # 使用强制 1920x1080 居中补黑边算法
+            # 原画比例截取，宽固定1920，高自适应且为偶数，不加黑边
             ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
-              -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black" \
+              -vf "scale=1920:-2" \
               "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
             
             if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
@@ -83,12 +83,14 @@ process_folder() {
 
         if [ "$MISSING" -eq 0 ]; then
             echo "✅ 16张截图就绪，开始拼合 4K 巨幕..." >> "$LOG_FILE"
+            
+            # 引入 w0_h0 动态高宽比自适应计算阵列，无论什么画幅都能严丝合缝
             ffmpeg -y \
             -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
             -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
             -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
             -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
-            -filter_complex "xstack=inputs=16:layout=0_0|1920_0|0_1080|1920_1080|0_2160|1920_2160|0_3240|1920_3240|0_4320|1920_4320|0_5400|1920_5400|0_6480|1920_6480|0_7560|1920_7560" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            -filter_complex "xstack=inputs=16:layout=0_0|w0_0|0_h0|w0_h0|0_h0*2|w0_h0*2|0_h0*3|w0_h0*3|0_h0*4|w0_h0*4|0_h0*5|w0_h0*5|0_h0*6|w0_h0*6|0_h0*7|w0_h0*7" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
             
             if [ -f "$STITCHED_IMG" ]; then
                 rm -f "$LOG_FILE" # 拼合成功，销毁日志
@@ -101,7 +103,7 @@ process_folder() {
         
         rm -rf "$TMP_IMG_DIR"
     fi
-} # <--- 就是这个大括号之前被弄丢了！
+}
 
 # 路由控制
 if [ "$1" == "--auto" ]; then
