@@ -23,6 +23,11 @@
 
         .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;}
         
+        /* 集群状态面板 (新增) */
+        .dashboard-stats { display: flex; gap: 20px; background: #e0e7ff; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; color: #3730a3; flex-wrap: wrap;}
+        .stat-item { display: flex; align-items: center; gap: 8px; }
+        .stat-value { background: #3730a3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;}
+
         /* 视图切换按钮样式 */
         .view-toggle { display: flex; background: #e2e8f0; border-radius: 6px; padding: 3px; }
         .view-toggle button { background: transparent; color: #64748b; padding: 6px 12px; font-size: 13px; font-weight: bold; border-radius: 4px; box-shadow: none; }
@@ -60,8 +65,13 @@
         .cluster-panel { display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap;}
         .cluster-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
         .cluster-btn { background: #3b82f6; padding: 10px 20px; white-space: nowrap;} .cluster-btn:hover { background: #2563eb; }
-        .node-tag { display: inline-flex; align-items: center; background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 20px; font-size: 13px; margin: 4px; font-weight: bold;}
-        .node-tag span { cursor: pointer; margin-left: 8px; color: #93c5fd; } .node-tag span:hover { color: #1e3a8a; }
+        
+        /* 节点 Tag 与重命名交互 */
+        .node-tag { display: inline-flex; align-items: center; background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 20px; font-size: 13px; margin: 4px; font-weight: bold; transition: all 0.2s;}
+        .node-tag.offline { background: #fee2e2; color: #991b1b; }
+        .node-tag-name { cursor: pointer; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 0 4px;}
+        .node-tag-name:hover { border-bottom: 1px dashed #1e40af; }
+        .node-tag-del { cursor: pointer; margin-left: 8px; color: #93c5fd; } .node-tag-del:hover { color: #1e3a8a; }
 
         /* Pro 工厂样式 */
         .pro-form-group { margin-bottom: 15px; }
@@ -101,6 +111,14 @@
         
         <div class="card" style="border-top: 4px solid #3b82f6;">
             <h2 style="color: #1e3a8a; margin-bottom: 15px; border:none; padding:0; font-size: 20px;">🌐 局域网集群管理 (Fleet Manager)</h2>
+            
+            <div class="dashboard-stats" id="global-stats">
+                <div class="stat-item">🖥️ 活跃节点: <span class="stat-value" id="stat-nodes">0</span></div>
+                <div class="stat-item">📂 全网任务总数: <span class="stat-value" id="stat-total">0</span></div>
+                <div class="stat-item">✅ 已完成: <span class="stat-value" style="background:#16a34a;" id="stat-ready">0</span></div>
+                <div class="stat-item">⏳ 排队中: <span class="stat-value" style="background:#f59e0b;" id="stat-pending">0</span></div>
+            </div>
+
             <div class="cluster-panel">
                 <input type="text" id="newNodeIp" class="cluster-input" placeholder="输入节点 API 地址 (例: http://192.168.1.10:8080)" style="flex: 2; min-width: 250px;">
                 <input type="text" id="newNodeName" class="cluster-input" placeholder="给机器起个备注名 (选填)" style="flex: 1; min-width: 150px;">
@@ -206,51 +224,40 @@
         let currentActiveFolder = "";
         let currentActiveNodeUrl = "";
         
-        // 记忆状态：视图偏好与节点折叠状态
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
 
-        // ================= 视图模式切换逻辑 =================
         function switchViewMode(mode) {
             currentViewMode = mode;
             localStorage.setItem('view_mode', mode);
-            
             document.getElementById('btn-view-list').className = mode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = mode === 'grid' ? 'active' : '';
-            
             renderList();
         }
 
-        // ================= 节点折叠切换逻辑 =================
         function toggleNodeGroup(nodeName) {
-            if(collapsedNodes.has(nodeName)) {
-                collapsedNodes.delete(nodeName);
-            } else {
-                collapsedNodes.add(nodeName);
-            }
-            // 保存到 localStorage 以便刷新记忆
+            if(collapsedNodes.has(nodeName)) collapsedNodes.delete(nodeName);
+            else collapsedNodes.add(nodeName);
             localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes]));
             renderList();
         }
 
-        // ================= 集群管理逻辑 =================
+        // ================= 节点管理与状态 =================
         function initNodes() {
             const localOrigin = window.location.origin;
             let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
             
             let savedNodes = rawSaved.map(n => {
-                if (typeof n === 'string') {
-                    try { return { url: n, name: new URL(n).host }; } 
-                    catch(e) { return { url: n, name: n }; }
-                }
+                if (typeof n === 'string') return { url: n, name: new URL(n).host };
                 return n;
             });
 
-            clusterNodes = [{ url: localOrigin, name: "本机主控台" }];
+            // 增加 status 字段用于心跳存活监测 (默认为 online)
+            clusterNodes = [{ url: localOrigin, name: "本机主控台", status: "online" }];
             
             savedNodes.forEach(n => { 
                 if(n.url !== localOrigin && !clusterNodes.find(c => c.url === n.url)) {
-                    clusterNodes.push(n); 
+                    clusterNodes.push({ ...n, status: "online" }); 
                 }
             });
             
@@ -263,12 +270,41 @@
             container.innerHTML = '';
             clusterNodes.forEach((node, index) => {
                 const isLocal = index === 0;
+                // 根据实时心跳状态变色
+                const statusIcon = node.status === 'offline' ? '🔴' : '🟢';
+                const tagClass = node.status === 'offline' ? 'node-tag offline' : 'node-tag';
+                const tooltip = node.status === 'offline' ? '节点已失联！点击名称修改' : '点击修改备注名';
+
                 container.innerHTML += `
-                    <div class="node-tag">
-                        🟢 ${node.name}
-                        ${!isLocal ? `<span onclick="removeNode('${node.url}')">✖</span>` : ''}
+                    <div class="${tagClass}">
+                        ${statusIcon} 
+                        <span class="node-tag-name" onclick="editNodeName('${node.url}')" title="${tooltip}">${node.name} ✏️</span>
+                        ${!isLocal ? `<span class="node-tag-del" onclick="removeNode('${node.url}')" title="移除节点">✖</span>` : ''}
                     </div>`;
             });
+        }
+
+        // --- 新增：点击小铅笔内联重命名 ---
+        function editNodeName(url) {
+            const nodeIndex = clusterNodes.findIndex(n => n.url === url);
+            if (nodeIndex === -1) return;
+            
+            const currentName = clusterNodes[nodeIndex].name;
+            const newName = prompt(`请输入 [${currentName}] 的新备注名：\n(如：上海一号机、下载专用机)`, currentName);
+            
+            if (newName !== null && newName.trim() !== "") {
+                // 更新内存
+                clusterNodes[nodeIndex].name = newName.trim();
+                
+                // 持久化到本地（跳过本机节点）
+                let savedNodes = clusterNodes.filter((_, i) => i !== 0).map(n => ({url: n.url, name: n.name}));
+                localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
+                
+                // 立刻刷新界面
+                renderNodes();
+                renderList(); 
+                updateProDropdown();
+            }
         }
 
         function addNode() {
@@ -278,16 +314,11 @@
             if(!ip) return;
             if(!ip.startsWith('http')) ip = 'http://' + ip; 
             if(ip.endsWith('/')) ip = ip.slice(0, -1);
-            
-            if(!name) {
-                try { name = new URL(ip).host; } 
-                catch(e) { name = ip; }
-            }
+            if(!name) { try { name = new URL(ip).host; } catch(e) { name = ip; } }
 
             if(!clusterNodes.find(n => n.url === ip)) {
                 let savedNodes = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
                 savedNodes = savedNodes.map(n => typeof n === 'string' ? {url: n, name: new URL(n).host} : n);
-                
                 savedNodes.push({ url: ip, name: name });
                 localStorage.setItem('cluster_nodes', JSON.stringify(savedNodes));
                 
@@ -311,21 +342,24 @@
             fetchAllNodesFolders();
         }
 
-        // ================= 核心：并发拉取全网数据 =================
+        // ================= 核心：并发拉取与大盘数据统计 =================
         async function fetchAllNodesFolders() {
             currentFolders = [];
-            const list = document.getElementById('folder-list');
-            if (list.innerHTML.trim() === '') {
-                list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点数据...</div>';
-            }
-            
+            let onlineCount = 0;
+
             const promises = clusterNodes.map(async (node) => {
                 try {
                     const res = await fetch(`${node.url}/api/folders`);
                     const data = await res.json();
+                    
+                    // 心跳检测存活
+                    node.status = 'online';
+                    onlineCount++;
+                    
                     return data.folders.map(f => ({...f, nodeUrl: node.url, nodeName: node.name}));
                 } catch(e) {
-                    console.error(`节点 ${node.name} 失联:`, e);
+                    // 心跳检测离线
+                    node.status = 'offline';
                     return []; 
                 }
             });
@@ -333,44 +367,50 @@
             const results = await Promise.all(promises);
             results.forEach(res => currentFolders = currentFolders.concat(res));
             
-            // 全局排序：待处理优先，然后按时间倒序
             currentFolders.sort((a, b) => {
                 if (a.ready === b.ready) return b.mtime - a.mtime;
                 return a.ready ? 1 : -1;
             });
             
+            // --- 更新全网算力大盘 Stats ---
+            const totalTasks = currentFolders.length;
+            const readyTasks = currentFolders.filter(f => f.ready).length;
+            const pendingTasks = totalTasks - readyTasks;
+            
+            document.getElementById('stat-nodes').innerText = `${onlineCount} / ${clusterNodes.length}`;
+            document.getElementById('stat-total').innerText = totalTasks;
+            document.getElementById('stat-ready').innerText = readyTasks;
+            document.getElementById('stat-pending').innerText = pendingTasks;
+            
+            // 如果有节点离线，更新节点标签的红绿灯
+            renderNodes();
             renderList();
             updateProDropdown();
         }
 
-        // --- 重构：树状分组渲染与折叠动画 ---
         function renderList() {
             const list = document.getElementById('folder-list');
             list.innerHTML = '';
             
             if(currentFolders.length === 0) {
-                list.innerHTML = '<div style="padding:20px; text-align:center;">暂无任何任务</div>';
+                list.innerHTML = '<div style="padding:20px; text-align:center;">暂无任何任务，或所有节点均已离线。</div>';
                 return;
             }
 
-            // 1. 按 nodeName 进行分组聚合
             let groupedFolders = {};
             currentFolders.forEach(f => {
-                if(!groupedFolders[f.nodeName]) {
-                    groupedFolders[f.nodeName] = [];
-                }
-                groupedFolders[f.nodeName].push(f);
+                // 动态获取内存中最新的 nodeName，防止刚重命名完还没重新 fetch 时数据不同步
+                const liveNode = clusterNodes.find(n => n.url === f.nodeUrl);
+                const liveName = liveNode ? liveNode.name : f.nodeName;
+
+                if(!groupedFolders[liveName]) groupedFolders[liveName] = [];
+                groupedFolders[liveName].push(f);
             });
 
-            // 2. 遍历分组，渲染带折叠功能的二级结构
             for (const [nodeName, foldersInNode] of Object.entries(groupedFolders)) {
-                
-                // 判断当前节点是否处于折叠状态
                 const isCollapsed = collapsedNodes.has(nodeName);
                 const chevronClass = isCollapsed ? 'chevron collapsed' : 'chevron';
                 const containerClass = isCollapsed ? 'collapsed' : '';
-                
-                // 为了防止单引号导致 onclick 报错，对 nodeName 进行转义
                 const safeNodeName = nodeName.replace(/'/g, "\\'");
                 
                 let groupHtml = `
@@ -378,18 +418,17 @@
                     <div class="node-header" onclick="toggleNodeGroup('${safeNodeName}')" title="点击折叠/展开该节点">
                         <span class="${chevronClass}">▼</span>
                         📁 节点: ${nodeName} 
-                        <span style="font-weight:normal; font-size:13px; color:#64748b;">(共 ${foldersInNode.length} 个目录)</span>
+                        <span style="font-weight:normal; font-size:13px; color:#64748b;">(共 ${foldersInNode.length} 个任务)</span>
                     </div>
                     <div class="items-container ${currentViewMode}-view ${containerClass}">
                 `;
                 
-                // 渲染第二级目录列表/网格
                 foldersInNode.forEach(f => {
                     const color = f.ready ? '#16a34a' : '#f59e0b';
                     const compositeKey = `${f.nodeUrl}|${f.name}`;
                     
                     const actionsHtml = f.ready 
-                        ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}', '${f.name}', '${f.nodeName}')">👁️ 查看结果</button>
+                        ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}', '${f.name}', '${safeNodeName}')">👁️ 查看结果</button>
                            <button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')" style="background:#64748b;">定制重做</button>`
                         : `<button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')">装载至工厂</button>`;
                         
@@ -416,9 +455,12 @@
             const currentVal = select.value;
             select.innerHTML = '<option value="">-- 请选择目标目录 --</option>';
             currentFolders.forEach(f => {
+                const liveNode = clusterNodes.find(n => n.url === f.nodeUrl);
+                const liveName = liveNode ? liveNode.name : f.nodeName;
+
                 const opt = document.createElement("option");
                 opt.value = `${f.nodeUrl}|${f.name}`;
-                opt.text = `[${f.nodeName}] ${f.name} (${f.ready ? '✅' : '⏳'})`;
+                opt.text = `[${liveName}] ${f.name} (${f.ready ? '✅' : '⏳'})`;
                 select.appendChild(opt);
             });
             if (currentVal) select.value = currentVal;
@@ -459,17 +501,18 @@
         async function triggerTaskAllNodes(mode) {
             alert('【集群并发指令】已向全网所有节点下发全盘扫描指令，各自独立计算中！');
             clusterNodes.forEach(node => {
-                fetch(`${node.url}/api/run/${mode}`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ folder: "" })
-                }).catch(e => console.log(e));
+                if(node.status !== 'offline') {
+                    fetch(`${node.url}/api/run/${mode}`, { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folder: "" })
+                    }).catch(e => console.log(e));
+                }
             });
             setTimeout(fetchAllNodesFolders, 4000); 
         }
 
         function selectAllPending() {
-            // 只全选当前没有被折叠隐藏的节点下的待处理项（防误触）
             document.querySelectorAll('.items-container:not(.collapsed) .folder-check:not(:disabled)').forEach(cb => cb.checked = true);
         }
 
@@ -533,6 +576,8 @@
             btn.innerText = "全网升级中..."; btn.disabled = true;
             
             let promises = clusterNodes.map(async (node) => {
+                if(node.status === 'offline') return `[${node.name}]: ❌ 节点已离线，跳过更新`;
+                
                 try {
                     const res = await fetch(`${node.url}/api/update`, { method: 'POST' });
                     const data = await res.json();
@@ -565,7 +610,7 @@
             initNodes();
             fetchAllNodesFolders();
             
-            // 设置每 10 秒自动后台静默拉取一次全网数据，保持面板实时性
+            // 每 10 秒心跳检测一次，刷新界面与大盘状态
             setInterval(fetchAllNodesFolders, 10000);
         });
     </script>
