@@ -17,10 +17,8 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
 TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
 LOG_FILE = os.path.join(CONFIG_DIR, "last_task.log")
 
-# 确保配置目录存在
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-# ================= 集群核心设置 =================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +26,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ===============================================
 
 class RunRequest(BaseModel):
     folder: str = ""
@@ -43,7 +40,6 @@ class BatchRequest(BaseModel):
 def index():
     return FileResponse("index.html")
 
-# ================= 集群节点云端持久化 API =================
 @app.get("/api/nodes")
 def get_nodes():
     if os.path.exists(CONFIG_FILE):
@@ -58,7 +54,6 @@ def save_nodes(nodes: List[Any]):
         json.dump(nodes, f, ensure_ascii=False, indent=2)
     return {"status": "success"}
 
-# ================= 业务接口 =================
 @app.get("/api/folders")
 def list_folders():
     folders = []
@@ -73,11 +68,9 @@ def list_folders():
                 status = "✅ 已完成" if ready else "⏳ 待处理"
                 mtime = os.path.getmtime(path)
                 folders.append({"name": item, "status": status, "ready": ready, "mtime": mtime})
-                
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
-# ================= Nezha 探针级硬件监控 =================
 @app.get("/api/sysinfo")
 def sysinfo():
     try:
@@ -93,45 +86,30 @@ def sysinfo():
         cpu_total = sum(float(x) for x in cpu_line[1:8])
 
         net_tx, net_rx = 0, 0
-        if os.path.exists('/host_proc/1/net/dev'): net_path = '/host_proc/1/net/dev'
-        elif os.path.exists('/host_proc/net/dev'): net_path = '/host_proc/net/dev'
-        else: net_path = '/proc/net/dev'
-            
+        net_path = '/host_proc/1/net/dev' if os.path.exists('/host_proc/1/net/dev') else '/proc/net/dev'
         with open(net_path, 'r') as f:
             for line in f.readlines()[2:]:
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth") and not iface.startswith("br-"):
+                    if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth"):
                         vals = parts[1].split()
-                        net_rx += int(vals[0])
-                        net_tx += int(vals[8])
+                        net_rx += int(vals[0]); net_tx += int(vals[8])
 
         current_month = time.strftime("%Y-%m")
         traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
-        
         if os.path.exists(TRAFFIC_FILE):
             try:
-                with open(TRAFFIC_FILE, "r") as f:
-                    saved_data = json.load(f)
-                    traffic_data.update(saved_data)
+                with open(TRAFFIC_FILE, "r") as f: traffic_data.update(json.load(f))
             except: pass
-
         if traffic_data.get("month") != current_month:
-            traffic_data["month"] = current_month
-            traffic_data["month_tx"] = 0
-            traffic_data["month_rx"] = 0
+            traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
 
-        delta_tx = net_tx - traffic_data.get("last_tx", 0)
-        delta_rx = net_rx - traffic_data.get("last_rx", 0)
-        if delta_tx < 0: delta_tx = net_tx
-        if delta_rx < 0: delta_rx = net_rx
-
-        traffic_data["month_tx"] += delta_tx
-        traffic_data["month_rx"] += delta_rx
-        traffic_data["last_tx"] = net_tx
-        traffic_data["last_rx"] = net_rx
-
+        dtx = net_tx - traffic_data.get("last_tx", 0); drx = net_rx - traffic_data.get("last_rx", 0)
+        if dtx < 0: dtx = net_tx
+        if drx < 0: drx = net_rx
+        traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
+        traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
 
         return {
@@ -139,147 +117,96 @@ def sysinfo():
             "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"],
             "timestamp": time.time()
         }
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception as e: return {"error": str(e)}
 
-# ================= qBittorrent API 代理透传 =================
 @app.post("/api/qbittorrent")
 def qbittorrent_proxy(req: dict):
-    qb_url = req.get("url", "").rstrip("/")
-    action = req.get("action")
-    name = req.get("name", "")
-    user = req.get("user", "")
-    pwd = req.get("pwd", "")
-    
-    if not qb_url: return {"error": "未提供 qBittorrent 地址"}
-    
+    qb_url = req.get("url", "").rstrip("/"); action = req.get("action"); name = req.get("name", "")
+    user = req.get("user", ""); pwd = req.get("pwd", "")
+    if not qb_url: return {"error": "No QB URL"}
     cookie = ""
     if user:
         try:
             login_data = urllib.parse.urlencode({'username': user, 'password': pwd}).encode('utf-8')
             l_req = urllib.request.Request(f"{qb_url}/api/v2/auth/login", data=login_data)
             l_resp = urllib.request.urlopen(l_req, timeout=5)
-            cookie_header = l_resp.headers.get('Set-Cookie')
-            if cookie_header: cookie = cookie_header.split(';')[0]
-        except Exception as e:
-            return {"error": f"qBittorrent 登录失败: {str(e)}"}
-            
+            cookie = l_resp.headers.get('Set-Cookie').split(';')[0]
+        except: return {"error": "QB Login Failed"}
     headers = {"Cookie": cookie} if cookie else {}
-    
     try:
         if action == "list":
             r = urllib.request.Request(f"{qb_url}/api/v2/torrents/info", headers=headers)
-            resp = urllib.request.urlopen(r, timeout=5)
-            return json.loads(resp.read().decode('utf-8'))
-            
+            return json.loads(urllib.request.urlopen(r, timeout=5).read().decode('utf-8'))
         elif action in ["pause", "resume"]:
             data = urllib.parse.urlencode({'hashes': req.get('hashes', '')}).encode('utf-8')
-            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/{action}", data=data, headers=headers)
-            urllib.request.urlopen(r, timeout=5)
+            urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/{action}", data=data, headers=headers), timeout=5)
             return {"status": "ok"}
-            
         elif action == "delete":
-            del_files = req.get('delete_files')
-            del_flag = "true" if del_files else "false"
+            del_files = req.get('delete_files'); del_flag = "true" if del_files else "false"
             data = urllib.parse.urlencode({'hashes': req.get('hashes', ''), 'deleteFiles': del_flag}).encode('utf-8')
-            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers)
-            urllib.request.urlopen(r, timeout=5)
-            
+            urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers), timeout=5)
             if del_files and name:
-                names_list = name.split("|") 
-                garbage_extensions = [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]
-                for n in names_list:
-                    n = n.strip()
-                    if not n: continue
-                    for ext in garbage_extensions:
-                        garbage_path = os.path.join(BASE_DIR, f"{n}{ext}")
-                        if os.path.exists(garbage_path):
-                            try: os.remove(garbage_path)
-                            except: pass
+                for n in name.split("|"):
+                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
+                        p = os.path.join(BASE_DIR, f"{n.strip()}{ext}")
+                        if os.path.exists(p): os.remove(p)
             return {"status": "ok"}
-        else: return {"error": "未知的执行指令"}
-            
-    except Exception as e:
-        return {"error": f"qB API 请求失败: 请检查 IP、端口或账号密码 ({str(e)})"}
+    except Exception as e: return {"error": str(e)}
 
-# ================= 任务下发 =================
+# ================= 【手术刀级】精准下发引擎 =================
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
-        # 【💡 核心修复】：如果用户指定了单目录重做，强制抹除旧产物，打破底层增量保护！
         if mode == "folder" and req.folder:
             folder_name = req.folder
-            garbage_extensions = [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]
-            for ext in garbage_extensions:
-                old_file = os.path.join(BASE_DIR, f"{folder_name}{ext}")
-                if os.path.exists(old_file):
-                    try: os.remove(old_file)
-                    except: pass
+            # 1. 必删：截图和日志（因为重新生成很快）
+            for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
+                p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
+                if os.path.exists(p): os.remove(p)
+            
+            # 2. 只有当用户确实修改了 Tracker 或 Piece Size 时，才删除种子文件
+            # 这样如果只改排版，种子文件还在，底层的 mktorrent 环节就会被秒过跳过
+            if req.tracker or req.piece_size:
+                for ext in [".torrent", "_mediainfo.txt"]:
+                    p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
+                    if os.path.exists(p): os.remove(p)
                     
         cmd = ["/bin/bash", "/app/pt_make_headless.sh", f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
-        
         env = os.environ.copy()
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
-        
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
             subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
-            
     background_tasks.add_task(execute_script)
-    return {"message": "任务已在后台启动！"}
-
-@app.post("/api/run_batch")
-def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
-    def execute_batch():
-        with open(LOG_FILE, "a") as f:
-            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
-            for folder in req.folders:
-                cmd = ["/bin/bash", "/app/pt_make_headless.sh", "--folder", folder]
-                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
-    background_tasks.add_task(execute_batch)
-    return {"message": "批量任务已启动！"}
+    return {"message": "Task Started"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
     try:
         base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
-        html_url = f"{base_url}/index.html"
-        html_content = urllib.request.urlopen(html_url).read().decode('utf-8')
-        with open("index.html", "w", encoding="utf-8") as f: f.write(html_content)
-
-        bash_url = f"{base_url}/pt_make_headless.sh"
-        bash_content = urllib.request.urlopen(bash_url).read().decode('utf-8').replace('\r\n', '\n')
-        with open("/app/pt_make_headless.sh", "w", encoding="utf-8", newline='\n') as f: f.write(bash_content)
-        os.chmod("/app/pt_make_headless.sh", 0o755)
-
-        app_url = f"{base_url}/app.py"
-        app_content = urllib.request.urlopen(app_url).read().decode('utf-8')
-        with open("/app/app.py", "w", encoding="utf-8") as f: f.write(app_content)
-
-        def restart_server():
-            time.sleep(2)
-            os._exit(0) 
-            
-        background_tasks.add_task(restart_server)
-        return {"message": "✅ OTA 全量升级包已覆盖！\n前端已更新，后端容器将在 2 秒后自动重启重生，请稍后刷新网页。"}
-    except Exception as e:
-        return {"message": f"❌ OTA 升级失败: {str(e)}\n请检查网络或 GitHub 路径。"}
+        for f_name in ["index.html", "pt_make_headless.sh", "app.py"]:
+            url = f"{base_url}/{f_name}"
+            content = urllib.request.urlopen(url).read().decode('utf-8')
+            with open(f_name if f_name!="app.py" else "/app/app.py", "w", encoding="utf-8") as f: f.write(content)
+        os.chmod("pt_make_headless.sh", 0o755)
+        def restart(): time.sleep(2); os._exit(0)
+        background_tasks.add_task(restart)
+        return {"message": "OTA Success"}
+    except Exception as e: return {"message": f"Error: {e}"}
 
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
-    if file_type == "torrent": file_path = os.path.join(BASE_DIR, f"{folder}.torrent")
-    elif file_type == "mediainfo": file_path = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
-    elif file_type == "image": file_path = os.path.join(BASE_DIR, f"{folder}_Stitched_4K.jpg")
-    else: return {"error": "未知的格式"}
-    if os.path.exists(file_path): return FileResponse(file_path, filename=os.path.basename(file_path))
-    return {"error": "文件不存在"}
+    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg"}
+    p = os.path.join(BASE_DIR, f"{folder}{exts.get(file_type, '')}")
+    if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
+    return {"error": "Not Found"}
 
 @app.get("/api/preview/mediainfo/{folder}")
 def preview_mediainfo(folder: str):
-    file_path = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
-    return PlainTextResponse("数据不存在或正在生成中...")
+    p = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
+    if os.path.exists(p):
+        with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
+    return PlainTextResponse("Not Found")
