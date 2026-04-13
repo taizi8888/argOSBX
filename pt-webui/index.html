@@ -67,6 +67,12 @@
         .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
         .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px;}
 
+        /* qBittorrent 表格样式 */
+        .qb-table th { background: #f8fafc; color: #334155; border-bottom: 2px solid #e2e8f0; font-size: 14px;}
+        .qb-table tr:hover { background: #f8fafc; }
+        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; transition: opacity 0.2s;}
+        .qb-btn:hover { opacity: 0.8; }
+
         /* Pro 工厂与详情页 */
         .pro-form-group { margin-bottom: 15px; }
         .pro-form-group label { display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b; font-size: 14px;}
@@ -120,8 +126,39 @@
                     <input type="text" id="newNodeName" class="cluster-input" placeholder="节点备注名 (选填)" style="flex: 1; min-width: 150px;">
                     <button class="cluster-btn" onclick="addNode()">➕ 添加节点</button>
                 </div>
-                
                 <div id="active-nodes"></div>
+            </div>
+        </div>
+
+        <div class="card" style="border-top: 4px solid #0ea5e9;">
+            <h2 style="color: #0369a1; margin-bottom: 20px; border:none; padding:0; font-size: 20px;">
+                <span>🔵 全网 qBittorrent 控制中心</span>
+            </h2>
+            
+            <div class="cluster-panel" style="background: #f0f9ff; border: 1px solid #bae6fd;">
+                <select id="qb-node-select" class="cluster-input" style="flex: 1; min-width: 150px; font-weight:bold; color:#0ea5e9;" onchange="loadQbConfig()"></select>
+                <input type="text" id="qb-url" class="cluster-input" placeholder="qB 访问地址 (例: http://127.0.0.1:8081)" style="flex: 2; min-width: 200px;">
+                <input type="text" id="qb-user" class="cluster-input" placeholder="账号 (留空免密)" style="flex: 1; min-width: 100px;">
+                <input type="password" id="qb-pwd" class="cluster-input" placeholder="密码" style="flex: 1; min-width: 100px;">
+                <button class="cluster-btn" style="background: #0ea5e9;" onclick="connectQb()">🔗 连 接 远 程 控 制</button>
+            </div>
+            
+            <div id="qb-status-msg" style="font-size: 13px; margin-bottom: 10px; color: #64748b;">请选择左侧的宿主机节点并点击连接，连接后将自动实时刷新任务列表。</div>
+            
+            <div style="overflow-x: auto;">
+                <table class="qb-table" id="qb-table" style="width: 100%; border-collapse: collapse; min-width: 800px; display: none;">
+                    <thead>
+                        <tr style="text-align: left;">
+                            <th style="padding: 12px;">任务名称</th>
+                            <th style="padding: 12px; width: 80px;">大小</th>
+                            <th style="padding: 12px; width: 140px;">进度</th>
+                            <th style="padding: 12px; width: 80px;">状态</th>
+                            <th style="padding: 12px; width: 100px;">下载/上传</th>
+                            <th style="padding: 12px; width: 100px; text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="qb-table-body"></tbody>
+                </table>
             </div>
         </div>
 
@@ -227,9 +264,9 @@
         
         let currentViewMode = localStorage.getItem('view_mode') || 'list';
         let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
-        
-        // 新增：集群面板折叠状态记忆
         let isFleetConfigCollapsed = localStorage.getItem('fleet_config_collapsed') === 'true';
+        
+        let qbInterval = null; // 控制 qBittorrent 的自动刷新钩子
 
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -239,7 +276,7 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // ================= 集群配置折叠逻辑 =================
+        // ================= 集群面板折叠 =================
         function toggleFleetConfig() {
             isFleetConfigCollapsed = !isFleetConfigCollapsed;
             localStorage.setItem('fleet_config_collapsed', isFleetConfigCollapsed);
@@ -258,7 +295,6 @@
             }
         }
 
-        // ================= 其他 UI 逻辑 =================
         function switchViewMode(mode) {
             currentViewMode = mode;
             localStorage.setItem('view_mode', mode);
@@ -274,7 +310,7 @@
             renderList();
         }
 
-        // ================= 后端节点数据云同步 =================
+        // ================= 节点同步与渲染 =================
         async function syncNodesToBackend(nodes) {
             try {
                 await fetch('/api/nodes', {
@@ -308,6 +344,7 @@
             });
             
             renderNodes();
+            populateQbNodes(); // 同时更新 qBittorrent 的下拉菜单
         }
 
         function renderNodes() {
@@ -342,14 +379,13 @@
                 clusterNodes[nodeIndex].name = newName.trim();
                 let savedNodes = clusterNodes.filter((_, i) => i !== 0).map(n => ({url: n.url, name: n.name}));
                 syncNodesToBackend(savedNodes);
-                renderNodes(); renderList(); updateProDropdown();
+                renderNodes(); renderList(); updateProDropdown(); populateQbNodes();
             }
         }
 
         function addNode() {
             let ip = document.getElementById('newNodeIp').value.trim();
             let name = document.getElementById('newNodeName').value.trim();
-            
             if(!ip) return;
             if(!ip.startsWith('http')) ip = 'http://' + ip; 
             if(ip.endsWith('/')) ip = ip.slice(0, -1);
@@ -362,7 +398,6 @@
                 
                 document.getElementById('newNodeIp').value = '';
                 document.getElementById('newNodeName').value = '';
-                
                 initNodes().then(() => { fetchAllNodesFolders(); fetchSysInfo(); });
             } else alert("该节点 IP 已存在！");
         }
@@ -373,9 +408,173 @@
             initNodes().then(() => fetchAllNodesFolders());
         }
 
+        // ================= qBittorrent 代理控制中心 =================
+        function populateQbNodes() {
+            const select = document.getElementById('qb-node-select');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">-- 选择要控制的宿主机节点 --</option>';
+            clusterNodes.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n.url;
+                opt.text = `🖥️ ${n.name}`;
+                select.appendChild(opt);
+            });
+            if (currentVal) select.value = currentVal;
+        }
+
+        function loadQbConfig() {
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            if (!nodeUrl) return;
+            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
+            if (configs[nodeUrl]) {
+                document.getElementById('qb-url').value = configs[nodeUrl].url || '';
+                document.getElementById('qb-user').value = configs[nodeUrl].user || '';
+                document.getElementById('qb-pwd').value = configs[nodeUrl].pwd || '';
+            } else {
+                document.getElementById('qb-url').value = '';
+                document.getElementById('qb-user').value = '';
+                document.getElementById('qb-pwd').value = '';
+            }
+            clearInterval(qbInterval);
+            document.getElementById('qb-table').style.display = 'none';
+            document.getElementById('qb-status-msg').innerText = '请确认密码后，点击连接以接管该节点。';
+            document.getElementById('qb-status-msg').style.color = '#64748b';
+        }
+
+        async function connectQb() {
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            const qbUrl = document.getElementById('qb-url').value.trim();
+            const qbUser = document.getElementById('qb-user').value.trim();
+            const qbPwd = document.getElementById('qb-pwd').value;
+            
+            if (!nodeUrl || !qbUrl) return alert("请先选择宿主机节点，并填写它的 qB 访问地址！");
+            
+            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
+            configs[nodeUrl] = { url: qbUrl, user: qbUser, pwd: qbPwd };
+            localStorage.setItem('qb_configs', JSON.stringify(configs));
+            
+            document.getElementById('qb-status-msg').innerText = '⏳ 正在通过宿主机发送透传请求...';
+            document.getElementById('qb-status-msg').style.color = '#f59e0b';
+            
+            await fetchQbData();
+            if(qbInterval) clearInterval(qbInterval);
+            qbInterval = setInterval(fetchQbData, 3000);
+        }
+
+        async function fetchQbData() {
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            if (!nodeUrl) return;
+            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
+            let config = configs[nodeUrl];
+            if(!config) return;
+
+            try {
+                const res = await fetch(`${nodeUrl}/api/qbittorrent`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "list" })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    document.getElementById('qb-status-msg').innerText = `❌ ${data.error}`;
+                    document.getElementById('qb-status-msg').style.color = '#ef4444';
+                    return;
+                }
+                
+                document.getElementById('qb-table').style.display = 'table';
+                document.getElementById('qb-status-msg').innerText = `✅ [${new Date().toLocaleTimeString()}] 连接成功！底层透传模式已激活，实时刷新中...`;
+                document.getElementById('qb-status-msg').style.color = '#16a34a';
+                renderQbTable(data);
+                
+            } catch(e) {
+                document.getElementById('qb-status-msg').innerText = `❌ 宿主机响应超时，可能节点已离线。`;
+                document.getElementById('qb-status-msg').style.color = '#ef4444';
+            }
+        }
+
+        function renderQbTable(torrents) {
+            const tbody = document.getElementById('qb-table-body');
+            tbody.innerHTML = '';
+            
+            if (!Array.isArray(torrents) || torrents.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">qBittorrent 中暂无任何任务</td></tr>';
+                return;
+            }
+
+            const stateMap = {
+                'downloading': ['下载中', '#3b82f6'], 'stalledDL': ['等待下载', '#94a3b8'],
+                'uploading': ['做种中', '#10b981'], 'stalledUP': ['做种(空闲)', '#10b981'],
+                'pausedDL': ['已暂停', '#f59e0b'], 'pausedUP': ['已暂停', '#f59e0b'],
+                'queuedDL': ['排队下载', '#64748b'], 'queuedUP': ['排队做种', '#64748b'],
+                'checkingDL': ['校验中', '#a855f7'], 'checkingUP': ['校验中', '#a855f7'],
+                'error': ['错误', '#ef4444'], 'missingFiles': ['文件丢失', '#ef4444']
+            };
+
+            torrents.forEach(t => {
+                let stateInfo = stateMap[t.state] || [t.state, '#64748b'];
+                let stateText = stateInfo[0]; let stateColor = stateInfo[1];
+                let progressPct = (t.progress * 100).toFixed(1);
+                
+                let dlSpeed = t.dlspeed > 0 ? `<span style="color:#16a34a;">↓ ${formatBytes(t.dlspeed)}/s</span><br>` : '';
+                let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6;">↑ ${formatBytes(t.upspeed)}/s</span>` : '';
+                if(!dlSpeed && !upSpeed) dlSpeed = '<span style="color:#94a3b8;">0 B/s</span>';
+
+                let actionBtns = '';
+                if (t.state.includes('paused')) {
+                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" style="background:#10b981; padding:4px 10px; margin-right:5px;">▶</button>`;
+                } else {
+                    actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" style="background:#f59e0b; padding:4px 10px; margin-right:5px;">⏸</button>`;
+                }
+                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${t.name.replace(/'/g, "\\'")}')" style="background:#ef4444; padding:4px 10px;">✖</button>`;
+
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${t.name}"><strong>${t.name}</strong></td>
+                        <td style="padding: 10px; font-size:13px; color:#475569;">${formatBytes(t.size)}</td>
+                        <td style="padding: 10px; font-size:13px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${progressPct}%</span></div>
+                            <div style="background:#e2e8f0; height:6px; border-radius:3px; width:100%; overflow:hidden;">
+                                <div style="background:${stateColor}; height:100%; width:${progressPct}%;"></div>
+                            </div>
+                        </td>
+                        <td style="padding: 10px; font-size:13px; font-weight:bold; color:${stateColor};">${stateText}</td>
+                        <td style="padding: 10px; font-size:12px; font-family:Consolas,monospace;">${dlSpeed}${upSpeed}</td>
+                        <td style="padding: 10px; text-align:right;">${actionBtns}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function qbAction(hash, action) {
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
+            try {
+                await fetch(`${nodeUrl}/api/qbittorrent`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hash })
+                });
+                fetchQbData(); 
+            } catch(e) { alert("操作失败！节点可能响应超时。"); }
+        }
+
+        async function qbDelete(hash, name) {
+            if(!confirm(`⚠️ 危险操作：确认要删除任务 [ ${name} ] 吗？`)) return;
+            const deleteFiles = confirm(`🗑️ [文件清理] 是否同时从硬盘彻底删除已下载的本地物理文件？\n\n点击【确定】删除文件并清空任务\n点击【取消】仅移除任务列表，保留文件`);
+            
+            const nodeUrl = document.getElementById('qb-node-select').value;
+            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
+            try {
+                await fetch(`${nodeUrl}/api/qbittorrent`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "delete", hashes: hash, delete_files: deleteFiles })
+                });
+                fetchQbData();
+            } catch(e) { alert("删除指令下发失败！"); }
+        }
+
+
         // ================= 高频轮询：硬件探针数据 (2秒一次) =================
         async function fetchSysInfo() {
-            // 如果节点面板被折叠，且不需要看着探针数据，其实可以继续在后台跑，以防想看的时候卡顿
             clusterNodes.forEach(async (node, index) => {
                 if (node.status === 'offline') return;
                 try {
@@ -428,9 +627,7 @@
                         }
                         nodeStats[node.url] = current;
                     }
-                } catch (e) {
-                    // 异常处理交由低频任务
-                }
+                } catch (e) {}
             });
         }
 
@@ -443,10 +640,8 @@
                 try {
                     const res = await fetch(`${node.url}/api/folders`);
                     const data = await res.json();
-                    
                     if (node.status === 'offline') { node.status = 'online'; renderNodes(); }
                     onlineCount++;
-                    
                     return data.folders.map(f => ({...f, nodeUrl: node.url, nodeName: node.name}));
                 } catch(e) {
                     if (node.status === 'online') { node.status = 'offline'; renderNodes(); }
@@ -486,7 +681,6 @@
             currentFolders.forEach(f => {
                 const liveNode = clusterNodes.find(n => n.url === f.nodeUrl);
                 const liveName = liveNode ? liveNode.name : f.nodeName;
-
                 if(!groupedFolders[liveName]) groupedFolders[liveName] = [];
                 groupedFolders[liveName].push(f);
             });
@@ -680,8 +874,6 @@
             
             document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
             document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
-            
-            // 初始化集群面板折叠状态
             renderFleetConfigState();
 
             await initNodes();
