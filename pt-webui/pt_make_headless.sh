@@ -79,13 +79,23 @@ process_folder() {
         MAX_JOBS=4
         LOG_FILE="$FOLDER_PATH/ffmpeg_debug.log"
         
+        # 【修复】：多文件合并信息计算
         FILE_NAME=$(basename "$MAIN_VIDEO")
-        FILE_SIZE=$(stat -c%s "$MAIN_VIDEO")
-        FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $FILE_SIZE/1073741824}")
+        if [ "$NUM_FILES" -gt 1 ]; then
+            FILE_NAME="$(basename "$FOLDER_PATH") [共 $NUM_FILES 个分卷]"
+        fi
         
-        DUR_SECS=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | cut -d. -f1)
-        [ -z "$DUR_SECS" ] && DUR_SECS=0
-        FORMATTED_DUR=$(date -u -d @"$DUR_SECS" +'%H:%M:%S')
+        TOTAL_SIZE=0
+        TOTAL_DUR=0
+        for vf in "${VIDEO_FILES[@]}"; do
+            fs=$(stat -c%s "$vf")
+            TOTAL_SIZE=$((TOTAL_SIZE + fs))
+            fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1)
+            [ -n "$fd" ] && TOTAL_DUR=$((TOTAL_DUR + fd))
+        done
+        
+        FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_SIZE/1073741824}")
+        FORMATTED_DUR=$(date -u -d @"$TOTAL_DUR" +'%H:%M:%S')
         
         BITRATE=$(ffprobe -v error -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO")
         [ -z "$BITRATE" ] && BITRATE=0
@@ -101,10 +111,9 @@ process_folder() {
         A_SR=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | head -n1)
 
         INFO_TXT="$TMP_IMG_DIR/header_info.txt"
-        echo -e "File: $FILE_NAME\nSize: $FILE_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR, bitrate: $BITRATE_KBPS kb/s\nVideo: $V_CODEC, $V_RES, $V_FPS_CALC fps\nAudio: $A_CODEC, $A_SR Hz" > "$INFO_TXT"
+        echo -e "File: $FILE_NAME\nSize: $TOTAL_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR, bitrate: $BITRATE_KBPS kb/s\nVideo: $V_CODEC, $V_RES, $V_FPS_CALC fps\nAudio: $A_CODEC, $A_SR Hz" > "$INFO_TXT"
 
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-        # 【修复】：将 s=3840x250 改为 s=3840x350，给4行文字留出充足高度防截断
         ffmpeg -y -f lavfi -i color=c=white:s=3840x350 -frames:v 1 \
         -vf "drawtext=fontfile='$FONT_FILE':textfile='$INFO_TXT':fontcolor=black:fontsize=48:x=30:y=30:line_spacing=20" \
         "$HEADER_IMG" >> "$LOG_FILE" 2>&1
@@ -123,7 +132,11 @@ process_folder() {
             for i in {0..7}; do
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
-                TIMESTAMP=$(( DUR_SECS * (5 + i * 12) / 100 ))
+                
+                # 【修复】读取当前正在截图的分卷的真实时长，防跨卷越界报错
+                CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
+                [ -z "$CUR_DUR" ] && CUR_DUR=300
+                TIMESTAMP=$(( CUR_DUR * (5 + i * 12) / 100 ))
                 
                 TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
                 printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
@@ -150,7 +163,11 @@ process_folder() {
             for i in {0..15}; do
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
-                TIMESTAMP=$(( DUR_SECS * (5 + i * 5) / 100 ))
+                
+                # 【修复】读取当前正在截图的分卷的真实时长，防跨卷越界报错
+                CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
+                [ -z "$CUR_DUR" ] && CUR_DUR=300
+                TIMESTAMP=$(( CUR_DUR * (5 + i * 5) / 100 ))
                 
                 TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
                 printf "%02d:%02d:%02d" $((TIMESTAMP / 3600)) $(( (TIMESTAMP % 3600) / 60 )) $((TIMESTAMP % 60)) > "$TIME_TXT"
