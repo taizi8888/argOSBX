@@ -2,46 +2,138 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>PT 终极自愈流水线 WebUI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PT 终极流水线</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 40px auto; background-color: #f5f7fa; color: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 40px auto; background-color: #f5f7fa; color: #333; padding: 0 15px; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        button { background: #4f46e5; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        
+        /* 按钮样式优化 */
+        button { background: #4f46e5; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background 0.2s;}
         button:hover { background: #4338ca; }
-        button.auto { background: #10b981; width: 100%; font-size: 16px; padding: 15px; margin-bottom: 20px;}
-        .item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        button:disabled { background: #a5b4fc; cursor: not-allowed; }
+        
+        .btn-auto { background: #10b981; font-size: 16px; padding: 12px 20px; }
+        .btn-auto:hover { background: #059669; }
+        .btn-update { background: #f59e0b; font-size: 16px; padding: 12px 20px; }
+        .btn-update:hover { background: #d97706; }
+        .btn-batch { background: #ec4899; }
+        .btn-batch:hover { background: #db2777; }
+
+        .header-actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px;}
+        
+        /* 列表与长文换行修复 */
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
         .item:last-child { border-bottom: none; }
+        
+        .item-info { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+        .item-info input[type="checkbox"] { margin-top: 5px; transform: scale(1.2); cursor: pointer; }
+        .item-title { flex: 1; word-wrap: break-word; word-break: break-all; white-space: normal; line-height: 1.4; padding-right: 15px;}
+        
+        .item-actions { white-space: nowrap; flex-shrink: 0; }
     </style>
 </head>
 <body>
     <h2>🚀 PT 自动化处理流水线</h2>
     
-    <button class="auto" onclick="triggerTask('auto', '')">⚡ 一键全盘增量扫描</button>
+    <div class="header-actions">
+        <button class="btn-auto" onclick="triggerTask('auto', '')">⚡ 全盘增量扫描 (跳过已完成)</button>
+        <button class="btn-update" onclick="hotUpdate()">🔄 一键热更新核心脚本</button>
+    </div>
 
     <div class="card">
-        <h3>📂 下载目录状态监控</h3>
+        <div class="toolbar">
+            <h3>📂 下载目录状态监控</h3>
+            <div>
+                <button class="btn-batch" onclick="selectAllPending()">全选待处理</button>
+                <button class="btn-batch" onclick="triggerBatch()">执行批量处理</button>
+            </div>
+        </div>
         <div id="folder-list">加载中...</div>
     </div>
 
     <script>
+        let currentFolders = [];
+
         async function fetchFolders() {
             const res = await fetch('/api/folders');
             const data = await res.json();
+            currentFolders = data.folders;
+            renderList();
+        }
+
+        function renderList() {
             const list = document.getElementById('folder-list');
             list.innerHTML = '';
-            data.folders.forEach(f => {
+            currentFolders.forEach(f => {
+                const color = f.ready ? 'green' : '#f59e0b';
                 list.innerHTML += `
                     <div class="item">
-                        <span><strong>${f.name}</strong> - <span style="color:${f.ready ? 'green' : 'orange'}">${f.status}</span></span>
-                        <button onclick="triggerTask('folder', '${f.name}')">手动处理</button>
+                        <div class="item-info">
+                            <input type="checkbox" class="folder-check" value="${f.name}" ${f.ready ? 'disabled' : ''}>
+                            <div class="item-title">
+                                <strong>${f.name}</strong> <br> 
+                                <span style="color:${color}; font-size: 13px;">${f.status}</span>
+                            </div>
+                        </div>
+                        <div class="item-actions">
+                            <button onclick="triggerTask('folder', '${f.name}')">手动处理</button>
+                        </div>
                     </div>`;
             });
         }
 
+        // 全选待处理项
+        function selectAllPending() {
+            const checkboxes = document.querySelectorAll('.folder-check:not(:disabled)');
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+
+        // 批量处理选中项
+        async function triggerBatch() {
+            const checkboxes = document.querySelectorAll('.folder-check:checked');
+            const selectedFolders = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (selectedFolders.length === 0) {
+                alert("请先勾选需要处理的文件夹！");
+                return;
+            }
+
+            alert(`已将 ${selectedFolders.length} 个任务加入后台排队处理，请稍后刷新页面查看状态。`);
+            await fetch('/api/run_batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folders: selectedFolders })
+            });
+            
+            // 取消勾选并刷新
+            checkboxes.forEach(cb => cb.checked = false);
+            setTimeout(fetchFolders, 3000);
+        }
+
         async function triggerTask(mode, folderName) {
-            alert('任务已提交到后台运行，请稍后刷新页面查看状态。');
+            alert('任务已触发！将默默在后台执行，请稍后刷新页面。');
             await fetch(`/api/run/${mode}?folder=${encodeURIComponent(folderName)}`, { method: 'POST' });
             setTimeout(fetchFolders, 3000); 
+        }
+
+        // 无感热更新
+        async function hotUpdate() {
+            const btn = document.querySelector('.btn-update');
+            btn.innerText = "更新中...";
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/update', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            } catch(e) {
+                alert("网络请求失败，请检查容器网络！");
+            }
+            
+            btn.innerText = "🔄 一键热更新核心脚本";
+            btn.disabled = false;
         }
 
         fetchFolders();
