@@ -52,33 +52,52 @@ process_folder() {
     # 5. 截图与拼合
     if [ "$NEED_FFMPEG" = true ] && [ "$NUM_FILES" -gt 0 ]; then
         mkdir -p "$TMP_IMG_DIR"
-        MAX_JOBS=4  
+        MAX_JOBS=4
+        LOG_FILE="$FOLDER_PATH/ffmpeg_debug.log"
+        echo "开始提取截图..." > "$LOG_FILE"
+        
         for i in {0..15}; do
             FILE_IDX=$(( i % NUM_FILES ))
             CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
             DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
             [ -z "$DUR" ] && DUR=300
-            TIMESTAMP=$(( DUR * (5 + i * 5) / 100 )) # 简化时间戳逻辑
-            ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 -vf "scale=1920:-1" "$TMP_IMG_DIR/shot_$i.jpg" > /dev/null 2>&1 ) &
+            TIMESTAMP=$(( DUR * (5 + i * 5) / 100 ))
+            
+            # 使用强制 1920x1080 居中补黑边算法，彻底消灭 xstack 像素对齐报错
+            ( ffmpeg -y -ss "$TIMESTAMP" -i "$CUR_FILE" -frames:v 1 -q:v 2 \
+              -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black" \
+              "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1 ) &
+            
             if [[ $(($((i + 1)) % $MAX_JOBS)) -eq 0 ]]; then wait; fi
         done
         wait
 
-        ffmpeg -y \
-        -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
-        -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
-        -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
-        -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
-        -filter_complex "xstack=grid=2x8:fill=black" -q:v 3 "$STITCHED_IMG" > /dev/null 2>&1
+        # 二次校验防翻车：确保 16 张图一张没少
+        MISSING=0
+        for i in {0..15}; do
+            if [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ]; then
+                echo "❌ 错误：shot_$i.jpg 生成失败！" >> "$LOG_FILE"
+                MISSING=1
+            fi
+        done
+
+        if [ "$MISSING" -eq 0 ]; then
+            echo "✅ 16张截图就绪，开始拼合 4K 巨幕..." >> "$LOG_FILE"
+            ffmpeg -y \
+            -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" \
+            -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" \
+            -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" \
+            -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" \
+            -filter_complex "xstack=grid=2x8:fill=black" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            
+            if [ -f "$STITCHED_IMG" ]; then
+                rm -f "$LOG_FILE" # 拼合成功，销毁日志文件（深藏功与名）
+            else
+                echo "❌ 拼合失败，请查看上方报错信息。" >> "$LOG_FILE"
+            fi
+        else
+            echo "❌ 截图缺失，安全中断拼合。" >> "$LOG_FILE"
+        fi
+        
         rm -rf "$TMP_IMG_DIR"
     fi
-}
-
-# 路由控制
-if [ "$1" == "--auto" ]; then
-    for dir in "$BASE_DIR"/*; do 
-        [ -d "$dir" ] && process_folder "$(basename "$dir")"
-    done 
-elif [ "$1" == "--folder" ] && [ -n "$2" ]; then
-    process_folder "$2"
-fi
