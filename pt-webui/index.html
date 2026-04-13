@@ -72,9 +72,11 @@
         .btn-pro-submit { background: #0f172a; width: 100%; font-size: 16px; font-weight: bold; padding: 14px; border-radius: 6px; margin-top: 15px;}
         .btn-pro-submit:hover { background: #000000; }
         
+        /* 【已修复】详情页排版与安全尺寸限制 */
         #detail-view { display: none; background: #ffffff; min-height: 100vh; padding: 40px 20px; }
         .detail-container { max-width: 1100px; margin: 0 auto; text-align: center; }
-        .success-title { color: #16a34a; font-size: 32px; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px;}
+        .success-title { color: #16a34a; font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;}
+        .success-title svg { flex-shrink: 0; } /* 防止图标被文字挤压变形 */
         .btn-return { background: #3b82f6; font-size: 16px; padding: 12px 30px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
         .save-path { color: #64748b; font-size: 15px; margin-bottom: 25px; }
         .download-bar { display: flex; gap: 15px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap;}
@@ -187,7 +189,12 @@
 
     <div id="detail-view">
         <div class="detail-container">
-            <div class="success-title"><svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> 任务完成</div>
+            <div class="success-title">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                </svg> 
+                任务完成
+            </div>
             <button class="btn-return" onclick="closeDetailView()">🔄 返回总控台</button>
             <div class="save-path">此文件实际存储在节点： <span id="detailPath" style="font-weight:bold; color:#1d4ed8; font-size: 18px;"></span></div>
             <div class="download-bar">
