@@ -27,8 +27,8 @@ process_folder() {
     # 1. 终极防御：拦截 .!qB
     if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
 
-    # 2. 净网与去水印
-    find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" \) -delete > /dev/null 2>&1
+    # 2. 净网与去水印 (【修复】新增对 *.log 垃圾文件的自动清理)
+    find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
     find "$FOLDER_PATH" -type f -iname "*.mp4" -size -50M -delete > /dev/null 2>&1
     for file in "$FOLDER_PATH"/*; do
         if [ -f "$file" ]; then
@@ -77,9 +77,9 @@ process_folder() {
     if [ "$NEED_FFMPEG" = true ] && [ "$NUM_FILES" -gt 0 ]; then
         mkdir -p "$TMP_IMG_DIR"
         MAX_JOBS=4
-        LOG_FILE="$FOLDER_PATH/ffmpeg_debug.log"
+        # 【修复】将日志生成路径移出视频文件夹，放在根目录作为临时文件，杜绝污染种子
+        LOG_FILE="$BASE_DIR/${FOLDER_NAME}_ffmpeg_debug.log"
         
-        # 【修复】：多文件合并信息计算
         FILE_NAME=$(basename "$MAIN_VIDEO")
         if [ "$NUM_FILES" -gt 1 ]; then
             FILE_NAME="$(basename "$FOLDER_PATH") [共 $NUM_FILES 个分卷]"
@@ -133,7 +133,6 @@ process_folder() {
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 
-                # 【修复】读取当前正在截图的分卷的真实时长，防跨卷越界报错
                 CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
                 [ -z "$CUR_DUR" ] && CUR_DUR=300
                 TIMESTAMP=$(( CUR_DUR * (5 + i * 12) / 100 ))
@@ -164,7 +163,6 @@ process_folder() {
                 FILE_IDX=$(( i % NUM_FILES ))
                 CUR_FILE="${VIDEO_FILES[$FILE_IDX]}"
                 
-                # 【修复】读取当前正在截图的分卷的真实时长，防跨卷越界报错
                 CUR_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CUR_FILE" | cut -d. -f1)
                 [ -z "$CUR_DUR" ] && CUR_DUR=300
                 TIMESTAMP=$(( CUR_DUR * (5 + i * 5) / 100 ))
