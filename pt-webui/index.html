@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PT 分布式集群控制台 Pro</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
-    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    
+    <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/element-plus/dist/index.css" />
+    <script src="https://fastly.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/element-plus/dist/index.full.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/element-plus/dist/locale/zh-cn.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/@element-plus/icons-vue"></script>
+    
     <style>
         body { margin: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #334155; }
         #app { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
@@ -26,7 +28,6 @@
         .el-collapse { border-top: none; border-bottom: none; }
         .custom-card { border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; border: none; }
         .card-header { font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        /* 修复 Element 表格单元格字体 */
         .el-table { font-size: 13px; }
     </style>
 </head>
@@ -127,7 +128,7 @@
                             <template #default="scope"><span :style="{color: scope.row.upspeed > 0 ? '#3b82f6' : '#94a3b8', fontFamily: 'monospace'}">{{ formatBytes(scope.row.upspeed) }}/s</span></template>
                         </el-table-column>
                         <el-table-column prop="ratio" label="分享率" sortable width="100">
-                            <template #default="scope"><strong style="color:#0ea5e9">{{ scope.row.ratio === -1 ? '∞' : (scope.row.ratio || 0).toFixed(2) }}</strong></template>
+                            <template #default="scope"><strong style="color:#0ea5e9">{{ scope.row.ratio === -1 ? '∞' : scope.row.ratio.toFixed(2) }}</strong></template>
                         </el-table-column>
                         <el-table-column prop="added_on" label="添加于" sortable width="140">
                             <template #default="scope"><span style="font-size:12px; color:#64748b;">{{ formatDate(scope.row.added_on) }}</span></template>
@@ -135,8 +136,8 @@
                         <el-table-column label="操作" width="130" fixed="right" align="center">
                             <template #default="scope">
                                 <el-button-group>
-                                    <el-button type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
-                                    <el-button type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
+                                    <el-button v-if="scope.row.state.includes('paused')" type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
+                                    <el-button v-else type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
                                     <el-button type="danger" size="small" icon="Delete" @click="qbDelete(scope.row)"></el-button>
                                 </el-button-group>
                             </template>
@@ -196,10 +197,10 @@
                 <template #title><el-icon class="mr-2" color="#10b981"><FolderOpened /></el-icon> <span style="color:#047857;">全网成品目录监控</span></template>
                 <el-card class="custom-card" shadow="never">
                     <template #header>
-                        <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
+                        <div class="card-header">
                             <el-radio-group v-model="viewMode" size="small">
-                                <el-radio-button label="list">列表视图</el-radio-button>
-                                <el-radio-button label="grid">网格视图</el-radio-button>
+                                <el-radio-button label="list" icon="List">列表视图</el-radio-button>
+                                <el-radio-button label="grid" icon="Grid">网格视图</el-radio-button>
                             </el-radio-group>
                             <div>
                                 <el-button type="info" plain size="small" @click="selectAllPending">☑️ 全选待处理</button>
@@ -224,24 +225,24 @@
                                 </el-table-column>
                                 <el-table-column label="操作" width="220" align="right">
                                     <template #default="scope">
-                                        <el-button v-if="scope.row.ready" type="success" plain size="small" @click="openDetailView(scope.row)" icon="View">查看</el-button>
-                                        <el-button v-if="scope.row.ready" type="info" plain size="small" @click="fillProForm(scope.row)" icon="Edit">重做</el-button>
-                                        <el-button v-if="!scope.row.ready" type="primary" size="small" @click="fillProForm(scope.row)" icon="Upload">装载</el-button>
+                                        <el-button v-if="scope.row.ready" type="primary" plain size="small" @click="openDetailView(scope.row)" icon="View">查看结果</el-button>
+                                        <el-button v-if="scope.row.ready" type="info" plain size="small" @click="fillProForm(scope.row)" icon="Edit">定制重做</el-button>
+                                        <el-button v-if="!scope.row.ready" type="primary" size="small" @click="fillProForm(scope.row)" icon="Upload">装载至工厂</el-button>
                                     </template>
                                 </el-table-column>
                             </el-table>
                             
                             <el-row v-else :gutter="15">
                                 <el-col :span="6" :xs="24" :sm="12" v-for="f in folders" :key="f.nodeUrl+'|'+f.name" class="mb-3">
-                                    <el-card shadow="hover" :body-style="{ padding: '15px' }" style="height: 100%; display: flex; flex-direction: column;">
+                                    <el-card shadow="hover" :body-style="{ padding: '15px' }">
                                         <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                            <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection"></el-checkbox>
+                                            <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection(f)"></el-checkbox>
                                             <el-tag :type="f.ready ? 'success' : 'warning'" size="small">{{ f.status }}</el-tag>
                                         </div>
-                                        <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; flex-grow: 1;">{{ f.name }}</div>
-                                        <div style="display:flex; justify-content:flex-end; gap:5px; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+                                        <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; min-height:40px;">{{ f.name }}</div>
+                                        <div style="display:flex; justify-content:flex-end; gap:5px;">
                                             <template v-if="f.ready">
-                                                <el-button type="success" plain size="small" @click="openDetailView(f)">查看</el-button>
+                                                <el-button type="primary" plain size="small" @click="openDetailView(f)">查看</el-button>
                                                 <el-button type="info" plain size="small" @click="fillProForm(f)">重做</el-button>
                                             </template>
                                             <el-button v-else type="primary" size="small" @click="fillProForm(f)">装载</el-button>
@@ -249,8 +250,10 @@
                                     </el-card>
                                 </el-col>
                             </el-row>
+
                         </el-collapse-item>
                     </el-collapse>
+
                 </el-card>
             </el-collapse-item>
         </el-collapse>
@@ -289,7 +292,7 @@
 
         const app = createApp({
             setup() {
-                // 全局状态
+                // ================= 全局状态 =================
                 const activeModules = ref(JSON.parse(localStorage.getItem('vue_modules')) || ['factory', 'monitor']);
                 watch(activeModules, (val) => localStorage.setItem('vue_modules', JSON.stringify(val)));
                 
@@ -300,10 +303,10 @@
                 const readyFoldersCount = computed(() => currentFolders.value.filter(f => f.ready).length);
                 const pendingFoldersCount = computed(() => currentFolders.value.length - readyFoldersCount.value);
 
-                // 节点管理
+                // ================= 节点管理 =================
                 const newNode = reactive({ ip: '', name: '' });
                 
-                // qB 控制台
+                // ================= qB 控制台 =================
                 const qbConfig = reactive({ nodeUrl: '', url: '', user: '', pwd: '' });
                 const qbConnected = ref(false);
                 const qbLoading = ref(false);
@@ -311,10 +314,10 @@
                 const qbSelectedHashes = ref([]);
                 let qbTimer = null;
 
-                // 工厂
+                // ================= 工厂参数 =================
                 const factoryConfig = reactive({ folder: '', tracker: localStorage.getItem('saved_tracker') || '', piece: '', layout: 'auto', saveTracker: !!localStorage.getItem('saved_tracker') });
                 
-                // 监控大盘
+                // ================= 监控大盘 =================
                 const viewMode = ref(localStorage.getItem('vue_view') || 'list');
                 watch(viewMode, (val) => localStorage.setItem('vue_view', val));
                 const activeNodesCollapse = ref([]);
@@ -329,11 +332,11 @@
                     return groups;
                 });
 
-                // 详情弹窗
+                // ================= 详情弹窗 =================
                 const detailVisible = ref(false);
                 const activeDetail = reactive({ nodeUrl: '', name: '', nodeName: '', imgUrl: '', info: '' });
 
-                // 工具函数
+                // ================= 工具函数 =================
                 const formatBytes = (bytes) => {
                     if (bytes === 0 || !bytes) return '0 B';
                     const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -345,15 +348,16 @@
                 };
                 const customColors = [ { color: '#3b82f6', percentage: 60 }, { color: '#f59e0b', percentage: 80 }, { color: '#ef4444', percentage: 100 } ];
 
-                // 核心逻辑 - 节点
+                // ================= 核心网络请求 =================
                 const syncNodesToBackend = async (nodes) => { try { await fetch('/api/nodes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nodes) }); } catch (e) {} };
                 const initNodes = async () => {
                     const origin = window.location.origin; let saved = [];
                     try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
                     clusterNodes.value = [{ url: origin, name: "本机主控台", status: "online" }];
                     saved.forEach(n => { if (n.url !== origin && !clusterNodes.value.find(c => c.url === n.url)) clusterNodes.value.push({ ...n, status: "online" }); });
-                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name);
+                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name); 
                 };
+                
                 const addNode = () => {
                     let { ip, name } = newNode;
                     if(!ip) return ElMessage.warning("请输入 API 地址");
@@ -382,7 +386,6 @@
                     }).catch(()=>{});
                 };
 
-                // 核心逻辑 - 探针轮询
                 const fetchSysInfo = () => {
                     if (!activeModules.value.includes('fleet')) return;
                     clusterNodes.value.forEach(async (n) => {
@@ -424,12 +427,12 @@
                     currentFolders.value = tempFolders;
                 };
 
-                // qBittorrent 逻辑重构 (完全由 Vue 和 Element Plus 驱动)
+                // ================= qB 交互方法 =================
                 const loadQbConfig = () => {
                     const url = qbConfig.nodeUrl; if (!url) return;
                     let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
                     qbConfig.url = cfg.url || ''; qbConfig.user = cfg.user || ''; qbConfig.pwd = cfg.pwd || '';
-                    clearInterval(qbTimer); qbConnected.value = false; qbSelectedHashes.value = [];
+                    clearInterval(qbTimer); qbConnected.value = false;
                 };
                 const connectQb = async () => {
                     if (!qbConfig.nodeUrl || !qbConfig.url) return ElMessage.warning("请选择节点并填写地址");
@@ -480,7 +483,7 @@
                     fetchQbData(); ElMessage.success("删除成功");
                 };
 
-                // 工厂与大盘动作
+                // ================= 工厂与监控逻辑 =================
                 const fillProForm = (row) => {
                     factoryConfig.folder = `${row.nodeUrl}|${row.name}`;
                     if (!activeModules.value.includes('factory')) activeModules.value.push('factory');
@@ -500,12 +503,11 @@
                     }).catch(()=>{});
                 };
 
-                // 监控列表批量操作
                 const handleFolderSelection = (val) => { selectedFolders.value = val; };
-                const syncGridSelection = () => { selectedFolders.value = currentFolders.value.filter(item => item._selected); };
+                const syncGridSelection = (f) => { selectedFolders.value = currentFolders.value.filter(item => item._selected); };
                 const selectAllPending = () => {
                     if(viewMode.value === 'grid') { currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; }); syncGridSelection(); } 
-                    else { ElMessage.info("列表视图请勾选表格左上角的全选框"); }
+                    else { ElMessage.info("列表视图请使用表格左上角的全选框"); }
                 };
                 const triggerBatch = async () => {
                     let targets = viewMode.value === 'list' ? selectedFolders.value : currentFolders.value.filter(f => f._selected);
@@ -515,7 +517,7 @@
                     ElMessage.success(`已将 ${targets.length} 个任务分配给物理机排队`); setTimeout(fetchAllNodesFolders, 2000);
                 };
 
-                // 详情弹窗
+                // ================= 详情弹窗与系统 =================
                 const openDetailView = (row) => {
                     activeDetail.nodeUrl = row.nodeUrl; activeDetail.name = row.name; activeDetail.nodeName = row.nodeName;
                     activeDetail.imgUrl = `${row.nodeUrl}/api/files/${encodeURIComponent(row.name)}/image?t=${new Date().getTime()}`;
@@ -523,11 +525,8 @@
                     fetch(`${row.nodeUrl}/api/preview/mediainfo/${encodeURIComponent(row.name)}`).then(r => r.text()).then(t => activeDetail.info = t).catch(() => activeDetail.info = "读取失败，物理节点可能离线");
                 };
                 const downloadFile = (type) => { if (activeDetail.nodeUrl) window.open(`${activeDetail.nodeUrl}/api/files/${encodeURIComponent(activeDetail.name)}/${type}`, '_blank'); };
-                const closeDetailView = () => { detailVisible.value = false; };
-
-                // 防呆 OTA 提示
                 const showOtaNotice = () => {
-                    ElMessageBox.alert('此架构为安全防冲突版，网页按钮已拦截。<br><br><b>请通过 SSH 执行以下命令：</b><br><br><code style="background:#f1f5f9; padding:10px; display:block; border-radius:6px; user-select:all;">cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 终端热更新', { dangerouslyUseHTMLString: true });
+                    ElMessageBox.alert('由于本机架构限制，为防止配置文件被覆盖，网页按钮已拦截。<br><br><b>请通过 SSH 执行终端命令进行更新：</b><br><code>cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 热更新', { dangerouslyUseHTMLString: true });
                 };
 
                 // 生命周期
@@ -535,14 +534,14 @@
                 onUnmounted(() => { if (qbTimer) clearInterval(qbTimer); });
 
                 return {
-                    activeModules, clusterNodes, currentFolders, nodeStats, newNode,
-                    onlineNodesCount, readyFoldersCount, pendingFoldersCount, addNode, removeNode, editNodeName,
+                    activeModules, clusterNodes, currentFolders, nodeStats, newNode, onlineNodesCount, readyFoldersCount, pendingFoldersCount, 
+                    addNode, removeNode, editNodeName,
                     qbConfig, qbConnected, qbLoading, qbTorrentsData, qbSelectedHashes, loadQbConfig, connectQb, handleQbSelection, qbAction, qbBatchAction, qbDelete, qbBatchDelete,
                     getQbStateTag, getQbStateText, getQbStateColor,
                     factoryConfig, fillProForm, submitProTask, triggerTaskAllNodes,
                     viewMode, switchViewMode, activeNodesCollapse, groupedFolders, handleFolderSelection, syncGridSelection, selectAllPending, triggerBatch,
-                    detailVisible, activeDetail, openDetailView, closeDetailView, downloadFile, showOtaNotice,
-                    formatBytes, formatDate, customColors
+                    detailVisible, activeDetail, openDetailView, downloadFile, showOtaNotice, formatBytes, formatDate, customColors,
+                    Refresh: ElementPlusIconsVue.Refresh
                 };
             }
         });
