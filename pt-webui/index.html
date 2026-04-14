@@ -3,1022 +3,569 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PT 分布式集群探针面板</title>
+    <title>PT 分布式集群控制台 Pro</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
     <style>
-        :root { --primary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; --bg: #f8fafc; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: var(--bg); color: #334155; line-height: 1.5; }
-        #main-dashboard { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        
-        /* 深度美化卡片 */
-        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; border: 1px solid #e2e8f0; }
-        .module-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #f1f5f9; }
-        .module-header:hover { background-color: #f8fafc; }
-        .module-title { font-size: 17px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-        .module-content { padding: 24px; transition: max-height 0.3s ease; }
-        .collapsed { display: none !important; }
-
-        /* 统一大盘样式 */
-        .dashboard-stats { display: flex; gap: 20px; background: #eff6ff; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-        .stat-item { display: flex; flex-direction: column; gap: 4px; }
-        .stat-label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; }
-        .stat-value { font-size: 20px; font-weight: 800; color: #1e40af; }
-
-        /* 按钮动画与反馈 */
-        button { border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); color: white; display: inline-flex; align-items: center; justify-content: center; }
-        button:active { transform: scale(0.96); }
-        button:disabled { background: #cbd5e1 !important; cursor: not-allowed; }
-        .btn-update { background: var(--warning); padding: 8px 16px; }
-        .btn-action { background: var(--primary); padding: 8px 14px; font-size: 13px;}
-        .btn-view { background: #0ea5e9; padding: 8px 14px; font-size: 13px;}
-        .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .btn-pro-submit:hover { background: #1e293b; }
-
-        /* 探针矩阵美化 */
-        .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; transition: border-color 0.3s; }
-        .sys-card:hover { border-color: var(--primary); }
-        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; color: #1e3a8a;}
-        .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 6px;}
-        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 8px 0 16px 0; overflow: hidden; }
-        .sys-bar-fill { height: 100%; transition: width 0.6s ease; }
-        .sys-net { display: flex; justify-content: space-between; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; background: #f8fafc; padding: 8px 12px; border-radius: 6px; color: #475569; font-weight: 600; border: 1px dashed #cbd5e1; margin-top: 15px;}
-        
-        .node-tag-name { cursor: pointer; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 0 4px;}
-        .node-tag-name:hover { border-bottom: 1px dashed #1e40af; }
-
-        /* 目录监控视图切换与节点分组 */
-        .view-toggle { display: flex; background: #e2e8f0; border-radius: 6px; padding: 3px; }
-        .view-toggle button { background: transparent; color: #64748b; padding: 6px 12px; font-size: 13px; font-weight: bold; border-radius: 4px; box-shadow: none; }
-        .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .node-header-item { font-size: 14px; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 8px 16px; border-radius: 8px; margin-bottom: 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-        
-        /* 列表视图与网格视图 */
-        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; border-radius: 6px;}
-        .items-container.list-view .item:hover { background: #f8fafc; }
-        .items-container.list-view .item-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-        .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; padding: 5px 0;}
-        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s, box-shadow 0.2s;}
-        .items-container.grid-view .item:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-color: #cbd5e1;}
-        .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
-        .item-info input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin-top: 4px; accent-color: var(--primary);}
-
-        /* qB 表格专业化排版 */
-        .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .qb-table th { background: #f8fafc; padding: 12px; font-size: 12px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer; position: sticky; top: 0;}
-        .qb-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
-        .progress-container { background: #f1f5f9; height: 6px; border-radius: 10px; overflow: hidden; margin-top: 4px; }
-        .progress-bar { height: 100%; }
-        .sort-icon { display: inline-block; width: 12px; margin-left: 2px; color: #94a3b8; font-size: 10px;}
-        .sort-icon.active { color: var(--primary); }
-        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; padding: 4px 8px; font-size: 12px; min-width: 24px; margin-right: 4px;}
-
-        /* 表单控件 */
-        .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; transition: all 0.2s; box-sizing: border-box; }
-        .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-        .pro-form-group { margin-bottom: 15px; }
-        .pro-form-group label { display: block; font-weight: bold; margin-bottom: 8px; color: #334155; font-size: 14px;}
-        
-        /* 详情页样式 */
-        #detail-view { display: none; background: #ffffff; min-height: 100vh; padding: 40px 20px; }
-        .detail-container { max-width: 1100px; margin: 0 auto; text-align: center; }
-        .success-title { color: var(--success); font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;}
-        .btn-return { background: var(--primary); font-size: 16px; padding: 12px 30px; margin-bottom: 15px; }
-        .preview-container { display: flex; gap: 20px; align-items: stretch; text-align: left;}
-        .preview-box { flex: 1; background: #fff; width: 50%; }
-        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; color: #334155; height: 500px; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 6px;}
-        .preview-image { width: 100%; height: 532px; object-fit: contain; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
-        
-        @media (max-width: 768px) { .dashboard-stats { flex-direction: column; } .node-matrix { grid-template-columns: 1fr; } .preview-container { flex-direction: column; } .preview-box { width: 100%; } }
+        body { margin: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #334155; }
+        #app { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .dashboard-title { font-size: 28px; font-weight: 900; color: #1e293b; display: flex; align-items: center; gap: 10px; margin: 0; }
+        .stat-card { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: none; }
+        .stat-value { font-size: 24px; font-weight: 900; color: #1e40af; }
+        .stat-label { font-size: 13px; color: #64748b; font-weight: bold; text-transform: uppercase; }
+        .node-card { transition: all 0.3s; margin-bottom: 15px; }
+        .node-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #3b82f6; }
+        .sys-data-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #475569; }
+        .mb-3 { margin-bottom: 15px; }
+        .mt-3 { margin-top: 15px; }
+        /* 覆盖 Element Plus 的一些默认样式以适配我们的主题 */
+        .el-collapse-item__header { font-size: 16px; font-weight: bold; color: #1e293b; padding: 0 20px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0;}
+        .el-collapse-item__wrap { border-bottom: none; }
+        .el-collapse { border-top: none; border-bottom: none; }
+        .custom-card { border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; border: none; }
+        .card-header { font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body>
-    <div id="main-dashboard">
-        <div class="card" style="border-top: 4px solid var(--primary);">
-            <div style="padding: 24px 24px 0 24px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2 style="margin:0; font-size:24px; font-weight:800;">🛰️ 集群算力监控</h2>
-                    <button class="btn-update" onclick="hotUpdateAllNodes()">🔄 引擎 OTA 同步</button>
-                </div>
-                <div class="dashboard-stats" id="global-stats">
-                    <div class="stat-item"><span class="stat-label">活跃节点</span><span class="stat-value" id="stat-nodes">0</span></div>
-                    <div class="stat-item"><span class="stat-label">全网任务</span><span class="stat-value" id="stat-total">0</span></div>
-                    <div class="stat-item"><span class="stat-label">已完成</span><span class="stat-value" id="stat-ready" style="background:var(--success);">0</span></div>
-                    <div class="stat-item"><span class="stat-label">排队中</span><span class="stat-value" id="stat-pending" style="background:var(--warning);">0</span></div>
-                </div>
-            </div>
-            
-            <div class="module-header" onclick="toggleModule('fleet')">
-                <span class="module-title">⚙️ 节点管理与配置</span><span class="module-chevron" id="icon-fleet">▼</span>
-            </div>
-            <div class="module-content" id="content-fleet">
-                <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap: wrap;">
-                    <input type="text" id="newNodeIp" class="form-input" style="flex:2; min-width:200px;" placeholder="节点 API 地址 (例: http://192.168.1.10:8080)">
-                    <input type="text" id="newNodeName" class="form-input" style="flex:1; min-width:120px;" placeholder="备注名">
-                    <button onclick="addNode()" style="background:var(--primary); padding:0 20px;">➕ 添加</button>
-                </div>
-                <div id="active-nodes" class="node-matrix"></div>
-            </div>
+    <div id="app">
+        <div class="dashboard-header">
+            <h1 class="dashboard-title"><el-icon color="#3b82f6"><Odometer /></el-icon> 分布式集群控制台</h1>
+            <el-button type="warning" plain @click="showOtaNotice" :icon="Refresh">引擎 OTA 同步</el-button>
         </div>
 
-        <div class="card" style="border-top: 4px solid #0ea5e9;">
-            <div class="module-header" onclick="toggleModule('qb')">
-                <span class="module-title" style="color: #0369a1;">🔵 qBittorrent 远程调度</span>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <div id="qb-batch-bar" style="display:none; gap:6px;">
-                        <button onclick="event.stopPropagation(); qbBatchAction('resume')" style="background:var(--success); padding:4px 10px;">▶ 批量开始</button>
-                        <button onclick="event.stopPropagation(); qbBatchAction('pause')" style="background:var(--warning); padding:4px 10px;">⏸ 批量暂停</button>
-                        <button onclick="event.stopPropagation(); qbBatchDelete()" style="background:var(--danger); padding:4px 10px;">🗑️ 批量删除 (<span id="qb-sel-count">0</span>)</button>
-                    </div>
-                    <span class="module-chevron" id="icon-qb">▼</span>
-                </div>
-            </div>
-            
-            <div class="module-content" id="content-qb">
-                <div style="display:flex; gap:10px; margin-bottom:15px; background:#f0f9ff; padding:15px; border-radius:10px; flex-wrap: wrap; border: 1px solid #bae6fd;">
-                    <select id="qb-node-select" class="form-input" style="flex:1; min-width:150px; font-weight:bold; color:#0ea5e9;" onchange="loadQbConfig()"></select>
-                    <input type="text" id="qb-url" class="form-input" style="flex:2; min-width:200px;" placeholder="qB 访问地址">
-                    <input type="text" id="qb-user" class="form-input" style="flex:1; min-width:90px;" placeholder="账号 (留空免密)">
-                    <input type="password" id="qb-pwd" class="form-input" style="flex:1; min-width:90px;" placeholder="密码">
-                    <button onclick="connectQb()" style="background:#0ea5e9; padding: 0 20px;">🔗 连 接</button>
-                </div>
-                <div id="qb-status-msg" style="font-size: 13px; margin-bottom: 10px; color: #64748b;">请选择宿主机节点并点击连接，接管该节点的下载任务。</div>
-                
-                <div class="qb-table-wrapper" id="qb-table-container" style="display:none;">
-                    <table class="qb-table">
-                        <thead>
-                            <tr>
-                                <th class="no-sort" style="width:30px; text-align:center;"><input type="checkbox" onclick="toggleQbAll(this.checked)"></th>
-                                <th onclick="setQbSort('name')">名称 <span class="sort-icon" id="sort-icon-name"></span></th>
-                                <th onclick="setQbSort('size')" style="width:70px;">大小 <span class="sort-icon" id="sort-icon-size"></span></th>
-                                <th onclick="setQbSort('progress')" style="width:120px;">进度 <span class="sort-icon" id="sort-icon-progress"></span></th>
-                                <th onclick="setQbSort('ratio')" style="width:60px;">分享率 <span class="sort-icon" id="sort-icon-ratio"></span></th>
-                                <th onclick="setQbSort('state')" style="width:80px;">状态 <span class="sort-icon" id="sort-icon-state"></span></th>
-                                <th onclick="setQbSort('dlspeed')" style="width:90px;">↓速度 <span class="sort-icon" id="sort-icon-dlspeed"></span></th>
-                                <th onclick="setQbSort('upspeed')" style="width:90px;">↑速度 <span class="sort-icon" id="sort-icon-upspeed"></span></th>
-                                <th onclick="setQbSort('added_on')" style="width:110px;">添加于 <span class="sort-icon" id="sort-icon-added_on"></span></th>
-                                <th class="no-sort" style="width:90px; text-align:right;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="qb-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <el-row :gutter="20" class="mb-3">
+            <el-col :span="6" :xs="12" class="mb-3"><el-card shadow="hover" class="stat-card"><div class="stat-label">活跃节点</div><div class="stat-value">{{ onlineNodesCount }} / {{ clusterNodes.length }}</div></el-card></el-col>
+            <el-col :span="6" :xs="12" class="mb-3"><el-card shadow="hover" class="stat-card"><div class="stat-label">全网任务</div><div class="stat-value">{{ currentFolders.length }}</div></el-card></el-col>
+            <el-col :span="6" :xs="12" class="mb-3"><el-card shadow="hover" class="stat-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%);"><div class="stat-label" style="color:#047857;">已完成</div><div class="stat-value" style="color:#047857;">{{ readyFoldersCount }}</div></el-card></el-col>
+            <el-col :span="6" :xs="12" class="mb-3"><el-card shadow="hover" class="stat-card" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);"><div class="stat-label" style="color:#b45309;">排队中</div><div class="stat-value" style="color:#b45309;">{{ pendingFoldersCount }}</div></el-card></el-col>
+        </el-row>
 
-        <div class="card" style="border-top: 4px solid var(--warning);">
-            <div class="module-header" onclick="toggleModule('factory')">
-                <span class="module-title" style="color: #b45309;">🏭 分布式种子工厂 Pro</span>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button class="btn-auto" onclick="event.stopPropagation(); triggerTaskAllNodes('auto')">⚡ 并发全盘扫描</button>
-                    <span class="module-chevron" id="icon-factory">▼</span>
-                </div>
-            </div>
+        <el-collapse v-model="activeModules">
+            <el-collapse-item name="fleet">
+                <template #title><el-icon class="mr-2"><Monitor /></el-icon> 节点管理与硬件探针</template>
+                <el-card class="custom-card" shadow="never">
+                    <el-row :gutter="15" class="mb-3">
+                        <el-col :span="10" :xs="24" class="mb-3"><el-input v-model="newNode.ip" placeholder="API 地址 (例: http://192.168.1.10:8080)" prefix-icon="Link" clearable></el-input></el-col>
+                        <el-col :span="8" :xs="24" class="mb-3"><el-input v-model="newNode.name" placeholder="备注名 (选填)" prefix-icon="Edit" clearable></el-input></el-col>
+                        <el-col :span="6" :xs="24"><el-button type="primary" @click="addNode" style="width: 100%;">添加节点</el-button></el-col>
+                    </el-row>
+                    
+                    <el-row :gutter="15">
+                        <el-col :span="8" :xs="24" v-for="(node, index) in clusterNodes" :key="node.url">
+                            <el-card class="node-card" :body-style="{ padding: '15px' }" shadow="hover" :style="{ opacity: node.status === 'offline' ? 0.6 : 1 }">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+                                    <div style="font-weight: bold; cursor: pointer; color: #1e3a8a;" @click="editNodeName(node)">
+                                        <el-badge :is-dot="true" :type="node.status === 'offline' ? 'danger' : 'success'" style="margin-right: 5px;"/> {{ node.name }}
+                                    </div>
+                                    <el-button v-if="index !== 0" type="danger" link @click="removeNode(node.url)" icon="Close"></el-button>
+                                </div>
+                                <div v-if="node.status === 'offline'" style="text-align: center; color: #ef4444; padding: 20px 0;">节点已离线</div>
+                                <div v-else-if="!nodeStats[node.url]" style="text-align: center; color: #94a3b8; padding: 20px 0;">连接探针通道...</div>
+                                <div v-else>
+                                    <div class="sys-data-row"><span>💻 CPU</span><span>{{ nodeStats[node.url].cpuPct }}%</span></div>
+                                    <el-progress :percentage="nodeStats[node.url].cpuPct" :color="customColors" :show-text="false" class="mb-3" stroke-width="6"></el-progress>
+                                    <div class="sys-data-row"><span>🧠 内存</span><span>{{ formatBytes(nodeStats[node.url].mem_used) }} / {{ formatBytes(nodeStats[node.url].mem_total) }}</span></div>
+                                    <el-progress :percentage="nodeStats[node.url].memPct" color="#10b981" :show-text="false" class="mb-3" stroke-width="6"></el-progress>
+                                    <div class="sys-data-row"><span>💾 磁盘</span><span>{{ formatBytes(nodeStats[node.url].disk_used) }} / {{ formatBytes(nodeStats[node.url].disk_total) }}</span></div>
+                                    <el-progress :percentage="nodeStats[node.url].diskPct" color="#8b5cf6" :show-text="false" stroke-width="6"></el-progress>
+                                    
+                                    <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-top: 15px; border: 1px dashed #cbd5e1;">
+                                        <div class="sys-data-row" style="margin-bottom: 8px;"><span>📅 本月消耗</span><span style="font-weight:bold; color:#3b82f6;">{{ formatBytes((nodeStats[node.url].month_tx || 0) + (nodeStats[node.url].month_rx || 0)) }}</span></div>
+                                        <div style="display:flex; justify-content:space-between; font-family: monospace; font-weight: bold; font-size: 12px;">
+                                            <span style="color:#10b981;">↓ {{ formatBytes(nodeStats[node.url].rxSpeed) }}/s</span>
+                                            <span style="color:#3b82f6;">↑ {{ formatBytes(nodeStats[node.url].txSpeed) }}/s</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </el-card>
+                        </el-col>
+                    </el-row>
+                </el-card>
+            </el-collapse-item>
 
-            <div class="module-content" id="content-factory">
-                <div class="pro-form-group">
-                    <label>1. 目标目录 (已聚合全网节点)</label>
-                    <select id="pro-folder" class="form-input"></select>
-                </div>
-                <div class="pro-form-group">
-                    <label>2. Tracker URL</label>
-                    <input type="text" id="pro-tracker" class="form-input" placeholder="留空则使用内置默认 Tracker">
-                    <div style="margin-top:8px; font-size:13px; color:#64748b;">
-                        <label><input type="checkbox" id="pro-save-tracker"> 设为默认 (保存在浏览器)</label>
-                    </div>
-                </div>
-                <div style="display:flex; gap:20px; flex-wrap:wrap;">
-                    <div class="pro-form-group" style="flex:1; min-width:200px;">
-                        <label>3. 截图排版</label>
-                        <select id="pro-layout" class="form-input">
-                            <option value="auto">🤖 智能自动探测</option>
-                            <option value="standard">🎥 强制标准模式 (16张)</option>
-                            <option value="vr">🥽 强制VR巨幕模式 (8张)</option>
-                        </select>
-                    </div>
-                    <div class="pro-form-group" style="flex:1; min-width:200px;">
-                        <label>4. 分块大小 (Piece Size)</label>
-                        <select id="pro-piece" class="form-input">
-                            <option value="">🤖 智能自动计算</option>
-                            <option value="21">2 MB</option><option value="22">4 MB</option>
-                            <option value="23">8 MB</option><option value="24">16 MB</option>
-                        </select>
-                    </div>
-                </div>
-                <button class="btn-pro-submit" onclick="submitProTask()">🚀 向目标节点下发手术刀级定制任务</button>
-            </div>
-        </div>
+            <el-collapse-item name="qb">
+                <template #title><el-icon class="mr-2" color="#0ea5e9"><Download /></el-icon> <span style="color:#0ea5e9;">qBittorrent 远程调度</span></template>
+                <el-card class="custom-card" shadow="never" style="border: 1px solid #bae6fd;">
+                    <template #header>
+                        <div class="card-header">
+                            <span style="font-size: 14px; color: #64748b;">选择宿主机节点进行接管</span>
+                            <div v-show="qbSelectedHashes.length > 0">
+                                <el-button type="success" size="small" plain @click="qbBatchAction('resume')" icon="VideoPlay">批量开始</el-button>
+                                <el-button type="warning" size="small" plain @click="qbBatchAction('pause')" icon="VideoPause">批量暂停</el-button>
+                                <el-button type="danger" size="small" @click="qbBatchDelete" icon="Delete">批量删除 ({{qbSelectedHashes.length}})</el-button>
+                            </div>
+                        </div>
+                    </template>
+                    <el-row :gutter="10" class="mb-3">
+                        <el-col :span="6" :xs="24" class="mb-3"><el-select v-model="qbConfig.nodeUrl" placeholder="选择接管节点" style="width: 100%;" @change="loadQbConfig"><el-option v-for="n in clusterNodes" :key="n.url" :label="'🖥️ ' + n.name" :value="n.url" /></el-select></el-col>
+                        <el-col :span="7" :xs="24" class="mb-3"><el-input v-model="qbConfig.url" placeholder="QB 地址 (例: http://127.0.0.1:8081)" clearable></el-input></el-col>
+                        <el-col :span="4" :xs="12" class="mb-3"><el-input v-model="qbConfig.user" placeholder="账号 (留空免密)" clearable></el-input></el-col>
+                        <el-col :span="4" :xs="12" class="mb-3"><el-input v-model="qbConfig.pwd" type="password" placeholder="密码" show-password></el-input></el-col>
+                        <el-col :span="3" :xs="24"><el-button type="primary" color="#0ea5e9" @click="connectQb" style="width: 100%;" :loading="qbLoading">🔗 连接</el-button></el-col>
+                    </el-row>
+                    
+                    <el-table v-if="qbConnected" :data="qbTorrentsData" style="width: 100%" @selection-change="handleQbSelection" border stripe max-height="600">
+                        <el-table-column type="selection" width="45" align="center"></el-table-column>
+                        <el-table-column prop="name" label="任务名称" sortable min-width="200" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="size" label="大小" sortable width="100">
+                            <template #default="scope">{{ formatBytes(scope.row.size) }}</template>
+                        </el-table-column>
+                        <el-table-column prop="progress" label="进度" sortable width="150">
+                            <template #default="scope"><el-progress :percentage="Number((scope.row.progress*100).toFixed(1))" :color="getQbStateColor(scope.row.state)" /></template>
+                        </el-table-column>
+                        <el-table-column prop="state" label="状态" sortable width="110">
+                            <template #default="scope"><el-tag :type="getQbStateTag(scope.row.state)" disable-transitions effect="dark" size="small">{{ getQbStateText(scope.row.state) }}</el-tag></template>
+                        </el-table-column>
+                        <el-table-column prop="dlspeed" label="↓ 下行" sortable width="110">
+                            <template #default="scope"><span :style="{color: scope.row.dlspeed > 0 ? '#10b981' : '#94a3b8', fontFamily: 'monospace'}">{{ formatBytes(scope.row.dlspeed) }}/s</span></template>
+                        </el-table-column>
+                        <el-table-column prop="upspeed" label="↑ 上行" sortable width="110">
+                            <template #default="scope"><span :style="{color: scope.row.upspeed > 0 ? '#3b82f6' : '#94a3b8', fontFamily: 'monospace'}">{{ formatBytes(scope.row.upspeed) }}/s</span></template>
+                        </el-table-column>
+                        <el-table-column prop="ratio" label="分享率" sortable width="100">
+                            <template #default="scope"><strong style="color:#0ea5e9">{{ scope.row.ratio === -1 ? '∞' : scope.row.ratio.toFixed(2) }}</strong></template>
+                        </el-table-column>
+                        <el-table-column prop="added_on" label="添加于" sortable width="140">
+                            <template #default="scope"><span style="font-size:12px; color:#64748b;">{{ formatDate(scope.row.added_on) }}</span></template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="130" fixed="right" align="center">
+                            <template #default="scope">
+                                <el-button-group>
+                                    <el-button v-if="scope.row.state.includes('paused')" type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
+                                    <el-button v-else type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
+                                    <el-button type="danger" size="small" icon="Delete" @click="qbDelete(scope.row)"></el-button>
+                                </el-button-group>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </el-card>
+            </el-collapse-item>
 
-        <div class="card" style="border-top: 4px solid var(--success);">
-            <div class="module-header" onclick="toggleModule('monitor')">
-                <span class="module-title" style="color: #047857;">📂 全网成品目录监控</span>
-                <span class="module-chevron" id="icon-monitor">▼</span>
-            </div>
-            
-            <div class="module-content" id="content-monitor">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center; flex-wrap:wrap; gap:10px;">
-                    <div class="view-toggle">
-                        <button id="btn-view-list" class="active" onclick="switchViewMode('list')">🀄 列表</button>
-                        <button id="btn-view-grid" onclick="switchViewMode('grid')">▦ 网格</button>
-                    </div>
-                    <div style="display:flex; gap:10px;">
-                        <button class="btn-batch" onclick="selectAllPending()" style="background:#64748b;">☑️ 全选待处理</button>
-                        <button class="btn-batch" onclick="triggerBatch()" style="background:var(--primary);">🚀 执行批量装载</button>
-                    </div>
-                </div>
-                <div id="folder-list">
-                    <div style="padding:30px; text-align:center; color:#64748b;">📡 正在并行扫描集群节点...</div>
-                </div>
-            </div>
-        </div>
-    </div>
+            <el-collapse-item name="factory">
+                <template #title><el-icon class="mr-2" color="#f59e0b"><Operation /></el-icon> <span style="color:#b45309;">分布式种子工厂 Pro</span></template>
+                <el-card class="custom-card" shadow="never" style="border: 1px solid #fde68a; background-color: #fffbeb;">
+                    <template #header>
+                        <div class="card-header">
+                            <span>参数定制与下发</span>
+                            <el-button type="warning" @click="triggerTaskAllNodes('auto')" icon="Lightning">并发全盘扫描</el-button>
+                        </div>
+                    </template>
+                    <el-form label-position="top">
+                        <el-form-item label="1. 目标目录 (已聚合全网节点)">
+                            <el-select v-model="factoryConfig.folder" placeholder="请选择需要制作的目录" style="width: 100%;" filterable>
+                                <el-option v-for="f in currentFolders" :key="f.nodeUrl+'|'+f.name" :label="`[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})`" :value="f.nodeUrl+'|'+f.name"></el-option>
+                            </select>
+                        </el-form-item>
+                        <el-form-item label="2. Tracker URL">
+                            <el-input v-model="factoryConfig.tracker" placeholder="留空则使用内置默认 Tracker" clearable>
+                                <template #append><el-checkbox v-model="factoryConfig.saveTracker" style="margin:0;">设为默认</el-checkbox></template>
+                            </el-input>
+                        </el-form-item>
+                        <el-row :gutter="20">
+                            <el-col :span="12" :xs="24">
+                                <el-form-item label="3. 截图排版">
+                                    <el-select v-model="factoryConfig.layout" style="width: 100%;">
+                                        <el-option label="🤖 智能自动探测" value="auto"></el-option>
+                                        <el-option label="🎥 强制标准模式 (16张)" value="standard"></el-option>
+                                        <el-option label="🥽 强制VR巨幕模式 (8张)" value="vr"></el-option>
+                                    </select>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="12" :xs="24">
+                                <el-form-item label="4. 分块大小 (Piece Size)">
+                                    <el-select v-model="factoryConfig.piece" style="width: 100%;">
+                                        <el-option label="🤖 智能自动计算" value=""></el-option>
+                                        <el-option label="2 MB" value="21"></el-option>
+                                        <el-option label="4 MB" value="22"></el-option>
+                                        <el-option label="8 MB" value="23"></el-option>
+                                        <el-option label="16 MB" value="24"></el-option>
+                                    </select>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                        <el-button type="info" color="#0f172a" style="width: 100%; padding: 20px; font-size: 16px;" @click="submitProTask" icon="Position">向目标节点下发精准备制任务</el-button>
+                    </el-form>
+                </el-card>
+            </el-collapse-item>
 
-    <div id="detail-view">
-        <div class="detail-container">
-            <div class="success-title">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
-                </svg> 
-                任务完成
+            <el-collapse-item name="monitor">
+                <template #title><el-icon class="mr-2" color="#10b981"><FolderOpened /></el-icon> <span style="color:#047857;">全网成品目录监控</span></template>
+                <el-card class="custom-card" shadow="never">
+                    <template #header>
+                        <div class="card-header">
+                            <el-radio-group v-model="viewMode" size="small">
+                                <el-radio-button label="list" icon="List">列表视图</el-radio-button>
+                                <el-radio-button label="grid" icon="Grid">网格视图</el-radio-button>
+                            </el-radio-group>
+                            <div>
+                                <el-button type="info" plain size="small" @click="selectAllPending">☑️ 全选待处理</button>
+                                <el-button type="primary" size="small" @click="triggerBatch" icon="Position">执行批量装载</el-button>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <el-collapse v-model="activeNodesCollapse">
+                        <el-collapse-item v-for="(folders, nodeName) in groupedFolders" :key="nodeName" :name="nodeName">
+                            <template #title>
+                                <el-tag size="small" effect="dark" class="mr-2">{{ folders.length }}</el-tag> <strong>节点: {{ nodeName }}</strong>
+                            </template>
+                            
+                            <el-table v-if="viewMode === 'list'" :data="folders" style="width: 100%" @selection-change="handleFolderSelection" :row-key="row => row.nodeUrl+'|'+row.name">
+                                <el-table-column type="selection" width="55" :selectable="row => !row.ready"></el-table-column>
+                                <el-table-column prop="name" label="目录名称" min-width="300" show-overflow-tooltip>
+                                    <template #default="scope"><strong>{{ scope.row.name }}</strong></template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" width="120">
+                                    <template #default="scope"><el-tag :type="scope.row.ready ? 'success' : 'warning'">{{ scope.row.status }}</el-tag></template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="220" align="right">
+                                    <template #default="scope">
+                                        <el-button v-if="scope.row.ready" type="primary" plain size="small" @click="openDetailView(scope.row)" icon="View">查看结果</el-button>
+                                        <el-button v-if="scope.row.ready" type="info" plain size="small" @click="fillProForm(scope.row)" icon="Edit">定制重做</el-button>
+                                        <el-button v-if="!scope.row.ready" type="primary" size="small" @click="fillProForm(scope.row)" icon="Upload">装载至工厂</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            
+                            <el-row v-else :gutter="15">
+                                <el-col :span="6" :xs="24" :sm="12" v-for="f in folders" :key="f.nodeUrl+'|'+f.name" class="mb-3">
+                                    <el-card shadow="hover" :body-style="{ padding: '15px' }">
+                                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                            <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection(f)"></el-checkbox>
+                                            <el-tag :type="f.ready ? 'success' : 'warning'" size="small">{{ f.status }}</el-tag>
+                                        </div>
+                                        <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; min-height:40px;">{{ f.name }}</div>
+                                        <div style="display:flex; justify-content:flex-end; gap:5px;">
+                                            <template v-if="f.ready">
+                                                <el-button type="primary" plain size="small" @click="openDetailView(f)">查看</el-button>
+                                                <el-button type="info" plain size="small" @click="fillProForm(f)">重做</el-button>
+                                            </template>
+                                            <el-button v-else type="primary" size="small" @click="fillProForm(f)">装载</el-button>
+                                        </div>
+                                    </el-card>
+                                </el-col>
+                            </el-row>
+
+                        </el-collapse-item>
+                    </el-collapse>
+
+                </el-card>
+            </el-collapse-item>
+        </el-collapse>
+        
+        <el-dialog v-model="detailVisible" :title="'任务结果: ' + activeDetail.name" width="80%" top="5vh" destroy-on-close>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <el-alert title="任务已圆满完成" type="success" show-icon :closable="false" center style="margin-bottom: 15px;"></el-alert>
+                <div style="color: #64748b; font-size: 13px; margin-bottom: 15px;">此文件实际存储在节点： <strong>[{{ activeDetail.nodeName }}] /downloads/{{ activeDetail.name }}</strong></div>
+                <el-button-group>
+                    <el-button type="success" icon="Download" @click="downloadFile('torrent')">下载种子</el-button>
+                    <el-button type="primary" icon="Download" @click="downloadFile('mediainfo')">下载 Info</el-button>
+                    <el-button type="warning" icon="Download" @click="downloadFile('image')">下载缩略图</el-button>
+                </el-button-group>
             </div>
-            <button class="btn-return" onclick="closeDetailView()">🔄 返回总控台</button>
-            <div class="save-path">此文件实际存储在节点： <span id="detailPath" style="font-weight:bold; color:#1d4ed8;"></span></div>
-            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 30px;">
-                <button onclick="downloadFile('torrent')" style="background:#15803d; padding:10px 20px;">⬇️ 下载种子</button>
-                <button onclick="downloadFile('mediainfo')" style="background:#06b6d4; padding:10px 20px;">⬇️ 下载 Info</button>
-                <button onclick="downloadFile('image')" style="background:#eab308; color:#422006; padding:10px 20px;">⬇️ 下载缩略图</button>
-            </div>
-            <div style="display:flex; gap:20px; text-align:left;">
-                <div style="flex:1;">
-                    <div style="font-weight:bold; margin-bottom:10px;">MediaInfo 详情:</div>
-                    <pre class="mediainfo-content" id="detailMediaInfo">读取中...</pre>
-                </div>
-                <div style="flex:1;">
-                    <div style="font-weight:bold; margin-bottom:10px;">4K 缩略图预览:</div>
-                    <img class="preview-image" id="detailImage" src="">
-                </div>
-            </div>
-        </div>
+            <el-row :gutter="20">
+                <el-col :span="12" :xs="24" class="mb-3">
+                    <el-card shadow="never" header="MediaInfo 详情">
+                        <pre style="margin:0; height:400px; overflow-y:auto; font-family:monospace; font-size:12px; background:#f8fafc; padding:10px; border-radius:6px;">{{ activeDetail.info }}</pre>
+                    </el-card>
+                </el-col>
+                <el-col :span="12" :xs="24">
+                    <el-card shadow="never" header="4K 缩略图预览">
+                        <el-image :src="activeDetail.imgUrl" fit="contain" style="width: 100%; height: 400px; background:#f8fafc; border-radius:6px;">
+                            <template #error><div class="image-slot" style="display:flex; justify-content:center; align-items:center; height:100%; color:#94a3b8;">加载失败或未生成</div></template>
+                        </el-image>
+                    </el-card>
+                </el-col>
+            </el-row>
+        </el-dialog>
+
     </div>
 
     <script>
-        // ================= 核心状态管理 =================
-        let clusterNodes = [];
-        let currentFolders = [];
-        let currentActiveFolder = "";
-        let currentActiveNodeUrl = "";
-        let nodeStats = {}; 
-        
-        let currentViewMode = localStorage.getItem('view_mode') || 'list';
-        let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
-        
-        const defaultModules = { fleet: false, qb: false, factory: true, monitor: true };
-        let moduleStates = JSON.parse(localStorage.getItem('module_states')) || defaultModules;
-        
-        let qbInterval = null;
-        let qbTorrentsData = []; 
-        let qbSortKey = 'added_on'; 
-        let qbSortAsc = false;      
-        let qbSelectedHashes = new Set(); 
+        const { createApp, ref, reactive, onMounted, computed, onUnmounted, watch } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
 
-        // ================= 工具函数 =================
-        function formatBytes(bytes) {
-            if (bytes === 0 || !bytes) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
+        const app = createApp({
+            setup() {
+                // 全局状态
+                const activeModules = ref(JSON.parse(localStorage.getItem('vue_modules')) || ['factory', 'monitor']);
+                watch(activeModules, (val) => localStorage.setItem('vue_modules', JSON.stringify(val)));
+                
+                const clusterNodes = ref([]);
+                const currentFolders = ref([]);
+                const nodeStats = reactive({});
+                const onlineNodesCount = computed(() => clusterNodes.value.filter(n => n.status === 'online').length);
+                const readyFoldersCount = computed(() => currentFolders.value.filter(f => f.ready).length);
+                const pendingFoldersCount = computed(() => currentFolders.value.length - readyFoldersCount.value);
 
-        function formatDate(timestamp) {
-            if (!timestamp) return '-';
-            const d = new Date(timestamp * 1000);
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            const hours = String(d.getHours()).padStart(2, '0');
-            const minutes = String(d.getMinutes()).padStart(2, '0');
-            return `${year}-${month}-${day} ${hours}:${minutes}`;
-        }
+                // 节点管理
+                const newNode = reactive({ ip: '', name: '' });
+                
+                // qB 控制台
+                const qbConfig = reactive({ nodeUrl: '', url: '', user: '', pwd: '' });
+                const qbConnected = ref(false);
+                const qbLoading = ref(false);
+                const qbTorrentsData = ref([]);
+                const qbSelectedHashes = ref([]);
+                let qbTimer = null;
 
-        // ================= UI交互与折叠 =================
-        function toggleModule(modName) {
-            moduleStates[modName] = !moduleStates[modName];
-            localStorage.setItem('module_states', JSON.stringify(moduleStates));
-            renderModuleStates();
-        }
-
-        function renderModuleStates() {
-            Object.keys(moduleStates).forEach(modName => {
-                const content = document.getElementById(`content-${modName}`);
-                const icon = document.getElementById(`icon-${modName}`);
-                if(content && icon) {
-                    if(moduleStates[modName]) {
-                        content.classList.add('collapsed');
-                        icon.classList.add('collapsed');
-                    } else {
-                        content.classList.remove('collapsed');
-                        icon.classList.remove('collapsed');
-                    }
-                }
-            });
-        }
-
-        function switchViewMode(mode) {
-            currentViewMode = mode;
-            localStorage.setItem('view_mode', mode);
-            document.getElementById('btn-view-list').className = mode === 'list' ? 'active' : '';
-            document.getElementById('btn-view-grid').className = mode === 'grid' ? 'active' : '';
-            renderList();
-        }
-
-        function toggleNodeGroup(nodeName) {
-            if(collapsedNodes.has(nodeName)) collapsedNodes.delete(nodeName);
-            else collapsedNodes.add(nodeName);
-            localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes]));
-            renderList();
-        }
-
-        // ================= 详情页弹窗控制 =================
-        function openDetailView(nodeUrl, folderName, nodeName) {
-            currentActiveNodeUrl = nodeUrl;
-            currentActiveFolder = folderName;
-            document.getElementById('main-dashboard').style.display = 'none';
-            document.getElementById('detail-view').style.display = 'block';
-            document.getElementById('detailPath').innerText = `[${nodeName}] /downloads/${folderName}`;
-            document.getElementById('detailImage').src = `${nodeUrl}/api/files/${encodeURIComponent(folderName)}/image?t=${new Date().getTime()}`;
-            document.getElementById('detailMediaInfo').innerText = "跨节点读取中...";
-            fetch(`${nodeUrl}/api/preview/mediainfo/${encodeURIComponent(folderName)}`)
-                .then(r => r.text()).then(t => document.getElementById('detailMediaInfo').innerText = t)
-                .catch(e => document.getElementById('detailMediaInfo').innerText = "读取失败，该物理节点可能已离线。");
-            window.scrollTo(0, 0);
-        }
-
-        function closeDetailView() {
-            document.getElementById('detail-view').style.display = 'none';
-            document.getElementById('main-dashboard').style.display = 'block';
-            document.getElementById('detailImage').src = ""; 
-        }
-
-        function downloadFile(type) { 
-            if(currentActiveNodeUrl && currentActiveFolder) {
-                window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); 
-            }
-        }
-
-        // ================= 节点配置与管理 =================
-        async function syncNodesToBackend(nodes) {
-            try {
-                await fetch('/api/nodes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(nodes)
+                // 工厂
+                const factoryConfig = reactive({ folder: '', tracker: localStorage.getItem('saved_tracker') || '', piece: '', layout: 'auto', saveTracker: !!localStorage.getItem('saved_tracker') });
+                
+                // 监控大盘
+                const viewMode = ref(localStorage.getItem('vue_view') || 'list');
+                watch(viewMode, (val) => localStorage.setItem('vue_view', val));
+                const activeNodesCollapse = ref([]);
+                const selectedFolders = ref([]); // 列表视图的多选
+                
+                const groupedFolders = computed(() => {
+                    let groups = {};
+                    currentFolders.value.forEach(f => {
+                        if(!groups[f.nodeName]) groups[f.nodeName] = [];
+                        groups[f.nodeName].push(f);
+                    });
+                    return groups;
                 });
-            } catch (e) {}
-        }
 
-        async function initNodes() {
-            const localOrigin = window.location.origin;
-            let savedNodes = [];
-            
-            try {
-                const res = await fetch('/api/nodes');
-                savedNodes = await res.json();
-            } catch (e) {}
+                // 详情弹窗
+                const detailVisible = ref(false);
+                const activeDetail = reactive({ nodeUrl: '', name: '', nodeName: '', imgUrl: '', info: '' });
 
-            if (savedNodes.length === 0) {
-                let rawSaved = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
-                savedNodes = rawSaved.map(n => typeof n === 'string' ? { url: n, name: new URL(n).host } : n);
-                if (savedNodes.length > 0) syncNodesToBackend(savedNodes);
-            }
+                // 工具函数
+                const formatBytes = (bytes) => {
+                    if (bytes === 0 || !bytes) return '0 B';
+                    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                };
+                const formatDate = (timestamp) => {
+                    if (!timestamp) return '-'; const d = new Date(timestamp * 1000);
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                };
+                const customColors = [ { color: '#3b82f6', percentage: 60 }, { color: '#f59e0b', percentage: 80 }, { color: '#ef4444', percentage: 100 } ];
 
-            clusterNodes = [{ url: localOrigin, name: "本机主控台", status: "online" }];
-            savedNodes.forEach(n => { 
-                if(n.url !== localOrigin && !clusterNodes.find(c => c.url === n.url)) {
-                    clusterNodes.push({ ...n, status: "online" }); 
-                }
-            });
-            
-            renderNodes();
-            populateQbNodes(); 
-        }
-
-        function renderNodes() {
-            const container = document.getElementById('active-nodes');
-            container.innerHTML = '';
-            clusterNodes.forEach((node, index) => {
-                const isLocal = index === 0;
-                const statusIcon = node.status === 'offline' ? '🔴' : '🟢';
-                const tooltip = node.status === 'offline' ? '节点已失联！点击修改' : '点击修改备注名';
-
-                container.innerHTML += `
-                    <div class="sys-card" id="sys-card-${index}">
-                        <div class="sys-card-header">
-                            <div>${statusIcon} <span class="node-tag-name" onclick="editNodeName('${node.url}')" title="${tooltip}">${node.name}</span></div>
-                            ${!isLocal ? `<span class="node-tag-del" onclick="removeNode('${node.url}')" title="移除节点">✖</span>` : '<span style="font-size:12px;color:#94a3b8;">(本机)</span>'}
-                        </div>
-                        <div id="sys-data-${index}">
-                            ${node.status === 'offline' ? '<div style="color:#ef4444; font-size:13px; text-align:center; padding:10px;">节点已断开连接</div>' : '<div style="color:#94a3b8; font-size:13px; text-align:center; padding:10px;">正在连接探针通道...</div>'}
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function editNodeName(url) {
-            const nodeIndex = clusterNodes.findIndex(n => n.url === url);
-            if (nodeIndex === -1) return;
-            const currentName = clusterNodes[nodeIndex].name;
-            const newName = prompt(`请输入 [${currentName}] 的新备注名：`, currentName);
-            if (newName !== null && newName.trim() !== "") {
-                clusterNodes[nodeIndex].name = newName.trim();
-                let savedNodes = clusterNodes.filter((_, i) => i !== 0).map(n => ({url: n.url, name: n.name}));
-                syncNodesToBackend(savedNodes);
-                renderNodes(); renderList(); updateProDropdown(); populateQbNodes();
-            }
-        }
-
-        function addNode() {
-            let ip = document.getElementById('newNodeIp').value.trim();
-            let name = document.getElementById('newNodeName').value.trim();
-            if(!ip) return;
-            if(!ip.startsWith('http')) ip = 'http://' + ip; 
-            if(ip.endsWith('/')) ip = ip.slice(0, -1);
-            if(!name) { try { name = new URL(ip).host; } catch(e) { name = ip; } }
-
-            if(!clusterNodes.find(n => n.url === ip)) {
-                let savedNodes = clusterNodes.filter((_, i) => i !== 0).map(n => ({url: n.url, name: n.name}));
-                savedNodes.push({ url: ip, name: name });
-                syncNodesToBackend(savedNodes);
-                
-                document.getElementById('newNodeIp').value = '';
-                document.getElementById('newNodeName').value = '';
-                initNodes().then(() => { fetchAllNodesFolders(); fetchSysInfo(); });
-            } else alert("该节点 IP 已存在！");
-        }
-
-        function removeNode(urlToRemove) {
-            let savedNodes = clusterNodes.filter((n, i) => i !== 0 && n.url !== urlToRemove).map(n => ({url: n.url, name: n.name}));
-            syncNodesToBackend(savedNodes);
-            initNodes().then(() => fetchAllNodesFolders());
-        }
-
-        // ================= qBittorrent 代理控制中心 =================
-        function populateQbNodes() {
-            const select = document.getElementById('qb-node-select');
-            const currentVal = select.value;
-            select.innerHTML = '<option value="">-- 选择要接管的宿主机 --</option>';
-            clusterNodes.forEach(n => {
-                const opt = document.createElement('option');
-                opt.value = n.url;
-                opt.text = `🖥️ ${n.name}`;
-                select.appendChild(opt);
-            });
-            if (currentVal) select.value = currentVal;
-        }
-
-        function loadQbConfig() {
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            if (!nodeUrl) return;
-            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
-            if (configs[nodeUrl]) {
-                document.getElementById('qb-url').value = configs[nodeUrl].url || '';
-                document.getElementById('qb-user').value = configs[nodeUrl].user || '';
-                document.getElementById('qb-pwd').value = configs[nodeUrl].pwd || '';
-            }
-            clearInterval(qbInterval);
-            document.getElementById('qb-table-container').style.display = 'none';
-            document.getElementById('qb-batch-bar').style.display = 'none';
-            qbSelectedHashes.clear();
-            
-            document.getElementById('qb-status-msg').innerText = '请确认配置后，点击连接以接管该节点。';
-            document.getElementById('qb-status-msg').style.color = '#64748b';
-        }
-
-        async function connectQb() {
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            const qbUrl = document.getElementById('qb-url').value.trim();
-            const qbUser = document.getElementById('qb-user').value.trim();
-            const qbPwd = document.getElementById('qb-pwd').value;
-            
-            if (!nodeUrl || !qbUrl) return alert("请先选择宿主机节点，并填写它的 qB 访问地址！");
-            
-            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
-            configs[nodeUrl] = { url: qbUrl, user: qbUser, pwd: qbPwd };
-            localStorage.setItem('qb_configs', JSON.stringify(configs));
-            
-            document.getElementById('qb-status-msg').innerText = '⏳ 正在通过宿主机发送透传请求...';
-            document.getElementById('qb-status-msg').style.color = '#f59e0b';
-            
-            await fetchQbData();
-            if(qbInterval) clearInterval(qbInterval);
-            qbInterval = setInterval(fetchQbData, 3000);
-        }
-
-        async function fetchQbData() {
-            if (moduleStates['qb']) return; 
-            
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            if (!nodeUrl) return;
-            let configs = JSON.parse(localStorage.getItem('qb_configs')) || {};
-            let config = configs[nodeUrl];
-            if(!config) return;
-
-            try {
-                const res = await fetch(`${nodeUrl}/api/qbittorrent`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "list" })
-                });
-                const data = await res.json();
-                if (data.error) {
-                    document.getElementById('qb-status-msg').innerText = `❌ ${data.error}`;
-                    document.getElementById('qb-status-msg').style.color = '#ef4444';
-                    return;
-                }
-                
-                qbTorrentsData = data; 
-                document.getElementById('qb-table-container').style.display = 'block';
-                document.getElementById('qb-status-msg').innerText = `✅ [${new Date().toLocaleTimeString()}] 连接成功！底层透传模式已激活，实时刷新中...`;
-                document.getElementById('qb-status-msg').style.color = '#10b981';
-                
-                renderQbTable(); 
-            } catch(e) {
-                document.getElementById('qb-status-msg').innerText = `❌ 宿主机响应超时，可能节点已离线。`;
-                document.getElementById('qb-status-msg').style.color = '#ef4444';
-            }
-        }
-
-        function setQbSort(key) {
-            if (qbSortKey === key) { qbSortAsc = !qbSortAsc; } 
-            else { qbSortKey = key; qbSortAsc = key !== 'added_on'; }
-            if (qbTorrentsData.length > 0) renderQbTable();
-        }
-
-        function sortTorrentsArray(torrents) {
-            return [...torrents].sort((a, b) => {
-                let valA, valB;
-                switch(qbSortKey) {
-                    case 'name': valA = a.name; valB = b.name; break;
-                    case 'size': valA = a.size; valB = b.size; break;
-                    case 'progress': valA = a.progress; valB = b.progress; break;
-                    case 'state': valA = a.state; valB = b.state; break;
-                    case 'dlspeed': valA = a.dlspeed || 0; valB = b.dlspeed || 0; break;
-                    case 'upspeed': valA = a.upspeed || 0; valB = b.upspeed || 0; break;
-                    case 'ratio': valA = a.ratio || 0; valB = b.ratio || 0; break;
-                    case 'added_on': valA = a.added_on || 0; valB = b.added_on || 0; break;
-                    default: valA = a.name; valB = b.name;
-                }
-                if (valA < valB) return qbSortAsc ? -1 : 1;
-                if (valA > valB) return qbSortAsc ? 1 : -1;
-                return 0;
-            });
-        }
-
-        function toggleQbAll(checked) {
-            if (checked) { qbTorrentsData.forEach(t => qbSelectedHashes.add(t.hash)); } 
-            else { qbSelectedHashes.clear(); }
-            renderQbTable(); 
-        }
-
-        function toggleQbHash(hash, checked) {
-            if (checked) qbSelectedHashes.add(hash);
-            else qbSelectedHashes.delete(hash);
-            updateQbBatchBar();
-        }
-
-        function updateQbBatchBar() {
-            const bar = document.getElementById('qb-batch-bar');
-            const countSpan = document.getElementById('qb-sel-count');
-            const chkAll = document.getElementById('qb-chk-all');
-            
-            countSpan.innerText = qbSelectedHashes.size;
-            bar.style.display = qbSelectedHashes.size > 0 ? 'flex' : 'none';
-            
-            if (qbTorrentsData.length > 0 && qbSelectedHashes.size === qbTorrentsData.length) chkAll.checked = true;
-            else chkAll.checked = false;
-        }
-
-        function renderQbTable() {
-            const tbody = document.getElementById('qb-table-body');
-            tbody.innerHTML = '';
-            
-            document.querySelectorAll('.sort-icon').forEach(el => { el.innerHTML = ''; el.className = 'sort-icon'; });
-            const activeIcon = document.getElementById(`sort-icon-${qbSortKey}`);
-            if(activeIcon) {
-                activeIcon.innerHTML = qbSortAsc ? '▲' : '▼';
-                activeIcon.className = 'sort-icon active';
-            }
-            
-            if (!Array.isArray(qbTorrentsData) || qbTorrentsData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#64748b;">📭 qBittorrent 中暂无任何任务</td></tr>';
-                updateQbBatchBar();
-                return;
-            }
-
-            const sortedTorrents = sortTorrentsArray(qbTorrentsData);
-            const stateMap = {
-                'downloading': ['下载中', '#3b82f6'], 'stalledDL': ['等待下载', '#94a3b8'],
-                'uploading': ['做种中', '#10b981'], 'stalledUP': ['做种(空闲)', '#10b981'],
-                'pausedDL': ['已暂停', '#f59e0b'], 'pausedUP': ['已暂停', '#f59e0b'],
-                'queuedDL': ['排队下载', '#64748b'], 'queuedUP': ['排队做种', '#64748b'],
-                'checkingDL': ['校验中', '#a855f7'], 'checkingUP': ['校验中', '#a855f7'],
-                'error': ['错误', '#ef4444'], 'missingFiles': ['文件丢失', '#ef4444']
-            };
-
-            sortedTorrents.forEach(t => {
-                let stateInfo = stateMap[t.state] || [t.state, '#64748b'];
-                let stateText = stateInfo[0]; let stateColor = stateInfo[1];
-                let progressPct = (t.progress * 100).toFixed(1);
-                
-                let dlSpeed = t.dlspeed > 0 ? `<span style="color:#16a34a; font-weight:bold;">↓ ${formatBytes(t.dlspeed)}/s</span>` : '<span style="color:#94a3b8;">0 B/s</span>';
-                let upSpeed = t.upspeed > 0 ? `<span style="color:#3b82f6; font-weight:bold;">↑ ${formatBytes(t.upspeed)}/s</span>` : '<span style="color:#94a3b8;">0 B/s</span>';
-                
-                let ratioText = t.ratio === -1 || t.ratio > 9999 ? '∞' : (t.ratio || 0).toFixed(2);
-                let addedTime = formatDate(t.added_on);
-
-                let actionBtns = '';
-                actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'resume')" title="开始" style="background:var(--success);">▶</button>`;
-                actionBtns += `<button class="qb-btn" onclick="qbAction('${t.hash}', 'pause')" title="暂停" style="background:var(--warning);">⏸</button>`;
-                
-                const safeName = t.name.replace(/'/g, "\\'");
-                actionBtns += `<button class="qb-btn" onclick="qbDelete('${t.hash}', '${safeName}')" title="删除" style="background:var(--danger);">✖</button>`;
-
-                let isChecked = qbSelectedHashes.has(t.hash) ? 'checked' : '';
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td style="text-align:center;"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}', this.checked)" ${isChecked}></td>
-                        <td><div class="col-name" title="${t.name}">${t.name}</div></td>
-                        <td style="width:70px; font-size:13px; color:#64748b;">${formatBytes(t.size)}</td>
-                        <td style="width:120px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:2px; font-size:12px;"><span>${progressPct}%</span></div>
-                            <div class="progress-container"><div class="progress-bar" style="background:${stateColor}; width:${progressPct}%;"></div></div>
-                        </td>
-                        <td style="width:60px; font-size:13px; font-weight:bold; color:#0ea5e9;">${ratioText}</td>
-                        <td style="width:80px; font-size:13px; font-weight:bold; color:${stateColor};">${stateText}</td>
-                        <td style="width:90px; font-size:12px; font-family:Consolas,monospace;">${dlSpeed}</td>
-                        <td style="width:90px; font-size:12px; font-family:Consolas,monospace;">${upSpeed}</td>
-                        <td style="width:110px; font-size:12px; color:#64748b;">${addedTime}</td>
-                        <td style="text-align:right;">${actionBtns}</td>
-                    </tr>
-                `;
-            });
-            updateQbBatchBar(); 
-        }
-
-        async function qbAction(hash, action) {
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
-            try {
-                fetch(`${nodeUrl}/api/qbittorrent`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hash })
-                }).then(() => fetchQbData());
-            } catch(e) {}
-        }
-
-        async function qbBatchAction(action) {
-            if(qbSelectedHashes.size === 0) return;
-            const hashesArr = Array.from(qbSelectedHashes);
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
-
-            try {
-                await fetch(`${nodeUrl}/api/qbittorrent`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: action, hashes: hashesArr.join('|') })
-                });
-                fetchQbData();
-            } catch(e) { alert("批量操作指令下发失败！"); }
-        }
-
-        async function qbDelete(hash, name) {
-            if(!confirm(`⚠️ 危险操作：确认要删除任务 [ ${name} ] 吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [深度清理] 是否同时彻底删除相关视频及生成的截图等附属文件？\n\n[确定] 粉碎所有文件 | [取消] 仅移除任务`);
-            
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
-            try {
-                await fetch(`${nodeUrl}/api/qbittorrent`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "delete", hashes: hash, delete_files: deleteFiles, name: name })
-                });
-                qbSelectedHashes.delete(hash);
-                fetchQbData();
-            } catch(e) {}
-        }
-
-        async function qbBatchDelete() {
-            if(qbSelectedHashes.size === 0) return;
-            const hashesArr = Array.from(qbSelectedHashes);
-            const namesArr = hashesArr.map(h => {
-                const target = qbTorrentsData.find(t => t.hash === h);
-                return target ? target.name : "";
-            }).filter(n => n !== "");
-            
-            if(!confirm(`⚠️ 确认要批量删除 ${hashesArr.length} 个任务吗？`)) return;
-            const deleteFiles = confirm(`🗑️ [批量深度清理] 是否同时彻底粉碎这 ${hashesArr.length} 个任务对应的所有文件？`);
-            
-            const nodeUrl = document.getElementById('qb-node-select').value;
-            let config = JSON.parse(localStorage.getItem('qb_configs'))[nodeUrl];
-            
-            try {
-                await fetch(`${nodeUrl}/api/qbittorrent`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: config.url, user: config.user, pwd: config.pwd, action: "delete", hashes: hashesArr.join('|'), delete_files: deleteFiles, name: namesArr.join('|') })
-                });
-                qbSelectedHashes.clear();
-                fetchQbData();
-            } catch(e) {}
-        }
-
-        // ================= 探针与业务全网轮询 =================
-        async function fetchSysInfo() {
-            if (moduleStates['fleet']) return; 
-            
-            clusterNodes.forEach(async (node, index) => {
-                if (node.status === 'offline') return;
-                try {
-                    const res = await fetch(`${node.url}/api/sysinfo`);
-                    const current = await res.json();
-                    
-                    if (!current.error) {
-                        let prev = nodeStats[node.url];
-                        if (prev) {
-                            let timeDiff = current.timestamp - prev.timestamp;
-                            if (timeDiff > 0) {
-                                let cpuTotalDiff = current.cpu_total - prev.cpu_total;
-                                let cpuIdleDiff = current.cpu_idle - prev.cpu_idle;
-                                let cpuUsage = cpuTotalDiff > 0 ? ((cpuTotalDiff - cpuIdleDiff) / cpuTotalDiff * 100) : 0;
-                                cpuUsage = Math.max(0, Math.min(100, cpuUsage)); 
-                                let cpuColor = cpuUsage > 80 ? '#ef4444' : '#3b82f6';
-                                
-                                let memUsage = (current.mem_used / current.mem_total) * 100;
-                                let memColor = memUsage > 80 ? '#ef4444' : '#10b981';
-
-                                let txSpeed = Math.max(0, (current.net_tx - prev.net_tx) / timeDiff);
-                                let rxSpeed = Math.max(0, (current.net_rx - prev.net_rx) / timeDiff);
-                                let totalMonth = (current.month_tx || 0) + (current.month_rx || 0);
-
-                                const dataBox = document.getElementById(`sys-data-${index}`);
-                                if (dataBox) {
-                                    dataBox.innerHTML = `
-                                        <div class="sys-stat-row"><span>💻 CPU 负载</span><span style="font-weight:bold; color:${cpuColor};">${cpuUsage.toFixed(1)}%</span></div>
-                                        <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${cpuUsage}%; background:${cpuColor};"></div></div>
-                                        <div class="sys-stat-row"><span>🧠 物理内存</span><span>${formatBytes(current.mem_used)} / ${formatBytes(current.mem_total)}</span></div>
-                                        <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${memUsage}%; background:${memColor};"></div></div>
-                                        
-                                        <div class="sys-stat-row" style="margin-top:8px;">
-                                            <span>📅 本月消耗</span>
-                                            <span style="font-weight:bold; color:#4f46e5;" title="下行 ${formatBytes(current.month_rx)} | 上行 ${formatBytes(current.month_tx)}">
-                                                ${formatBytes(totalMonth)} (↓${formatBytes(current.month_rx)} | ↑${formatBytes(current.month_tx)})
-                                            </span>
-                                        </div>
-
-                                        <div class="sys-net">
-                                            <span style="color:#16a34a;" title="下行实时 (Download)">↓ ${formatBytes(rxSpeed)}/s</span>
-                                            <span style="color:#3b82f6;" title="上行实时 (Upload)">↑ ${formatBytes(txSpeed)}/s</span>
-                                        </div>
-                                    `;
-                                }
-                            }
+                // 核心逻辑 - 节点
+                const syncNodesToBackend = async (nodes) => { try { await fetch('/api/nodes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nodes) }); } catch (e) {} };
+                const initNodes = async () => {
+                    const origin = window.location.origin; let saved = [];
+                    try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
+                    clusterNodes.value = [{ url: origin, name: "本机主控台", status: "online" }];
+                    saved.forEach(n => { if (n.url !== origin && !clusterNodes.value.find(c => c.url === n.url)) clusterNodes.value.push({ ...n, status: "online" }); });
+                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name); // 默认展开所有分组
+                };
+                const addNode = () => {
+                    let { ip, name } = newNode;
+                    if(!ip) return ElMessage.warning("请输入 API 地址");
+                    if(!ip.startsWith('http')) ip = 'http://' + ip; if(ip.endsWith('/')) ip = ip.slice(0, -1);
+                    if(!name) { try { name = new URL(ip).host; } catch(e) { name = ip; } }
+                    if(!clusterNodes.value.find(n => n.url === ip)) {
+                        let saved = clusterNodes.value.filter((_, i) => i !== 0).map(n => ({ url: n.url, name: n.name }));
+                        saved.push({ url: ip, name }); syncNodesToBackend(saved);
+                        newNode.ip = ''; newNode.name = ''; initNodes().then(()=>{ fetchAllNodesFolders(); fetchSysInfo(); });
+                        ElMessage.success("节点添加成功");
+                    } else ElMessage.error("节点 IP 已存在");
+                };
+                const removeNode = (url) => {
+                    ElMessageBox.confirm('确定要移除此节点吗？', '提示', { type: 'warning' }).then(() => {
+                        syncNodesToBackend(clusterNodes.value.filter((n, i) => i !== 0 && n.url !== url).map(n => ({ url: n.url, name: n.name })));
+                        initNodes().then(() => fetchAllNodesFolders()); ElMessage.success("节点已移除");
+                    }).catch(()=>{});
+                };
+                const editNodeName = (node) => {
+                    ElMessageBox.prompt('请输入新备注名', '修改名称', { inputValue: node.name }).then(({ value }) => {
+                        if(value.trim()) {
+                            node.name = value.trim();
+                            syncNodesToBackend(clusterNodes.value.filter((_, i) => i !== 0).map(n => ({ url: n.url, name: n.name })));
+                            ElMessage.success("名称已更新");
                         }
-                        nodeStats[node.url] = current;
-                    }
-                } catch (e) {}
-            });
-        }
+                    }).catch(()=>{});
+                };
 
-        async function fetchAllNodesFolders() {
-            currentFolders = [];
-            let onlineCount = 0;
+                // 核心逻辑 - 探针轮询
+                const fetchSysInfo = () => {
+                    if (!activeModules.value.includes('fleet')) return;
+                    clusterNodes.value.forEach(async (n) => {
+                        if (n.status === 'offline') return;
+                        try {
+                            const res = await fetch(`${n.url}/api/sysinfo`), cur = await res.json();
+                            if (cur.error) return;
+                            let prev = nodeStats[n.url];
+                            if (prev && cur.timestamp > prev.timestamp) {
+                                let tDiff = cur.timestamp - prev.timestamp;
+                                cur.cpuPct = Number(Math.max(0, Math.min(100, ((cur.cpu_total - prev.cpu_total) - (cur.cpu_idle - prev.cpu_idle)) / (cur.cpu_total - prev.cpu_total) * 100)).toFixed(1));
+                                cur.memPct = Number(((cur.mem_used / cur.mem_total) * 100).toFixed(1));
+                                cur.diskPct = cur.disk_total > 0 ? Number(((cur.disk_used / cur.disk_total) * 100).toFixed(1)) : 0;
+                                cur.txSpeed = Math.max(0, (cur.net_tx - prev.net_tx) / tDiff);
+                                cur.rxSpeed = Math.max(0, (cur.net_rx - prev.net_rx) / tDiff);
+                            } else {
+                                cur.cpuPct = 0; cur.memPct = 0; cur.diskPct = 0; cur.txSpeed = 0; cur.rxSpeed = 0;
+                            }
+                            nodeStats[n.url] = cur;
+                        } catch (e) {}
+                    });
+                };
 
-            const promises = clusterNodes.map(async (node) => {
-                try {
-                    const res = await fetch(`${node.url}/api/folders`);
-                    const data = await res.json();
-                    if (node.status === 'offline') { node.status = 'online'; renderNodes(); }
-                    onlineCount++;
-                    return data.folders.map(f => ({...f, nodeUrl: node.url, nodeName: node.name}));
-                } catch(e) {
-                    if (node.status === 'online') { node.status = 'offline'; renderNodes(); }
-                    return []; 
-                }
-            });
-
-            const results = await Promise.all(promises);
-            results.forEach(res => currentFolders = currentFolders.concat(res));
-            
-            currentFolders.sort((a, b) => {
-                if (a.ready === b.ready) return b.mtime - a.mtime;
-                return a.ready ? 1 : -1;
-            });
-            
-            const totalTasks = currentFolders.length;
-            const readyTasks = currentFolders.filter(f => f.ready).length;
-            document.getElementById('stat-nodes').innerText = `${onlineCount} / ${clusterNodes.length}`;
-            document.getElementById('stat-total').innerText = totalTasks;
-            document.getElementById('stat-ready').innerText = readyTasks;
-            document.getElementById('stat-pending').innerText = totalTasks - readyTasks;
-            
-            if(!moduleStates['monitor'] || !moduleStates['factory']) {
-                renderList();
-                updateProDropdown();
-            }
-        }
-
-        function renderList() {
-            const list = document.getElementById('folder-list');
-            list.innerHTML = '';
-            
-            if(currentFolders.length === 0) {
-                list.innerHTML = '<div style="padding:20px; text-align:center;">暂无任何任务，或所有节点均已离线。</div>';
-                return;
-            }
-
-            let groupedFolders = {};
-            currentFolders.forEach(f => {
-                const liveNode = clusterNodes.find(n => n.url === f.nodeUrl);
-                const liveName = liveNode ? liveNode.name : f.nodeName;
-                if(!groupedFolders[liveName]) groupedFolders[liveName] = [];
-                groupedFolders[liveName].push(f);
-            });
-
-            for (const [nodeName, foldersInNode] of Object.entries(groupedFolders)) {
-                const isCollapsed = collapsedNodes.has(nodeName);
-                const chevronClass = isCollapsed ? 'chevron collapsed' : 'chevron';
-                const containerClass = isCollapsed ? 'collapsed' : '';
-                const safeNodeName = nodeName.replace(/'/g, "\\'");
-                
-                let groupHtml = `
-                <div class="node-group">
-                    <div class="node-header-item" onclick="toggleNodeGroup('${safeNodeName}')">
-                        <span class="${chevronClass}">▼</span>
-                        📁 节点: ${nodeName} 
-                        <span style="font-weight:normal; font-size:12px; color:#64748b;">(共 ${foldersInNode.length} 个任务)</span>
-                    </div>
-                    <div class="items-container ${currentViewMode}-view ${containerClass}">
-                `;
-                
-                foldersInNode.forEach(f => {
-                    const color = f.ready ? 'var(--success)' : 'var(--warning)';
-                    const compositeKey = `${f.nodeUrl}|${f.name}`;
+                const fetchAllNodesFolders = async () => {
+                    let tempFolders = [];
+                    const promises = clusterNodes.value.map(async (n) => {
+                        try {
+                            const res = await fetch(`${n.url}/api/folders`), data = await res.json();
+                            n.status = 'online'; return data.folders.map(f => ({ ...f, nodeUrl: n.url, nodeName: n.name, _selected: false }));
+                        } catch (e) { n.status = 'offline'; return []; }
+                    });
+                    const results = await Promise.all(promises);
+                    results.forEach(r => tempFolders = tempFolders.concat(r));
+                    tempFolders.sort((a, b) => (a.ready === b.ready ? b.mtime - a.mtime : (a.ready ? 1 : -1)));
                     
-                    const actionsHtml = f.ready 
-                        ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}', '${f.name}', '${safeNodeName}')">👁️ 查看结果</button>
-                           <button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')" style="background:#64748b;">定制重做</button>`
-                        : `<button class="btn-action" onclick="fillProForm('${f.nodeUrl}', '${f.name}')">装载至工厂</button>`;
-                        
-                    groupHtml += `
-                        <div class="item">
-                            <div class="item-info">
-                                <input type="checkbox" class="folder-check" value="${compositeKey}" ${f.ready ? 'disabled' : ''}>
-                                <div class="item-title">
-                                    <strong style="word-break: break-all;">${f.name}</strong><br> 
-                                    <span style="color:${color}; font-size: 13px; font-weight:bold;">${f.status}</span>
-                                </div>
-                            </div>
-                            <div class="item-actions">${actionsHtml}</div>
-                        </div>`;
+                    // 保持网格视图的勾选状态
+                    const gridSelections = currentFolders.value.filter(f=>f._selected).map(f=>f.nodeUrl+'|'+f.name);
+                    tempFolders.forEach(f => { if(gridSelections.includes(f.nodeUrl+'|'+f.name)) f._selected = true; });
+                    
+                    currentFolders.value = tempFolders;
+                };
+
+                // qBittorrent 逻辑重构 (使用 Element Table native)
+                const loadQbConfig = () => {
+                    const url = qbConfig.nodeUrl; if (!url) return;
+                    let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
+                    qbConfig.url = cfg.url || ''; qbConfig.user = cfg.user || ''; qbConfig.pwd = cfg.pwd || '';
+                    clearInterval(qbTimer); qbConnected.value = false;
+                };
+                const connectQb = async () => {
+                    if (!qbConfig.nodeUrl || !qbConfig.url) return ElMessage.warning("请选择节点并填写地址");
+                    let cfgs = JSON.parse(localStorage.getItem('qb_configs')) || {};
+                    cfgs[qbConfig.nodeUrl] = { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd };
+                    localStorage.setItem('qb_configs', JSON.stringify(cfgs));
+                    qbLoading.value = true; await fetchQbData(true); qbLoading.value = false;
+                    if(qbConnected.value) { if(qbTimer) clearInterval(qbTimer); qbTimer = setInterval(fetchQbData, 3000); }
+                };
+                const fetchQbData = async (isManual = false) => {
+                    if (!activeModules.value.includes('qb')) return;
+                    try {
+                        const res = await fetch(`${qbConfig.nodeUrl}/api/qbittorrent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action: 'list' }) });
+                        const data = await res.json();
+                        if (data.error) { if(isManual) ElMessage.error(data.error); qbConnected.value = false; clearInterval(qbTimer); return; }
+                        qbTorrentsData.value = data; qbConnected.value = true;
+                        if(isManual) ElMessage.success("qBittorrent 连接成功");
+                    } catch (e) { if(isManual) ElMessage.error("宿主机响应超时"); qbConnected.value = false; clearInterval(qbTimer); }
+                };
+                const getQbStateTag = (state) => { const m = { 'downloading':'', 'uploading':'success', 'pausedDL':'warning', 'pausedUP':'warning', 'error':'danger' }; return m[state] || 'info'; };
+                const getQbStateText = (state) => { const m = { 'downloading':'下载中', 'uploading':'做种中', 'stalledDL':'等待下载', 'stalledUP':'做种空闲', 'pausedDL':'已暂停', 'pausedUP':'已暂停', 'checkingDL':'校验中', 'error':'错误', 'missingFiles':'文件丢失' }; return m[state] || state; };
+                const getQbStateColor = (state) => { const m = { 'downloading':'#3b82f6', 'uploading':'#10b981', 'pausedDL':'#f59e0b', 'pausedUP':'#f59e0b', 'error':'#ef4444' }; return m[state] || '#94a3b8'; };
+                
+                const handleQbSelection = (val) => { qbSelectedHashes.value = val.map(t => t.hash); };
+                const qbAction = async (hash, action) => {
+                    await fetch(`${qbConfig.nodeUrl}/api/qbittorrent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action, hashes: hash }) });
+                    fetchQbData();
+                };
+                const qbBatchAction = async (action) => {
+                    if (qbSelectedHashes.value.length === 0) return;
+                    await fetch(`${qbConfig.nodeUrl}/api/qbittorrent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action, hashes: qbSelectedHashes.value.join('|') }) });
+                    fetchQbData(); ElMessage.success("批量指令下发成功");
+                };
+                const qbDelete = (row) => {
+                    ElMessageBox.confirm(`确定删除任务 [${row.name}]?`, '警告', { type: 'warning', confirmButtonText: '仅删任务', cancelButtonText: '粉碎所有文件', distinguishCancelAndClose: true })
+                    .then(async () => { await executeQbDel(row.hash, row.name, false); })
+                    .catch(async (action) => { if(action==='cancel') await executeQbDel(row.hash, row.name, true); });
+                };
+                const qbBatchDelete = () => {
+                    if (qbSelectedHashes.value.length === 0) return;
+                    const names = qbSelectedHashes.value.map(h => qbTorrentsData.value.find(t=>t.hash===h)?.name||"").filter(x=>x);
+                    ElMessageBox.confirm(`确定批量删除 ${qbSelectedHashes.value.length} 个任务?`, '批量警告', { type: 'warning', confirmButtonText: '仅删任务', cancelButtonText: '粉碎所有文件', distinguishCancelAndClose: true })
+                    .then(async () => { await executeQbDel(qbSelectedHashes.value.join('|'), names.join('|'), false); })
+                    .catch(async (action) => { if(action==='cancel') await executeQbDel(qbSelectedHashes.value.join('|'), names.join('|'), true); });
+                };
+                const executeQbDel = async (hashes, names, delFiles) => {
+                    await fetch(`${qbConfig.nodeUrl}/api/qbittorrent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action: 'delete', hashes, delete_files: delFiles, name: names }) });
+                    fetchQbData(); ElMessage.success("删除成功");
+                };
+
+                // 工厂与大盘动作
+                const fillProForm = (row) => {
+                    factoryConfig.folder = `${row.nodeUrl}|${row.name}`;
+                    if (!activeModules.value.includes('factory')) activeModules.value.push('factory');
+                    setTimeout(() => document.getElementById("pro-folder").scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+                };
+                const submitProTask = async () => {
+                    if (!factoryConfig.folder) return ElMessage.warning("请选择目标目录");
+                    const [url, folder] = factoryConfig.folder.split('|');
+                    if (factoryConfig.saveTracker && factoryConfig.tracker) localStorage.setItem("saved_tracker", factoryConfig.tracker); else localStorage.removeItem("saved_tracker");
+                    await fetch(`${url}/api/run/folder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder, tracker: factoryConfig.tracker, piece_size: factoryConfig.piece, layout: factoryConfig.layout }) });
+                    ElMessage.success(`指令已下发至: ${folder}`); fetchAllNodesFolders();
+                };
+                const triggerTaskAllNodes = async (mode) => {
+                    ElMessageBox.confirm('这会让所有节点并发扫描全部目录，产生高负载，确定执行？', '高危操作确认', { type: 'warning' }).then(() => {
+                        clusterNodes.value.forEach(n => { if (n.status !== 'offline') fetch(`${n.url}/api/run/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: "" }) }); });
+                        ElMessage.success('全盘扫描指令已下发至全网节点'); setTimeout(fetchAllNodesFolders, 2000);
+                    }).catch(()=>{});
+                };
+
+                // 监控列表批量操作
+                const handleFolderSelection = (val) => { selectedFolders.value = val; };
+                const syncGridSelection = (f) => {
+                    // 如果是网格模式，我们手动把选中的项推入 selectedFolders
+                    selectedFolders.value = currentFolders.value.filter(item => item._selected);
+                };
+                const selectAllPending = () => {
+                    // 对于网格视图，手动打钩
+                    if(viewMode.value === 'grid') {
+                        currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; });
+                        syncGridSelection();
+                    } else {
+                        ElMessage.info("列表视图请使用表格左上角的全选框");
+                    }
+                };
+                const triggerBatch = async () => {
+                    let targets = viewMode.value === 'list' ? selectedFolders.value : currentFolders.value.filter(f => f._selected);
+                    if (targets.length === 0) return ElMessage.warning("请先勾选需要处理的文件夹");
+                    let batches = {}; targets.forEach(f => { if (!batches[f.nodeUrl]) batches[f.nodeUrl] = []; batches[f.nodeUrl].push(f.name); });
+                    for (const [u, fds] of Object.entries(batches)) {
+                        fetch(`${u}/api/run_batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folders: fds }) });
+                    }
+                    ElMessage.success(`已将 ${targets.length} 个任务分配给物理机排队`); setTimeout(fetchAllNodesFolders, 2000);
+                };
+
+                // 详情弹窗
+                const openDetailView = (row) => {
+                    activeDetail.nodeUrl = row.nodeUrl; activeDetail.name = row.name; activeDetail.nodeName = row.nodeName;
+                    activeDetail.imgUrl = `${row.nodeUrl}/api/files/${encodeURIComponent(row.name)}/image?t=${new Date().getTime()}`;
+                    activeDetail.info = "跨节点读取中..."; detailVisible.value = true;
+                    fetch(`${row.nodeUrl}/api/preview/mediainfo/${encodeURIComponent(row.name)}`).then(r => r.text()).then(t => activeDetail.info = t).catch(() => activeDetail.info = "读取失败，物理节点可能离线");
+                };
+                const downloadFile = (type) => { if (activeDetail.nodeUrl) window.open(`${activeDetail.nodeUrl}/api/files/${encodeURIComponent(activeDetail.name)}/${type}`, '_blank'); };
+
+                // OTA
+                const showOtaNotice = () => {
+                    ElMessageBox.alert('由于本机网络映射架构冲突，前端防误触保护已拦截此 OTA 按钮。<br><br><b>请严格通过 SSH 执行命令进行热更新：</b><br><code>cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 终端热更新', { dangerouslyUseHTMLString: true });
+                };
+
+                // 生命周期
+                onMounted(async () => {
+                    await initNodes(); fetchAllNodesFolders();
+                    setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000);
                 });
+                onUnmounted(() => { if (qbTimer) clearInterval(qbTimer); });
 
-                groupHtml += `</div></div>`;
-                list.innerHTML += groupHtml;
+                return {
+                    activeModules, clusterNodes, currentFolders, nodeStats, newNode,
+                    onlineNodesCount, readyFoldersCount, pendingFoldersCount, addNode, removeNode, editNodeName,
+                    qbConfig, qbConnected, qbLoading, qbTorrentsData, qbSelectedHashes, loadQbConfig, connectQb, handleQbSelection, qbAction, qbBatchAction, qbDelete, qbBatchDelete,
+                    getQbStateTag, getQbStateText, getQbStateColor,
+                    factoryConfig, fillProForm, submitProTask, triggerTaskAllNodes,
+                    viewMode, switchViewMode, activeNodesCollapse, groupedFolders, handleFolderSelection, syncGridSelection, selectAllPending, triggerBatch,
+                    detailVisible, activeDetail, openDetailView, downloadFile, showOtaNotice,
+                    formatBytes, formatDate, customColors
+                };
             }
-        }
-
-        function updateProDropdown() {
-            const select = document.getElementById("pro-folder");
-            const currentVal = select.value;
-            select.innerHTML = '<option value="">-- 请选择目标目录 --</option>';
-            currentFolders.forEach(f => {
-                const liveNode = clusterNodes.find(n => n.url === f.nodeUrl);
-                const liveName = liveNode ? liveNode.name : f.nodeName;
-                const opt = document.createElement("option");
-                opt.value = `${f.nodeUrl}|${f.name}`;
-                opt.text = `[${liveName}] ${f.name} (${f.ready ? '✅' : '⏳'})`;
-                select.appendChild(opt);
-            });
-            if (currentVal) select.value = currentVal;
-        }
-
-        function fillProForm(nodeUrl, folderName) {
-            document.getElementById("pro-folder").value = `${nodeUrl}|${folderName}`;
-            if (moduleStates['factory']) {
-                toggleModule('factory');
-            }
-            document.getElementById("pro-folder").scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        async function submitProTask() {
-            const composite = document.getElementById("pro-folder").value;
-            if(!composite) return alert("请先选择目标目录！");
-            
-            const pipeIndex = composite.indexOf('|');
-            const nodeUrl = composite.substring(0, pipeIndex);
-            const folderName = composite.substring(pipeIndex + 1);
-            
-            const tracker = document.getElementById("pro-tracker").value.trim();
-            const piece_size = document.getElementById("pro-piece").value;
-            const layout = document.getElementById("pro-layout").value;
-            const saveTracker = document.getElementById("pro-save-tracker").checked;
-
-            if(saveTracker && tracker) localStorage.setItem("saved_tracker", tracker);
-            else localStorage.removeItem("saved_tracker");
-            
-            const targetNode = clusterNodes.find(n => n.url === nodeUrl);
-            const targetName = targetNode ? targetNode.name : nodeUrl;
-
-            alert(`【指令已下发至：${targetName}】\n目录: ${folderName}\n后台处理中，请稍后刷新。`);
-            
-            await fetch(`${nodeUrl}/api/run/folder`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder: folderName, tracker: tracker, piece_size: piece_size, layout: layout }) 
-            });
-            fetchAllNodesFolders(); 
-        }
-
-        function selectAllPending() {
-            document.querySelectorAll('.items-container:not(.collapsed) .folder-check:not(:disabled)').forEach(cb => cb.checked = true);
-        }
-
-        async function triggerBatch() {
-            const selected = Array.from(document.querySelectorAll('.folder-check:checked')).map(cb => cb.value);
-            if (selected.length === 0) return alert("请先勾选需要处理的文件夹！");
-            
-            alert(`已将 ${selected.length} 个任务分配给对应的物理机排队。`);
-            
-            let batches = {};
-            selected.forEach(comp => {
-                const pipeIndex = comp.indexOf('|');
-                const nUrl = comp.substring(0, pipeIndex);
-                const fName = comp.substring(pipeIndex + 1);
-                if(!batches[nUrl]) batches[nUrl] = [];
-                batches[nUrl].push(fName);
-            });
-
-            for (const [nodeUrl, folders] of Object.entries(batches)) {
-                fetch(`${nodeUrl}/api/run_batch`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ folders: folders })
-                }).catch(e => console.log(e));
-            }
-            
-            setTimeout(fetchAllNodesFolders, 2000);
-        }
-
-        async function triggerTaskAllNodes(mode) {
-            alert('【集群并发指令】已向全网所有节点下发全盘扫描指令，各自独立计算中！');
-            clusterNodes.forEach(node => {
-                if(node.status !== 'offline') {
-                    fetch(`${node.url}/api/run/${mode}`, { 
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: "" })
-                    }).catch(e => console.log(e));
-                }
-            });
-            setTimeout(fetchAllNodesFolders, 2000); 
-        }
-
-        async function hotUpdateAllNodes() {
-            const btns = document.querySelectorAll('.btn-update');
-            btns.forEach(btn => { btn.innerText = "全网OTA闪刷中..."; btn.disabled = true; });
-            
-            let promises = clusterNodes.map(async (node) => {
-                if(node.status === 'offline') return `[${node.name}]: ❌ 节点已离线，跳过更新`;
-                try {
-                    const res = await fetch(`${node.url}/api/update`, { method: 'POST' });
-                    const data = await res.json();
-                    return `[${node.name}]: ✅ OTA 覆盖成功 (即将重启)`;
-                } catch(e) {
-                    return `[${node.name}]: ❌ 节点离线 / 重启中`;
-                }
-            });
-            
-            let results = await Promise.all(promises);
-            alert("集群全网 OTA 闪刷结果：\n\n" + results.join("\n") + "\n\n后台容器正在重启，请等待 3 秒后手动刷新本网页！");
-            btns.forEach(btn => { btn.innerText = "🔄 引擎 OTA 同步"; btn.disabled = false; });
-        }
-
-        // ================= 初始化执行 =================
-        document.addEventListener("DOMContentLoaded", async () => {
-            const savedTracker = localStorage.getItem("saved_tracker");
-            if(savedTracker) {
-                document.getElementById("pro-tracker").value = savedTracker;
-                document.getElementById("pro-save-tracker").checked = true;
-            }
-            
-            document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
-            document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
-            
-            renderModuleStates();
-
-            await initNodes();
-            fetchAllNodesFolders();
-            
-            setInterval(fetchSysInfo, 2000);
-            setInterval(fetchAllNodesFolders, 10000);
         });
+        
+        // 注册 Element Plus 所有图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+        app.mount('#app');
     </script>
 </body>
 </html>
