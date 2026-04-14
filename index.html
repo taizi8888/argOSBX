@@ -12,91 +12,36 @@
     <style>
         :root { --primary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; --bg: #f1f5f9; }
         body { margin: 0; background-color: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #334155; }
-        
-        /* 剥离 #app 的全局限制，让内部组件自己控制宽度 */
         #app { min-height: 100vh; }
         
-        /* ================= 极美 OCI 风格登录界面 ================= */
+        /* 登录界面 */
         .login-wrapper { height: 100vh; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%); position: relative; overflow: hidden; }
-        /* 增加 position: relative 和 明确的 pointer-events 保证事件正常穿透和接收 */
-        .login-card { position: relative; width: 400px; background: rgba(255, 255, 255, 0.95); border-radius: 16px; padding: 50px 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: center; z-index: 10; backdrop-filter: blur(10px); }
+        .login-card { width: 400px; background: rgba(255, 255, 255, 0.95); border-radius: 16px; padding: 50px 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: center; z-index: 10; backdrop-filter: blur(10px); }
         .login-title { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; letter-spacing: -0.5px;}
         .login-subtitle { font-size: 13px; color: #64748b; margin-bottom: 35px; font-weight: 500;}
         .login-btn { margin-top: 15px; width: 100%; padding: 22px; font-size: 16px; font-weight: bold; border-radius: 8px; background: #b91c1c; border: none; box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3); transition: all 0.3s; }
         .login-btn:hover { background: #991b1b; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(185, 28, 28, 0.4); }
         .footer-text { position: absolute; bottom: 20px; color: rgba(255,255,255,0.7); font-size: 12px; }
 
-        /* ================= 控制台大盘样式 ================= */
+        /* 控制台样式 */
         .dashboard-wrapper { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .dashboard-title { font-size: 28px; font-weight: 900; color: #1e293b; display: flex; align-items: center; gap: 10px; margin: 0; }
-        
-        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; border: 1px solid #e2e8f0; }
-        .module-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #f1f5f9; }
-        .module-header:hover { background-color: #f8fafc; }
-        .module-title { font-size: 17px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-        .module-content { padding: 24px; }
-        .collapsed { display: none !important; }
-
-        .dashboard-stats { display: flex; gap: 20px; background: #eff6ff; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-        .stat-item { display: flex; flex-direction: column; gap: 4px; }
-        .stat-label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; }
-        .stat-value { font-size: 24px; font-weight: 900; color: #1e40af; }
-
-        button { border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); color: white; display: inline-flex; align-items: center; justify-content: center; }
-        button:active { transform: scale(0.96); }
-        button:disabled { background: #cbd5e1 !important; cursor: not-allowed; }
-        .btn-update { background: var(--warning); padding: 8px 16px; }
-        .btn-action { background: var(--primary); padding: 8px 14px; font-size: 13px;}
-        .btn-view { background: #0ea5e9; padding: 8px 14px; font-size: 13px;}
-        .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .btn-pro-submit:hover { background: #1e293b; }
-
-        .node-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; transition: border-color 0.3s; }
-        .sys-card:hover { border-color: var(--primary); }
-        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; color: #1e3a8a;}
-        .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 6px;}
-        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 8px 0 16px 0; overflow: hidden; }
-        .sys-bar-fill { height: 100%; transition: width 0.6s ease; }
-        .sys-net { display: flex; justify-content: space-between; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; background: #f8fafc; padding: 8px 12px; border-radius: 6px; color: #475569; font-weight: 600; border: 1px dashed #cbd5e1; margin-top: 15px;}
-        .node-tag-name { cursor: pointer; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 0 4px;}
-        .node-tag-name:hover { border-bottom: 1px dashed #1e40af; }
-
-        .view-toggle { display: flex; background: #e2e8f0; border-radius: 6px; padding: 3px; }
-        .view-toggle button { background: transparent; color: #64748b; padding: 6px 12px; font-size: 13px; font-weight: bold; border-radius: 4px; box-shadow: none; }
-        .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .node-header-item { font-size: 14px; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 8px 16px; border-radius: 8px; margin-bottom: 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-        
-        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; border-radius: 6px;}
-        .items-container.list-view .item:hover { background: #f8fafc; }
-        .items-container.list-view .item-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-        .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; padding: 5px 0;}
-        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s, box-shadow 0.2s;}
-        .items-container.grid-view .item:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-color: #cbd5e1;}
-        .items-container.grid-view .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; justify-content: flex-end;}
-
-        .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .qb-table th { background: #f8fafc; padding: 12px; font-size: 12px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer; position: sticky; top: 0;}
-        .qb-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
-        .qb-btn { border-radius: 4px; color: white; cursor: pointer; border: none; padding: 4px 8px; font-size: 12px; min-width: 24px; margin-right: 4px;}
-        
-        .form-input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; transition: all 0.2s; box-sizing: border-box; }
-        .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-        .pro-form-group { margin-bottom: 15px; }
-        .pro-form-group label { display: block; font-weight: bold; margin-bottom: 8px; color: #334155; font-size: 14px;}
-        
-        /* 其他修正样式 */
+        .stat-card { border: none; }
+        .stat-value { font-size: 24px; font-weight: 900; }
+        .stat-label { font-size: 13px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+        .node-card { transition: all 0.3s; margin-bottom: 15px; border-radius: 10px; }
+        .node-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #3b82f6; }
+        .sys-data-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #475569; }
+        .mb-3 { margin-bottom: 15px; }
         .el-collapse-item__header { font-size: 16px; font-weight: bold; color: #1e293b; padding: 0 20px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0;}
         .el-collapse-item__wrap { border-bottom: none; }
         .el-collapse { border-top: none; border-bottom: none; }
         .custom-card { border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; border: none; }
         .card-header { font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .mb-3 { margin-bottom: 15px; }
         .el-table { font-size: 13px; }
-        
-        @media (max-width: 768px) { .dashboard-stats { flex-direction: column; } .node-matrix { grid-template-columns: 1fr; } }
+        .qb-table-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .qb-btn-group .el-button { padding: 5px 10px; }
     </style>
 </head>
 <body>
@@ -104,23 +49,17 @@
 
         <div v-if="!isLoggedIn" class="login-wrapper">
             <div class="login-card">
-                <div class="login-title"><el-icon color="#b91c1c" style="margin-right:8px;"><Platform /></el-icon> Cluster Helper</div>
+                <div class="login-title"><el-icon color="#b91c1c"><Platform /></el-icon> Cluster Helper</div>
                 <div class="login-subtitle">Distributed Nodes Management Pro</div>
-                
                 <el-form @submit.prevent="handleLogin" :model="loginForm">
                     <el-form-item>
-                        <el-input v-model="loginForm.username" placeholder="账号" size="large">
-                            <template #prefix><el-icon><User /></el-icon></template>
-                        </el-input>
+                        <el-input v-model="loginForm.username" placeholder="账号" prefix-icon="User" size="large"></el-input>
                     </el-form-item>
                     <el-form-item style="margin-bottom: 30px;">
-                        <el-input v-model="loginForm.password" type="password" placeholder="密码" size="large" show-password @keyup.enter="handleLogin">
-                            <template #prefix><el-icon><Lock /></el-icon></template>
-                        </el-input>
+                        <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password></el-input>
                     </el-form-item>
                     <el-button type="danger" native-type="submit" class="login-btn" :loading="loginLoading">Sign In</el-button>
                 </el-form>
-
                 <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
                     <span style="font-size: 12px; color: #cbd5e1;">OR</span>
                 </div>
@@ -132,7 +71,7 @@
             <div class="dashboard-header">
                 <h1 class="dashboard-title"><el-icon color="#3b82f6"><Odometer /></el-icon> 分布式集群控制台</h1>
                 <div>
-                    <el-button type="warning" plain @click="showOtaNotice" icon="Refresh">引擎 OTA</el-button>
+                    <el-button type="warning" plain @click="triggerOtaUpdate" icon="Refresh">引擎 OTA 同步</el-button>
                     <el-button type="info" plain @click="handleLogout" icon="SwitchButton" style="margin-left: 10px;">退出</el-button>
                 </div>
             </div>
@@ -339,8 +278,10 @@
                                     <el-tag size="small" effect="dark" class="mr-2" style="margin-right:8px;">{{ folders.length }}</el-tag> <strong>节点: {{ nodeName }}</strong>
                                 </template>
                                 
-                                <el-table v-if="viewMode === 'list'" :data="folders" style="width: 100%" @selection-change="handleFolderSelection" :row-key="row => row.nodeUrl+'|'+row.name" border stripe>
-                                    <el-table-column type="selection" width="55" :selectable="row => !row.ready" align="center"></el-table-column>
+                                <el-table v-if="viewMode === 'list'" :data="folders" style="width: 100%" border stripe>
+                                    <el-table-column width="55" align="center">
+                                        <template #default="scope"><el-checkbox v-model="scope.row._selected" :disabled="scope.row.ready"></el-checkbox></template>
+                                    </el-table-column>
                                     <el-table-column prop="name" label="目录名称" min-width="300" show-overflow-tooltip>
                                         <template #default="scope"><strong>{{ scope.row.name }}</strong></template>
                                     </el-table-column>
@@ -360,7 +301,7 @@
                                     <el-col :span="6" :xs="24" :sm="12" v-for="f in folders" :key="f.nodeUrl+'|'+f.name" class="mb-3">
                                         <el-card shadow="hover" :body-style="{ padding: '15px' }" style="height: 100%; display: flex; flex-direction: column;">
                                             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                                <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection(f)"></el-checkbox>
+                                                <el-checkbox v-model="f._selected" :disabled="f.ready"></el-checkbox>
                                                 <el-tag :type="f.ready ? 'success' : 'warning'" size="small">{{ f.status }}</el-tag>
                                             </div>
                                             <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; flex-grow: 1;">{{ f.name }}</div>
@@ -442,6 +383,7 @@
                     loginForm.password = ''; ElMessage.info("已安全退出");
                 };
 
+                // 【核心拦截器】
                 const apiPost = async (url, body) => {
                     const token = localStorage.getItem('auth_token');
                     const res = await fetch(url, {
@@ -461,4 +403,296 @@
                 const currentFolders = ref([]);
                 const nodeStats = reactive({}); 
                 
-                const onlineNodesCount = computed(() => clusterNodes.value.filter(n => n.status === 'online').length
+                const onlineNodesCount = computed(() => clusterNodes.value.filter(n => n.status === 'online').length);
+                const readyFoldersCount = computed(() => currentFolders.value.filter(f => f.ready).length);
+                const pendingFoldersCount = computed(() => currentFolders.value.length - readyFoldersCount.value);
+
+                // ================= 节点管理 =================
+                const newNode = reactive({ ip: '', name: '' });
+                
+                // ================= qB 控制台 =================
+                const qbConfig = reactive({ nodeUrl: '', url: '', user: '', pwd: '' });
+                const qbConnected = ref(false);
+                const qbLoading = ref(false);
+                const qbTorrentsData = ref([]);
+                const qbSelectedHashes = ref([]);
+                let qbTimer = null;
+
+                // ================= 工厂参数 =================
+                const factoryConfig = reactive({ folder: '', tracker: localStorage.getItem('saved_tracker') || '', piece: '', layout: 'auto', saveTracker: !!localStorage.getItem('saved_tracker') });
+                
+                // ================= 监控大盘 =================
+                const viewMode = ref(localStorage.getItem('vue_view') || 'list');
+                watch(viewMode, (val) => localStorage.setItem('vue_view', val));
+                const activeNodesCollapse = ref([]);
+                
+                const groupedFolders = computed(() => {
+                    let groups = {};
+                    currentFolders.value.forEach(f => {
+                        if(!f) return;
+                        if(!groups[f.nodeName]) groups[f.nodeName] = [];
+                        groups[f.nodeName].push(f);
+                    });
+                    return groups;
+                });
+                
+                const selectedFolders = computed(() => currentFolders.value.filter(f => f._selected));
+
+                // ================= 详情弹窗 =================
+                const detailVisible = ref(false);
+                const activeDetail = reactive({ nodeUrl: '', name: '', nodeName: '', imgUrl: '', info: '' });
+
+                // ================= 工具函数 =================
+                const formatBytes = (bytes) => {
+                    if (bytes === 0 || !bytes || isNaN(bytes)) return '0 B';
+                    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                };
+                const formatDate = (timestamp) => {
+                    if (!timestamp) return '-'; const d = new Date(timestamp * 1000);
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                };
+                const customColors = [ { color: '#3b82f6', percentage: 60 }, { color: '#f59e0b', percentage: 80 }, { color: '#ef4444', percentage: 100 } ];
+
+                // ================= 核心网络请求 =================
+                const syncNodesToBackend = async (nodes) => { try { await apiPost('/api/nodes', nodes); } catch (e) {} };
+                const initNodes = async () => {
+                    const origin = window.location.origin; let saved = [];
+                    try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
+                    clusterNodes.value = [{ url: origin, name: "本机主控台", status: "online" }];
+                    saved.forEach(n => { if (n.url !== origin && !clusterNodes.value.find(c => c.url === n.url)) clusterNodes.value.push({ ...n, status: "online" }); });
+                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name); 
+                };
+                
+                const addNode = () => {
+                    let { ip, name } = newNode;
+                    if(!ip) return ElMessage.warning("请输入 API 地址");
+                    if(!ip.startsWith('http')) ip = 'http://' + ip; if(ip.endsWith('/')) ip = ip.slice(0, -1);
+                    if(!name) { try { name = new URL(ip).host; } catch(e) { name = ip; } }
+                    if(!clusterNodes.value.find(n => n.url === ip)) {
+                        let saved = clusterNodes.value.filter((_, i) => i !== 0).map(n => ({ url: n.url, name: n.name }));
+                        saved.push({ url: ip, name }); syncNodesToBackend(saved);
+                        newNode.ip = ''; newNode.name = ''; initNodes().then(()=>{ fetchAllNodesFolders(); fetchSysInfo(); });
+                        ElMessage.success("节点添加成功");
+                    } else ElMessage.error("节点 IP 已存在");
+                };
+                const removeNode = (url) => {
+                    ElMessageBox.confirm('确定要移除此节点吗？', '提示', { type: 'warning' }).then(() => {
+                        syncNodesToBackend(clusterNodes.value.filter((n, i) => i !== 0 && n.url !== url).map(n => ({ url: n.url, name: n.name })));
+                        initNodes().then(() => fetchAllNodesFolders()); ElMessage.success("节点已移除");
+                    }).catch(()=>{});
+                };
+                const editNodeName = (node) => {
+                    ElMessageBox.prompt('请输入新备注名', '修改名称', { inputValue: node.name }).then(({ value }) => {
+                        if(value.trim()) {
+                            node.name = value.trim();
+                            syncNodesToBackend(clusterNodes.value.filter((_, i) => i !== 0).map(n => ({ url: n.url, name: n.name })));
+                            ElMessage.success("名称已更新");
+                        }
+                    }).catch(()=>{});
+                };
+
+                const fetchSysInfo = () => {
+                    if (!activeModules.value.includes('fleet') || !isLoggedIn.value) return;
+                    clusterNodes.value.forEach(async (n) => {
+                        if (n.status === 'offline') return;
+                        try {
+                            const res = await fetch(`${n.url}/api/sysinfo`), cur = await res.json();
+                            if (cur.error) return;
+                            let prev = nodeStats[n.url];
+                            if (prev && cur.timestamp > prev.timestamp) {
+                                let tDiff = cur.timestamp - prev.timestamp;
+                                cur.cpuPct = Number(Math.max(0, Math.min(100, ((cur.cpu_total - prev.cpu_total) - (cur.cpu_idle - prev.cpu_idle)) / (cur.cpu_total - prev.cpu_total) * 100)).toFixed(1));
+                                cur.memPct = Number(((cur.mem_used / cur.mem_total) * 100).toFixed(1));
+                                cur.diskPct = cur.disk_total > 0 ? Number(((cur.disk_used / cur.disk_total) * 100).toFixed(1)) : 0;
+                                cur.txSpeed = Math.max(0, (cur.net_tx - prev.net_tx) / tDiff);
+                                cur.rxSpeed = Math.max(0, (cur.net_rx - prev.net_rx) / tDiff);
+                            } else { cur.cpuPct = 0; cur.memPct = 0; cur.diskPct = 0; cur.txSpeed = 0; cur.rxSpeed = 0; }
+                            nodeStats[n.url] = cur; 
+                        } catch (e) {}
+                    });
+                };
+
+                const fetchAllNodesFolders = async () => {
+                    if (!isLoggedIn.value) return;
+                    let tempFolders = [];
+                    const promises = clusterNodes.value.map(async (n) => {
+                        try {
+                            const res = await fetch(`${n.url}/api/folders`), data = await res.json();
+                            n.status = 'online'; return data.folders.map(f => ({ ...f, nodeUrl: n.url, nodeName: n.name, _selected: false }));
+                        } catch (e) { n.status = 'offline'; return []; }
+                    });
+                    const results = await Promise.all(promises);
+                    results.forEach(r => tempFolders = tempFolders.concat(r));
+                    tempFolders.sort((a, b) => (a.ready === b.ready ? b.mtime - a.mtime : (a.ready ? 1 : -1)));
+                    
+                    const currentSelections = selectedFolders.value.map(f=>f.nodeUrl+'|'+f.name);
+                    tempFolders.forEach(f => { if(currentSelections.includes(f.nodeUrl+'|'+f.name)) f._selected = true; });
+                    currentFolders.value = tempFolders;
+                };
+
+                // ================= qB 交互方法 =================
+                const loadQbConfig = () => {
+                    const url = qbConfig.nodeUrl; if (!url) return;
+                    let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
+                    qbConfig.url = cfg.url || ''; qbConfig.user = cfg.user || ''; qbConfig.pwd = cfg.pwd || '';
+                    clearInterval(qbTimer); qbConnected.value = false; qbSelectedHashes.value = [];
+                };
+                const connectQb = async () => {
+                    if (!qbConfig.nodeUrl || !qbConfig.url) return ElMessage.warning("请选择节点并填写地址");
+                    let cfgs = JSON.parse(localStorage.getItem('qb_configs')) || {};
+                    cfgs[qbConfig.nodeUrl] = { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd };
+                    localStorage.setItem('qb_configs', JSON.stringify(cfgs));
+                    qbLoading.value = true; await fetchQbData(true); qbLoading.value = false;
+                    if(qbConnected.value) { if(qbTimer) clearInterval(qbTimer); qbTimer = setInterval(() => fetchQbData(false), 3000); }
+                };
+                const fetchQbData = async (isManual = false) => {
+                    if (!activeModules.value.includes('qb') || !isLoggedIn.value) return;
+                    try {
+                        const res = await apiPost(`${qbConfig.nodeUrl}/api/qbittorrent`, { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action: 'list' });
+                        const data = await res.json();
+                        if (data.error) { if(isManual) ElMessage.error(data.error); qbConnected.value = false; clearInterval(qbTimer); return; }
+                        qbTorrentsData.value = data; qbConnected.value = true;
+                        if(isManual) ElMessage.success("qBittorrent 连接成功");
+                    } catch (e) { if(isManual) ElMessage.error("宿主机响应超时或拒绝访问"); qbConnected.value = false; clearInterval(qbTimer); }
+                };
+                const getQbStateTag = (state) => { const m = { 'downloading':'', 'uploading':'success', 'pausedDL':'warning', 'pausedUP':'warning', 'error':'danger' }; return m[state] || 'info'; };
+                const getQbStateText = (state) => { const m = { 'downloading':'下载中', 'uploading':'做种中', 'stalledDL':'等待下载', 'stalledUP':'做种空闲', 'pausedDL':'已暂停', 'pausedUP':'已暂停', 'checkingDL':'校验中', 'error':'错误', 'missingFiles':'文件丢失' }; return m[state] || state; };
+                const getQbStateColor = (state) => { const m = { 'downloading':'#3b82f6', 'uploading':'#10b981', 'pausedDL':'#f59e0b', 'pausedUP':'#f59e0b', 'error':'#ef4444' }; return m[state] || '#94a3b8'; };
+                
+                const handleQbSelection = (val) => { qbSelectedHashes.value = val.map(t => t.hash); };
+                
+                const qbAction = async (hash, action) => {
+                    await apiPost(`${qbConfig.nodeUrl}/api/qbittorrent`, { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action, hashes: hash });
+                    fetchQbData();
+                };
+                const qbBatchAction = async (action) => {
+                    if (qbSelectedHashes.value.length === 0) return;
+                    await apiPost(`${qbConfig.nodeUrl}/api/qbittorrent`, { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action, hashes: qbSelectedHashes.value.join('|') });
+                    fetchQbData(); ElMessage.success("批量指令下发成功");
+                };
+                const qbDelete = (row) => {
+                    ElMessageBox.confirm(`确定删除任务 [${row.name}]?`, '警告', { type: 'warning', confirmButtonText: '仅删任务', cancelButtonText: '粉碎所有文件', distinguishCancelAndClose: true })
+                    .then(async () => { await executeQbDel(row.hash, row.name, false); })
+                    .catch(async (action) => { if(action==='cancel') await executeQbDel(row.hash, row.name, true); });
+                };
+                const qbBatchDelete = () => {
+                    if (qbSelectedHashes.value.length === 0) return;
+                    const names = qbSelectedHashes.value.map(h => qbTorrentsData.value.find(t=>t.hash===h)?.name||"").filter(x=>x);
+                    ElMessageBox.confirm(`确定批量删除 ${qbSelectedHashes.value.length} 个任务?`, '批量警告', { type: 'warning', confirmButtonText: '仅删任务', cancelButtonText: '粉碎所有文件', distinguishCancelAndClose: true })
+                    .then(async () => { await executeQbDel(qbSelectedHashes.value.join('|'), names.join('|'), false); })
+                    .catch(async (action) => { if(action==='cancel') await executeQbDel(qbSelectedHashes.value.join('|'), names.join('|'), true); });
+                };
+                const executeQbDel = async (hashes, names, delFiles) => {
+                    await apiPost(`${qbConfig.nodeUrl}/api/qbittorrent`, { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd, action: 'delete', hashes, delete_files: delFiles, name: names });
+                    fetchQbData(); ElMessage.success("删除成功");
+                };
+
+                // ================= 工厂与监控逻辑 =================
+                const fillProForm = (row) => {
+                    factoryConfig.folder = `${row.nodeUrl}|${row.name}`;
+                    if (!activeModules.value.includes('factory')) activeModules.value.push('factory');
+                    setTimeout(() => { const el = document.getElementById("pro-folder"); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+                };
+                const submitProTask = async () => {
+                    if (!factoryConfig.folder) return ElMessage.warning("请选择目标目录");
+                    const [url, folder] = factoryConfig.folder.split('|');
+                    if (factoryConfig.saveTracker && factoryConfig.tracker) localStorage.setItem("saved_tracker", factoryConfig.tracker); else localStorage.removeItem("saved_tracker");
+                    await apiPost(`${url}/api/run/folder`, { folder, tracker: factoryConfig.tracker, piece_size: factoryConfig.piece, layout: factoryConfig.layout });
+                    ElMessage.success(`指令已下发至: ${folder}`); fetchAllNodesFolders();
+                };
+                const triggerTaskAllNodes = async (mode) => {
+                    ElMessageBox.confirm('这会让所有节点并发扫描全部目录，产生高负载，确定执行？', '高危操作确认', { type: 'warning' }).then(() => {
+                        clusterNodes.value.forEach(n => { if (n.status !== 'offline') apiPost(`${n.url}/api/run/${mode}`, { folder: "" }); });
+                        ElMessage.success('全盘扫描指令已下发至全网节点'); setTimeout(fetchAllNodesFolders, 2000);
+                    }).catch(()=>{});
+                };
+
+                const selectAllPending = () => {
+                    currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; });
+                    ElMessage.success("已勾选所有待处理任务");
+                };
+                const triggerBatch = async () => {
+                    let targets = selectedFolders.value;
+                    if (targets.length === 0) return ElMessage.warning("请先在列表中勾选需要处理的文件夹");
+                    let batches = {}; targets.forEach(f => { if (!batches[f.nodeUrl]) batches[f.nodeUrl] = []; batches[f.nodeUrl].push(f.name); });
+                    for (const [u, fds] of Object.entries(batches)) { apiPost(`${u}/api/run_batch`, { folders: fds }); }
+                    ElMessage.success(`已将 ${targets.length} 个任务分配给物理机排队`); setTimeout(fetchAllNodesFolders, 2000);
+                };
+
+                // ================= 详情弹窗与系统 =================
+                const openDetailView = (row) => {
+                    activeDetail.nodeUrl = row.nodeUrl; activeDetail.name = row.name; activeDetail.nodeName = row.nodeName;
+                    activeDetail.imgUrl = `${row.nodeUrl}/api/files/${encodeURIComponent(row.name)}/image?t=${new Date().getTime()}`;
+                    activeDetail.info = "跨节点读取中..."; detailVisible.value = true;
+                    fetch(`${row.nodeUrl}/api/preview/mediainfo/${encodeURIComponent(row.name)}`).then(r => r.text()).then(t => activeDetail.info = t).catch(() => activeDetail.info = "读取失败，物理节点可能离线");
+                };
+                const downloadFile = (type) => { if (activeDetail.nodeUrl) window.open(`${activeDetail.nodeUrl}/api/files/${encodeURIComponent(activeDetail.name)}/${type}`, '_blank'); };
+                const closeDetailView = () => { detailVisible.value = false; };
+                
+                // 【核心解封】：恢复 OTA 下发能力，并加入权限验证
+                const triggerOtaUpdate = () => {
+                    ElMessageBox.confirm('确定要向全网节点下发 OTA 闪刷指令吗？<br><br><span style="color:#64748b;font-size:12px;">后端将自动跳过 docker-compose.yml，精准拉取核心代码并重启容器，彻底告别 SSH！</span>', 'OTA 全网同步', { type: 'warning', dangerouslyUseHTMLString: true }).then(async () => {
+                        const loading = ElMessage({ message: '正在向集群下发 OTA 指令，请稍候...', type: 'info', duration: 0 });
+                        
+                        let promises = clusterNodes.value.map(async (node) => {
+                            if(node.status === 'offline') return `<b>[${node.name}]</b>: <span style="color:#ef4444">❌ 节点已离线</span>`;
+                            try {
+                                const res = await apiPost(`${node.url}/api/update`, {});
+                                const data = await res.json();
+                                if(data.message && data.message.includes('Error')) return `<b>[${node.name}]</b>: <span style="color:#ef4444">❌ 更新失败</span>`;
+                                return `<b>[${node.name}]</b>: <span style="color:#10b981">✅ 覆盖成功 (正在重启)</span>`;
+                            } catch(e) {
+                                // 因为后端执行了 os._exit(0)，会导致 apiPost 抛出网络异常，但这正是成功的标志！
+                                return `<b>[${node.name}]</b>: <span style="color:#10b981">✅ 覆盖成功 (服务重启中)</span>`;
+                            }
+                        });
+                        
+                        let results = await Promise.all(promises);
+                        loading.close();
+                        ElMessageBox.alert(results.join('<br>') + '<br><br><b>请等待 3 秒后手动按 F5 刷新本网页！</b>', '集群 OTA 闪刷结果', { dangerouslyUseHTMLString: true });
+                    }).catch(()=>{});
+                };
+                
+                // 为了向下兼容，把 `showOtaNotice` 绑定到真正的 `triggerOtaUpdate`
+                const showOtaNotice = triggerOtaUpdate;
+
+                const initAllData = async () => {
+                    if(!isLoggedIn.value) return;
+                    await initNodes(); fetchAllNodesFolders();
+                };
+
+                let intervalSys = null, intervalFolder = null;
+
+                onMounted(() => {
+                    if (isLoggedIn.value) { initAllData(); }
+                    intervalSys = setInterval(fetchSysInfo, 2000); 
+                    intervalFolder = setInterval(fetchAllNodesFolders, 10000);
+                });
+                
+                onUnmounted(() => { 
+                    if (qbTimer) clearInterval(qbTimer); 
+                    if(intervalSys) clearInterval(intervalSys); 
+                    if(intervalFolder) clearInterval(intervalFolder);
+                });
+
+                return {
+                    isLoggedIn, loginForm, loginLoading, handleLogin, handleLogout,
+                    activeModules, clusterNodes, currentFolders, nodeStats, newNode, onlineNodesCount, readyFoldersCount, pendingFoldersCount, 
+                    addNode, removeNode, editNodeName,
+                    qbConfig, qbConnected, qbLoading, qbTorrentsData, qbSelectedHashes, loadQbConfig, connectQb, handleQbSelection, qbAction, qbBatchAction, qbDelete, qbBatchDelete,
+                    getQbStateTag, getQbStateText, getQbStateColor,
+                    factoryConfig, fillProForm, submitProTask, triggerTaskAllNodes,
+                    viewMode, switchViewMode, activeNodesCollapse, groupedFolders, selectAllPending, triggerBatch,
+                    detailVisible, activeDetail, openDetailView, closeDetailView, downloadFile, showOtaNotice, triggerOtaUpdate, formatBytes, formatDate, customColors,
+                };
+            }
+        });
+        
+        // 全局注册 Element Plus 图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+        app.mount('#app');
+    </script>
+</body>
+</html>
