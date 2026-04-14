@@ -21,20 +21,20 @@
         .node-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #3b82f6; }
         .sys-data-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #475569; }
         .mb-3 { margin-bottom: 15px; }
-        .mt-3 { margin-top: 15px; }
-        /* 覆盖 Element Plus 的一些默认样式以适配我们的主题 */
         .el-collapse-item__header { font-size: 16px; font-weight: bold; color: #1e293b; padding: 0 20px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0;}
         .el-collapse-item__wrap { border-bottom: none; }
         .el-collapse { border-top: none; border-bottom: none; }
         .custom-card { border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; border: none; }
         .card-header { font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        /* 修复 Element 表格单元格字体 */
+        .el-table { font-size: 13px; }
     </style>
 </head>
 <body>
     <div id="app">
         <div class="dashboard-header">
             <h1 class="dashboard-title"><el-icon color="#3b82f6"><Odometer /></el-icon> 分布式集群控制台</h1>
-            <el-button type="warning" plain @click="showOtaNotice" :icon="Refresh">引擎 OTA 同步</el-button>
+            <el-button type="warning" plain @click="showOtaNotice" icon="Refresh">引擎 OTA 同步</el-button>
         </div>
 
         <el-row :gutter="20" class="mb-3">
@@ -49,8 +49,8 @@
                 <template #title><el-icon class="mr-2"><Monitor /></el-icon> 节点管理与硬件探针</template>
                 <el-card class="custom-card" shadow="never">
                     <el-row :gutter="15" class="mb-3">
-                        <el-col :span="10" :xs="24" class="mb-3"><el-input v-model="newNode.ip" placeholder="API 地址 (例: http://192.168.1.10:8080)" prefix-icon="Link" clearable></el-input></el-col>
-                        <el-col :span="8" :xs="24" class="mb-3"><el-input v-model="newNode.name" placeholder="备注名 (选填)" prefix-icon="Edit" clearable></el-input></el-col>
+                        <el-col :span="10" :xs="24" class="mb-3"><el-input v-model="newNode.ip" placeholder="API 地址 (例: http://192.168.1.10:8080)" clearable></el-input></el-col>
+                        <el-col :span="8" :xs="24" class="mb-3"><el-input v-model="newNode.name" placeholder="备注名 (选填)" clearable></el-input></el-col>
                         <el-col :span="6" :xs="24"><el-button type="primary" @click="addNode" style="width: 100%;">添加节点</el-button></el-col>
                     </el-row>
                     
@@ -127,7 +127,7 @@
                             <template #default="scope"><span :style="{color: scope.row.upspeed > 0 ? '#3b82f6' : '#94a3b8', fontFamily: 'monospace'}">{{ formatBytes(scope.row.upspeed) }}/s</span></template>
                         </el-table-column>
                         <el-table-column prop="ratio" label="分享率" sortable width="100">
-                            <template #default="scope"><strong style="color:#0ea5e9">{{ scope.row.ratio === -1 ? '∞' : scope.row.ratio.toFixed(2) }}</strong></template>
+                            <template #default="scope"><strong style="color:#0ea5e9">{{ scope.row.ratio === -1 ? '∞' : (scope.row.ratio || 0).toFixed(2) }}</strong></template>
                         </el-table-column>
                         <el-table-column prop="added_on" label="添加于" sortable width="140">
                             <template #default="scope"><span style="font-size:12px; color:#64748b;">{{ formatDate(scope.row.added_on) }}</span></template>
@@ -135,8 +135,8 @@
                         <el-table-column label="操作" width="130" fixed="right" align="center">
                             <template #default="scope">
                                 <el-button-group>
-                                    <el-button v-if="scope.row.state.includes('paused')" type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
-                                    <el-button v-else type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
+                                    <el-button type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
+                                    <el-button type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
                                     <el-button type="danger" size="small" icon="Delete" @click="qbDelete(scope.row)"></el-button>
                                 </el-button-group>
                             </template>
@@ -156,7 +156,7 @@
                     </template>
                     <el-form label-position="top">
                         <el-form-item label="1. 目标目录 (已聚合全网节点)">
-                            <el-select v-model="factoryConfig.folder" placeholder="请选择需要制作的目录" style="width: 100%;" filterable>
+                            <el-select v-model="factoryConfig.folder" id="pro-folder" placeholder="请选择需要制作的目录" style="width: 100%;" filterable>
                                 <el-option v-for="f in currentFolders" :key="f.nodeUrl+'|'+f.name" :label="`[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})`" :value="f.nodeUrl+'|'+f.name"></el-option>
                             </select>
                         </el-form-item>
@@ -196,10 +196,10 @@
                 <template #title><el-icon class="mr-2" color="#10b981"><FolderOpened /></el-icon> <span style="color:#047857;">全网成品目录监控</span></template>
                 <el-card class="custom-card" shadow="never">
                     <template #header>
-                        <div class="card-header">
+                        <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
                             <el-radio-group v-model="viewMode" size="small">
-                                <el-radio-button label="list" icon="List">列表视图</el-radio-button>
-                                <el-radio-button label="grid" icon="Grid">网格视图</el-radio-button>
+                                <el-radio-button label="list">列表视图</el-radio-button>
+                                <el-radio-button label="grid">网格视图</el-radio-button>
                             </el-radio-group>
                             <div>
                                 <el-button type="info" plain size="small" @click="selectAllPending">☑️ 全选待处理</button>
@@ -224,24 +224,24 @@
                                 </el-table-column>
                                 <el-table-column label="操作" width="220" align="right">
                                     <template #default="scope">
-                                        <el-button v-if="scope.row.ready" type="primary" plain size="small" @click="openDetailView(scope.row)" icon="View">查看结果</el-button>
-                                        <el-button v-if="scope.row.ready" type="info" plain size="small" @click="fillProForm(scope.row)" icon="Edit">定制重做</el-button>
-                                        <el-button v-if="!scope.row.ready" type="primary" size="small" @click="fillProForm(scope.row)" icon="Upload">装载至工厂</el-button>
+                                        <el-button v-if="scope.row.ready" type="success" plain size="small" @click="openDetailView(scope.row)" icon="View">查看</el-button>
+                                        <el-button v-if="scope.row.ready" type="info" plain size="small" @click="fillProForm(scope.row)" icon="Edit">重做</el-button>
+                                        <el-button v-if="!scope.row.ready" type="primary" size="small" @click="fillProForm(scope.row)" icon="Upload">装载</el-button>
                                     </template>
                                 </el-table-column>
                             </el-table>
                             
                             <el-row v-else :gutter="15">
                                 <el-col :span="6" :xs="24" :sm="12" v-for="f in folders" :key="f.nodeUrl+'|'+f.name" class="mb-3">
-                                    <el-card shadow="hover" :body-style="{ padding: '15px' }">
+                                    <el-card shadow="hover" :body-style="{ padding: '15px' }" style="height: 100%; display: flex; flex-direction: column;">
                                         <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                            <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection(f)"></el-checkbox>
+                                            <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection"></el-checkbox>
                                             <el-tag :type="f.ready ? 'success' : 'warning'" size="small">{{ f.status }}</el-tag>
                                         </div>
-                                        <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; min-height:40px;">{{ f.name }}</div>
-                                        <div style="display:flex; justify-content:flex-end; gap:5px;">
+                                        <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; flex-grow: 1;">{{ f.name }}</div>
+                                        <div style="display:flex; justify-content:flex-end; gap:5px; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
                                             <template v-if="f.ready">
-                                                <el-button type="primary" plain size="small" @click="openDetailView(f)">查看</el-button>
+                                                <el-button type="success" plain size="small" @click="openDetailView(f)">查看</el-button>
                                                 <el-button type="info" plain size="small" @click="fillProForm(f)">重做</el-button>
                                             </template>
                                             <el-button v-else type="primary" size="small" @click="fillProForm(f)">装载</el-button>
@@ -249,10 +249,8 @@
                                     </el-card>
                                 </el-col>
                             </el-row>
-
                         </el-collapse-item>
                     </el-collapse>
-
                 </el-card>
             </el-collapse-item>
         </el-collapse>
@@ -320,7 +318,7 @@
                 const viewMode = ref(localStorage.getItem('vue_view') || 'list');
                 watch(viewMode, (val) => localStorage.setItem('vue_view', val));
                 const activeNodesCollapse = ref([]);
-                const selectedFolders = ref([]); // 列表视图的多选
+                const selectedFolders = ref([]); 
                 
                 const groupedFolders = computed(() => {
                     let groups = {};
@@ -354,7 +352,7 @@
                     try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
                     clusterNodes.value = [{ url: origin, name: "本机主控台", status: "online" }];
                     saved.forEach(n => { if (n.url !== origin && !clusterNodes.value.find(c => c.url === n.url)) clusterNodes.value.push({ ...n, status: "online" }); });
-                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name); // 默认展开所有分组
+                    activeNodesCollapse.value = clusterNodes.value.map(n => n.name);
                 };
                 const addNode = () => {
                     let { ip, name } = newNode;
@@ -420,19 +418,18 @@
                     results.forEach(r => tempFolders = tempFolders.concat(r));
                     tempFolders.sort((a, b) => (a.ready === b.ready ? b.mtime - a.mtime : (a.ready ? 1 : -1)));
                     
-                    // 保持网格视图的勾选状态
                     const gridSelections = currentFolders.value.filter(f=>f._selected).map(f=>f.nodeUrl+'|'+f.name);
                     tempFolders.forEach(f => { if(gridSelections.includes(f.nodeUrl+'|'+f.name)) f._selected = true; });
                     
                     currentFolders.value = tempFolders;
                 };
 
-                // qBittorrent 逻辑重构 (使用 Element Table native)
+                // qBittorrent 逻辑重构 (完全由 Vue 和 Element Plus 驱动)
                 const loadQbConfig = () => {
                     const url = qbConfig.nodeUrl; if (!url) return;
                     let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
                     qbConfig.url = cfg.url || ''; qbConfig.user = cfg.user || ''; qbConfig.pwd = cfg.pwd || '';
-                    clearInterval(qbTimer); qbConnected.value = false;
+                    clearInterval(qbTimer); qbConnected.value = false; qbSelectedHashes.value = [];
                 };
                 const connectQb = async () => {
                     if (!qbConfig.nodeUrl || !qbConfig.url) return ElMessage.warning("请选择节点并填写地址");
@@ -440,7 +437,7 @@
                     cfgs[qbConfig.nodeUrl] = { url: qbConfig.url, user: qbConfig.user, pwd: qbConfig.pwd };
                     localStorage.setItem('qb_configs', JSON.stringify(cfgs));
                     qbLoading.value = true; await fetchQbData(true); qbLoading.value = false;
-                    if(qbConnected.value) { if(qbTimer) clearInterval(qbTimer); qbTimer = setInterval(fetchQbData, 3000); }
+                    if(qbConnected.value) { if(qbTimer) clearInterval(qbTimer); qbTimer = setInterval(() => fetchQbData(false), 3000); }
                 };
                 const fetchQbData = async (isManual = false) => {
                     if (!activeModules.value.includes('qb')) return;
@@ -487,7 +484,7 @@
                 const fillProForm = (row) => {
                     factoryConfig.folder = `${row.nodeUrl}|${row.name}`;
                     if (!activeModules.value.includes('factory')) activeModules.value.push('factory');
-                    setTimeout(() => document.getElementById("pro-folder").scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+                    setTimeout(() => { const el = document.getElementById("pro-folder"); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
                 };
                 const submitProTask = async () => {
                     if (!factoryConfig.folder) return ElMessage.warning("请选择目标目录");
@@ -505,26 +502,16 @@
 
                 // 监控列表批量操作
                 const handleFolderSelection = (val) => { selectedFolders.value = val; };
-                const syncGridSelection = (f) => {
-                    // 如果是网格模式，我们手动把选中的项推入 selectedFolders
-                    selectedFolders.value = currentFolders.value.filter(item => item._selected);
-                };
+                const syncGridSelection = () => { selectedFolders.value = currentFolders.value.filter(item => item._selected); };
                 const selectAllPending = () => {
-                    // 对于网格视图，手动打钩
-                    if(viewMode.value === 'grid') {
-                        currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; });
-                        syncGridSelection();
-                    } else {
-                        ElMessage.info("列表视图请使用表格左上角的全选框");
-                    }
+                    if(viewMode.value === 'grid') { currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; }); syncGridSelection(); } 
+                    else { ElMessage.info("列表视图请勾选表格左上角的全选框"); }
                 };
                 const triggerBatch = async () => {
                     let targets = viewMode.value === 'list' ? selectedFolders.value : currentFolders.value.filter(f => f._selected);
                     if (targets.length === 0) return ElMessage.warning("请先勾选需要处理的文件夹");
                     let batches = {}; targets.forEach(f => { if (!batches[f.nodeUrl]) batches[f.nodeUrl] = []; batches[f.nodeUrl].push(f.name); });
-                    for (const [u, fds] of Object.entries(batches)) {
-                        fetch(`${u}/api/run_batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folders: fds }) });
-                    }
+                    for (const [u, fds] of Object.entries(batches)) { fetch(`${u}/api/run_batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folders: fds }) }); }
                     ElMessage.success(`已将 ${targets.length} 个任务分配给物理机排队`); setTimeout(fetchAllNodesFolders, 2000);
                 };
 
@@ -536,17 +523,15 @@
                     fetch(`${row.nodeUrl}/api/preview/mediainfo/${encodeURIComponent(row.name)}`).then(r => r.text()).then(t => activeDetail.info = t).catch(() => activeDetail.info = "读取失败，物理节点可能离线");
                 };
                 const downloadFile = (type) => { if (activeDetail.nodeUrl) window.open(`${activeDetail.nodeUrl}/api/files/${encodeURIComponent(activeDetail.name)}/${type}`, '_blank'); };
+                const closeDetailView = () => { detailVisible.value = false; };
 
-                // OTA
+                // 防呆 OTA 提示
                 const showOtaNotice = () => {
-                    ElMessageBox.alert('由于本机网络映射架构冲突，前端防误触保护已拦截此 OTA 按钮。<br><br><b>请严格通过 SSH 执行命令进行热更新：</b><br><code>cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 终端热更新', { dangerouslyUseHTMLString: true });
+                    ElMessageBox.alert('此架构为安全防冲突版，网页按钮已拦截。<br><br><b>请通过 SSH 执行以下命令：</b><br><br><code style="background:#f1f5f9; padding:10px; display:block; border-radius:6px; user-select:all;">cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 终端热更新', { dangerouslyUseHTMLString: true });
                 };
 
                 // 生命周期
-                onMounted(async () => {
-                    await initNodes(); fetchAllNodesFolders();
-                    setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000);
-                });
+                onMounted(async () => { await initNodes(); fetchAllNodesFolders(); setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000); });
                 onUnmounted(() => { if (qbTimer) clearInterval(qbTimer); });
 
                 return {
@@ -556,13 +541,12 @@
                     getQbStateTag, getQbStateText, getQbStateColor,
                     factoryConfig, fillProForm, submitProTask, triggerTaskAllNodes,
                     viewMode, switchViewMode, activeNodesCollapse, groupedFolders, handleFolderSelection, syncGridSelection, selectAllPending, triggerBatch,
-                    detailVisible, activeDetail, openDetailView, downloadFile, showOtaNotice,
+                    detailVisible, activeDetail, openDetailView, closeDetailView, downloadFile, showOtaNotice,
                     formatBytes, formatDate, customColors
                 };
             }
         });
         
-        // 注册 Element Plus 所有图标
         for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
         app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
         app.mount('#app');
