@@ -9,6 +9,7 @@ import subprocess
 import os
 import time
 import json
+import shutil  # 【新增】用于获取磁盘空间
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
@@ -111,10 +112,20 @@ def sysinfo():
         traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
         traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
+        
+        # 【核心新增】：动态嗅探映射盘的真实物理空间
+        try:
+            disk_usage = shutil.disk_usage(BASE_DIR)
+            disk_total = disk_usage.total
+            disk_used = disk_usage.used
+            disk_free = disk_usage.free
+        except Exception:
+            disk_total, disk_used, disk_free = 0, 0, 0
 
         return {
             "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total,
             "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"],
+            "disk_total": disk_total, "disk_used": disk_used, "disk_free": disk_free,  # 向前端传出硬盘数据
             "timestamp": time.time()
         }
     except Exception as e: return {"error": str(e)}
@@ -153,19 +164,14 @@ def qbittorrent_proxy(req: dict):
             return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
-# ================= 【手术刀级】精准下发引擎 =================
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         if mode == "folder" and req.folder:
             folder_name = req.folder
-            # 1. 必删：截图和日志（因为重新生成很快）
             for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
                 p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
                 if os.path.exists(p): os.remove(p)
-            
-            # 2. 只有当用户确实修改了 Tracker 或 Piece Size 时，才删除种子文件
-            # 这样如果只改排版，种子文件还在，底层的 mktorrent 环节就会被秒过跳过
             if req.tracker or req.piece_size:
                 for ext in [".torrent", "_mediainfo.txt"]:
                     p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
@@ -182,6 +188,17 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
             subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
     background_tasks.add_task(execute_script)
     return {"message": "Task Started"}
+
+@app.post("/api/run_batch")
+def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
+    def execute_batch():
+        with open(LOG_FILE, "a") as f:
+            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
+            for folder in req.folders:
+                cmd = ["/bin/bash", "/app/pt_make_headless.sh", "--folder", folder]
+                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+    background_tasks.add_task(execute_batch)
+    return {"message": "批量任务已启动！"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
