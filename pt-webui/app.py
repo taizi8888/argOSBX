@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ import subprocess
 import os
 import time
 import json
-import shutil  # 【新增】用于获取磁盘空间
+import shutil
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
@@ -17,6 +17,7 @@ CONFIG_DIR = os.path.join(BASE_DIR, ".config")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
 TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
 LOG_FILE = os.path.join(CONFIG_DIR, "last_task.log")
+AUTH_FILE = os.path.join(CONFIG_DIR, "auth.json")
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
@@ -37,6 +38,33 @@ class RunRequest(BaseModel):
 class BatchRequest(BaseModel):
     folders: List[str]
 
+# ================= 安全鉴权逻辑 =================
+def get_auth_config():
+    if not os.path.exists(AUTH_FILE):
+        with open(AUTH_FILE, "w", encoding="utf-8") as f:
+            json.dump({"username": "admin", "password": "admin888"}, f, indent=2)
+    try:
+        with open(AUTH_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {"username": "admin", "password": "admin888"}
+
+def check_auth(request: Request):
+    auth_config = get_auth_config()
+    auth_header = request.headers.get("Authorization")
+    # 为了简单跨节点通信，我们采用 Bearer 密码 的方式作为 Token
+    expected_token = f"Bearer {auth_config.get('password')}"
+    if auth_header != expected_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+@app.post("/api/login")
+def login(req: dict):
+    auth_config = get_auth_config()
+    if req.get("username") == auth_config.get("username") and req.get("password") == auth_config.get("password"):
+        return {"status": "success", "token": auth_config.get("password")}
+    return {"error": "账号或密码错误"}
+
+# ================= 业务接口 =================
 @app.get("/")
 def index():
     return FileResponse("index.html")
@@ -50,7 +78,8 @@ def get_nodes():
     return []
 
 @app.post("/api/nodes")
-def save_nodes(nodes: List[Any]):
+def save_nodes(nodes: List[Any], request: Request):
+    check_auth(request) # 【安全拦截】
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(nodes, f, ensure_ascii=False, indent=2)
     return {"status": "success"}
@@ -113,25 +142,23 @@ def sysinfo():
         traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
         
-        # 【核心新增】：动态嗅探映射盘的真实物理空间
         try:
             disk_usage = shutil.disk_usage(BASE_DIR)
-            disk_total = disk_usage.total
-            disk_used = disk_usage.used
-            disk_free = disk_usage.free
+            disk_total = disk_usage.total; disk_used = disk_usage.used; disk_free = disk_usage.free
         except Exception:
             disk_total, disk_used, disk_free = 0, 0, 0
 
         return {
             "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total,
             "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"],
-            "disk_total": disk_total, "disk_used": disk_used, "disk_free": disk_free,  # 向前端传出硬盘数据
+            "disk_total": disk_total, "disk_used": disk_used, "disk_free": disk_free,
             "timestamp": time.time()
         }
     except Exception as e: return {"error": str(e)}
 
 @app.post("/api/qbittorrent")
-def qbittorrent_proxy(req: dict):
+def qbittorrent_proxy(req: dict, request: Request):
+    check_auth(request) # 【安全拦截】
     qb_url = req.get("url", "").rstrip("/"); action = req.get("action"); name = req.get("name", "")
     user = req.get("user", ""); pwd = req.get("pwd", "")
     if not qb_url: return {"error": "No QB URL"}
@@ -165,7 +192,8 @@ def qbittorrent_proxy(req: dict):
     except Exception as e: return {"error": str(e)}
 
 @app.post("/api/run/{mode}")
-def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
+def run_task(mode: str, req: RunRequest, request: Request, background_tasks: BackgroundTasks):
+    check_auth(request) # 【安全拦截】
     def execute_script():
         if mode == "folder" and req.folder:
             folder_name = req.folder
@@ -190,7 +218,8 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     return {"message": "Task Started"}
 
 @app.post("/api/run_batch")
-def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
+def run_batch(req: BatchRequest, request: Request, background_tasks: BackgroundTasks):
+    check_auth(request) # 【安全拦截】
     def execute_batch():
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
@@ -201,7 +230,8 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     return {"message": "批量任务已启动！"}
 
 @app.post("/api/update")
-def update_system(background_tasks: BackgroundTasks):
+def update_system(request: Request, background_tasks: BackgroundTasks):
+    check_auth(request) # 【安全拦截】
     try:
         base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
         for f_name in ["index.html", "pt_make_headless.sh", "app.py"]:
