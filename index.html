@@ -4,29 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PT 分布式集群控制台 Pro</title>
-    <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/element-plus/dist/index.css" />
-    <script src="https://fastly.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://fastly.jsdelivr.net/npm/element-plus/dist/index.full.min.js"></script>
-    <script src="https://fastly.jsdelivr.net/npm/element-plus/dist/locale/zh-cn.min.js"></script>
-    <script src="https://fastly.jsdelivr.net/npm/@element-plus/icons-vue"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
+    
     <style>
+        /* 防闪烁白屏隐身衣：在 Vue 启动成功前隐藏乱码 */
+        [v-cloak] { display: none !important; }
+        
         :root { --primary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; --bg: #f1f5f9; }
-        body { margin: 0; background-color: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #334155; }
-        #app { min-height: 100vh; }
+        body { margin: 0; background-color: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #334155; line-height: 1.5; }
         
         /* 登录界面 */
         .login-wrapper { height: 100vh; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%); position: relative; overflow: hidden; }
-        .login-card { width: 400px; background: rgba(255, 255, 255, 0.95); border-radius: 16px; padding: 50px 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: center; z-index: 10; backdrop-filter: blur(10px); }
-        .login-title { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; letter-spacing: -0.5px;}
+        .login-card { width: 400px; background: rgba(255, 255, 255, 0.95); border-radius: 16px; padding: 50px 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: center; backdrop-filter: blur(10px); }
+        .login-title { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; }
         .login-subtitle { font-size: 13px; color: #64748b; margin-bottom: 35px; font-weight: 500;}
-        .login-btn { margin-top: 15px; width: 100%; padding: 22px; font-size: 16px; font-weight: bold; border-radius: 8px; background: #b91c1c; border: none; box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3); transition: all 0.3s; }
+        .login-btn { margin-top: 15px; width: 100%; padding: 22px; font-size: 16px; font-weight: bold; border-radius: 8px; background: #b91c1c; border: none; color: white; transition: all 0.3s; cursor: pointer; }
         .login-btn:hover { background: #991b1b; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(185, 28, 28, 0.4); }
         .footer-text { position: absolute; bottom: 20px; color: rgba(255,255,255,0.7); font-size: 12px; }
 
-        /* 控制台样式 */
+        /* 控制台主框架 */
         .dashboard-wrapper { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .dashboard-title { font-size: 28px; font-weight: 900; color: #1e293b; display: flex; align-items: center; gap: 10px; margin: 0; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; border: 1px solid #e2e8f0; overflow: hidden; }
         .stat-card { border: none; }
         .stat-value { font-size: 24px; font-weight: 900; }
         .stat-label { font-size: 13px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
@@ -34,13 +39,14 @@
         .node-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #3b82f6; }
         .sys-data-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #475569; }
         .mb-3 { margin-bottom: 15px; }
+        
         .el-collapse-item__header { font-size: 16px; font-weight: bold; color: #1e293b; padding: 0 20px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0;}
         .el-collapse-item__wrap { border-bottom: none; }
         .el-collapse { border-top: none; border-bottom: none; }
         .custom-card { border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; border: none; }
         .card-header { font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .el-table { font-size: 13px; }
-        .qb-table-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        
+        .qb-table-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: auto; }
         .qb-btn-group .el-button { padding: 5px 10px; }
     </style>
 </head>
@@ -56,9 +62,11 @@
                         <el-input v-model="loginForm.username" placeholder="账号" prefix-icon="User" size="large"></el-input>
                     </el-form-item>
                     <el-form-item style="margin-bottom: 30px;">
-                        <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password></el-input>
+                        <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" size="large" show-password @keyup.enter="handleLogin"></el-input>
                     </el-form-item>
-                    <el-button type="danger" native-type="submit" class="login-btn" :loading="loginLoading">Sign In</el-button>
+                    <button type="button" @click="handleLogin" class="login-btn">
+                        <span v-if="loginLoading">验证中...</span><span v-else>Sign In</span>
+                    </button>
                 </el-form>
                 <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
                     <span style="font-size: 12px; color: #cbd5e1;">OR</span>
@@ -71,7 +79,7 @@
             <div class="dashboard-header">
                 <h1 class="dashboard-title"><el-icon color="#3b82f6"><Odometer /></el-icon> 分布式集群控制台</h1>
                 <div>
-                    <el-button type="warning" plain @click="triggerOtaUpdate" icon="Refresh">引擎 OTA 同步</el-button>
+                    <el-button type="warning" plain @click="showOtaNotice" icon="Refresh">引擎 OTA</el-button>
                     <el-button type="info" plain @click="handleLogout" icon="SwitchButton" style="margin-left: 10px;">退出</el-button>
                 </div>
             </div>
@@ -169,7 +177,7 @@
                         </el-row>
                         
                         <div class="qb-table-container" v-if="qbConnected">
-                            <el-table :data="qbTorrentsData" style="width: 100%" @selection-change="handleQbSelection" border stripe max-height="600" size="small">
+                            <el-table :data="qbTorrentsData" style="width: 100%; font-size:13px;" @selection-change="handleQbSelection" border stripe max-height="600">
                                 <el-table-column type="selection" width="45" align="center"></el-table-column>
                                 <el-table-column prop="name" label="任务名称" sortable min-width="220" show-overflow-tooltip>
                                     <template #default="scope"><strong>{{ scope.row.name }}</strong></template>
@@ -192,15 +200,15 @@
                                 <el-table-column prop="upspeed" label="↑ 上行" sortable width="110">
                                     <template #default="scope"><span :style="{color: scope.row.upspeed > 0 ? '#3b82f6' : '#94a3b8', fontFamily: 'monospace'}">{{ formatBytes(scope.row.upspeed) }}/s</span></template>
                                 </el-table-column>
-                                <el-table-column prop="added_on" label="添加于" sortable width="130">
+                                <el-table-column prop="added_on" label="添加于" sortable width="140">
                                     <template #default="scope"><span style="color:#64748b;">{{ formatDate(scope.row.added_on) }}</span></template>
                                 </el-table-column>
                                 <el-table-column label="操作" width="140" fixed="right" align="center">
                                     <template #default="scope">
                                         <el-button-group class="qb-btn-group">
-                                            <el-button type="success" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')" title="开始"></el-button>
-                                            <el-button type="warning" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')" title="暂停"></el-button>
-                                            <el-button type="danger" icon="Delete" @click="qbDelete(scope.row)" title="删除"></el-button>
+                                            <el-button type="success" size="small" icon="VideoPlay" @click="qbAction(scope.row.hash, 'resume')"></el-button>
+                                            <el-button type="warning" size="small" icon="VideoPause" @click="qbAction(scope.row.hash, 'pause')"></el-button>
+                                            <el-button type="danger" size="small" icon="Delete" @click="qbDelete(scope.row)"></el-button>
                                         </el-button-group>
                                     </template>
                                 </el-table-column>
@@ -251,7 +259,7 @@
                                     </el-form-item>
                                 </el-col>
                             </el-row>
-                            <el-button type="info" color="#0f172a" style="width: 100%; padding: 20px; font-size: 16px;" @click="submitProTask" icon="Position">向目标节点下发精准备制任务</el-button>
+                            <el-button type="info" style="width: 100%; padding: 20px; font-size: 16px; background-color: #0f172a;" @click="submitProTask" icon="Position">向目标节点下发精准备制任务</el-button>
                         </el-form>
                     </el-card>
                 </el-collapse-item>
@@ -275,13 +283,11 @@
                         <el-collapse v-model="activeNodesCollapse">
                             <el-collapse-item v-for="(folders, nodeName) in groupedFolders" :key="nodeName" :name="nodeName">
                                 <template #title>
-                                    <el-tag size="small" effect="dark" class="mr-2" style="margin-right:8px;">{{ folders.length }}</el-tag> <strong>节点: {{ nodeName }}</strong>
+                                    <el-tag size="small" effect="dark" style="margin-right:10px;">{{ folders.length }}</el-tag> <strong>节点: {{ nodeName }}</strong>
                                 </template>
                                 
-                                <el-table v-if="viewMode === 'list'" :data="folders" style="width: 100%" border stripe>
-                                    <el-table-column width="55" align="center">
-                                        <template #default="scope"><el-checkbox v-model="scope.row._selected" :disabled="scope.row.ready"></el-checkbox></template>
-                                    </el-table-column>
+                                <el-table v-if="viewMode === 'list'" :data="folders" style="width: 100%" border stripe @selection-change="handleFolderSelection" :row-key="row => row.nodeUrl+'|'+row.name">
+                                    <el-table-column type="selection" width="55" align="center" :selectable="row => !row.ready"></el-table-column>
                                     <el-table-column prop="name" label="目录名称" min-width="300" show-overflow-tooltip>
                                         <template #default="scope"><strong>{{ scope.row.name }}</strong></template>
                                     </el-table-column>
@@ -301,7 +307,7 @@
                                     <el-col :span="6" :xs="24" :sm="12" v-for="f in folders" :key="f.nodeUrl+'|'+f.name" class="mb-3">
                                         <el-card shadow="hover" :body-style="{ padding: '15px' }" style="height: 100%; display: flex; flex-direction: column;">
                                             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                                <el-checkbox v-model="f._selected" :disabled="f.ready"></el-checkbox>
+                                                <el-checkbox v-model="f._selected" :disabled="f.ready" @change="syncGridSelection(f)"></el-checkbox>
                                                 <el-tag :type="f.ready ? 'success' : 'warning'" size="small">{{ f.status }}</el-tag>
                                             </div>
                                             <div style="font-weight:bold; word-break:break-all; margin-bottom:15px; font-size:14px; flex-grow: 1;">{{ f.name }}</div>
@@ -360,30 +366,48 @@
                 const loginForm = reactive({ username: '', password: '' });
                 const loginLoading = ref(false);
 
+                // 极其严苛的登录保护
                 const handleLogin = async () => {
-                    if (!loginForm.username || !loginForm.password) return ElMessage.warning("请输入账号和密码");
-                    loginLoading.value = true;
                     try {
-                        const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginForm) });
+                        if (!loginForm.username || !loginForm.password) {
+                            if (typeof ElMessage !== 'undefined') ElMessage.warning("请输入账号和密码");
+                            else alert("请输入账号和密码");
+                            return;
+                        }
+                        loginLoading.value = true;
+                        
+                        const res = await fetch('/api/login', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify(loginForm) 
+                        });
+                        
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        
                         const data = await res.json();
                         if (data.status === 'success') {
                             localStorage.setItem('auth_token', data.token);
                             isLoggedIn.value = true;
-                            ElMessage.success("登录成功，欢迎回来");
+                            if (typeof ElMessage !== 'undefined') ElMessage.success("登录成功，欢迎回来");
                             initAllData();
                         } else {
-                            ElMessage.error(data.error || "验证失败");
+                            if (typeof ElMessage !== 'undefined') ElMessage.error(data.error || "验证失败: 账号或密码错误");
+                            else alert(data.error || "验证失败: 账号或密码错误");
                         }
-                    } catch (e) { ElMessage.error("网络请求失败"); }
-                    loginLoading.value = false;
+                    } catch (e) { 
+                        console.error("Login Fallback:", e);
+                        if (typeof ElMessage !== 'undefined') ElMessage.error("后端服务拒绝访问。请确保您已经在 SSH 中执行了后端更新命令！");
+                        else alert("后端服务拒绝访问。请确保您已经在 SSH 中执行了后端更新命令！");
+                    } finally {
+                        loginLoading.value = false;
+                    }
                 };
 
                 const handleLogout = () => {
                     localStorage.removeItem('auth_token'); isLoggedIn.value = false;
-                    loginForm.password = ''; ElMessage.info("已安全退出");
+                    loginForm.password = ''; if(typeof ElMessage!=='undefined') ElMessage.info("已安全退出");
                 };
 
-                // 【核心拦截器】
                 const apiPost = async (url, body) => {
                     const token = localStorage.getItem('auth_token');
                     const res = await fetch(url, {
@@ -407,10 +431,7 @@
                 const readyFoldersCount = computed(() => currentFolders.value.filter(f => f.ready).length);
                 const pendingFoldersCount = computed(() => currentFolders.value.length - readyFoldersCount.value);
 
-                // ================= 节点管理 =================
                 const newNode = reactive({ ip: '', name: '' });
-                
-                // ================= qB 控制台 =================
                 const qbConfig = reactive({ nodeUrl: '', url: '', user: '', pwd: '' });
                 const qbConnected = ref(false);
                 const qbLoading = ref(false);
@@ -418,10 +439,8 @@
                 const qbSelectedHashes = ref([]);
                 let qbTimer = null;
 
-                // ================= 工厂参数 =================
                 const factoryConfig = reactive({ folder: '', tracker: localStorage.getItem('saved_tracker') || '', piece: '', layout: 'auto', saveTracker: !!localStorage.getItem('saved_tracker') });
                 
-                // ================= 监控大盘 =================
                 const viewMode = ref(localStorage.getItem('vue_view') || 'list');
                 watch(viewMode, (val) => localStorage.setItem('vue_view', val));
                 const activeNodesCollapse = ref([]);
@@ -438,7 +457,6 @@
                 
                 const selectedFolders = computed(() => currentFolders.value.filter(f => f._selected));
 
-                // ================= 详情弹窗 =================
                 const detailVisible = ref(false);
                 const activeDetail = reactive({ nodeUrl: '', name: '', nodeName: '', imgUrl: '', info: '' });
 
@@ -608,13 +626,17 @@
                     }).catch(()=>{});
                 };
 
+                // 核心闭环：加入了之前漏掉的 handleFolderSelection 返回！
+                const handleFolderSelection = (val) => { selectedFolders.value = val; };
+                
+                const syncGridSelection = (f) => { selectedFolders.value = currentFolders.value.filter(item => item._selected); };
                 const selectAllPending = () => {
-                    currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; });
-                    ElMessage.success("已勾选所有待处理任务");
+                    if(viewMode.value === 'grid') { currentFolders.value.forEach(f => { if(!f.ready) f._selected = true; }); syncGridSelection(); } 
+                    else { ElMessage.info("列表视图请使用表格左上角的全选框"); }
                 };
                 const triggerBatch = async () => {
-                    let targets = selectedFolders.value;
-                    if (targets.length === 0) return ElMessage.warning("请先在列表中勾选需要处理的文件夹");
+                    let targets = viewMode.value === 'list' ? selectedFolders.value : currentFolders.value.filter(f => f._selected);
+                    if (targets.length === 0) return ElMessage.warning("请先勾选需要处理的文件夹");
                     let batches = {}; targets.forEach(f => { if (!batches[f.nodeUrl]) batches[f.nodeUrl] = []; batches[f.nodeUrl].push(f.name); });
                     for (const [u, fds] of Object.entries(batches)) { apiPost(`${u}/api/run_batch`, { folders: fds }); }
                     ElMessage.success(`已将 ${targets.length} 个任务分配给物理机排队`); setTimeout(fetchAllNodesFolders, 2000);
@@ -630,32 +652,9 @@
                 const downloadFile = (type) => { if (activeDetail.nodeUrl) window.open(`${activeDetail.nodeUrl}/api/files/${encodeURIComponent(activeDetail.name)}/${type}`, '_blank'); };
                 const closeDetailView = () => { detailVisible.value = false; };
                 
-                // 【核心解封】：恢复 OTA 下发能力，并加入权限验证
-                const triggerOtaUpdate = () => {
-                    ElMessageBox.confirm('确定要向全网节点下发 OTA 闪刷指令吗？<br><br><span style="color:#64748b;font-size:12px;">后端将自动跳过 docker-compose.yml，精准拉取核心代码并重启容器，彻底告别 SSH！</span>', 'OTA 全网同步', { type: 'warning', dangerouslyUseHTMLString: true }).then(async () => {
-                        const loading = ElMessage({ message: '正在向集群下发 OTA 指令，请稍候...', type: 'info', duration: 0 });
-                        
-                        let promises = clusterNodes.value.map(async (node) => {
-                            if(node.status === 'offline') return `<b>[${node.name}]</b>: <span style="color:#ef4444">❌ 节点已离线</span>`;
-                            try {
-                                const res = await apiPost(`${node.url}/api/update`, {});
-                                const data = await res.json();
-                                if(data.message && data.message.includes('Error')) return `<b>[${node.name}]</b>: <span style="color:#ef4444">❌ 更新失败</span>`;
-                                return `<b>[${node.name}]</b>: <span style="color:#10b981">✅ 覆盖成功 (正在重启)</span>`;
-                            } catch(e) {
-                                // 因为后端执行了 os._exit(0)，会导致 apiPost 抛出网络异常，但这正是成功的标志！
-                                return `<b>[${node.name}]</b>: <span style="color:#10b981">✅ 覆盖成功 (服务重启中)</span>`;
-                            }
-                        });
-                        
-                        let results = await Promise.all(promises);
-                        loading.close();
-                        ElMessageBox.alert(results.join('<br>') + '<br><br><b>请等待 3 秒后手动按 F5 刷新本网页！</b>', '集群 OTA 闪刷结果', { dangerouslyUseHTMLString: true });
-                    }).catch(()=>{});
+                const showOtaNotice = () => {
+                    ElMessageBox.alert('为防止配置文件被覆盖，网页升级已拦截。<br><br><b>请您直接在 SSH 终端中一键执行：</b><br><br><code style="background:#f1f5f9; padding:10px; display:block; border-radius:6px; user-select:all; color:#1e40af; border:1px solid #cbd5e1;">cd /root/argosbx-web/pt-webui && git fetch origin main && git checkout origin/main -- index.html app.py pt_make_headless.sh && docker compose up -d --build</code>', '⚠️ 需要 SSH 终端热更新', { dangerouslyUseHTMLString: true });
                 };
-                
-                // 为了向下兼容，把 `showOtaNotice` 绑定到真正的 `triggerOtaUpdate`
-                const showOtaNotice = triggerOtaUpdate;
 
                 const initAllData = async () => {
                     if(!isLoggedIn.value) return;
@@ -676,6 +675,7 @@
                     if(intervalFolder) clearInterval(intervalFolder);
                 });
 
+                // ================= 核心自查：确保每一个变量都返回 =================
                 return {
                     isLoggedIn, loginForm, loginLoading, handleLogin, handleLogout,
                     activeModules, clusterNodes, currentFolders, nodeStats, newNode, onlineNodesCount, readyFoldersCount, pendingFoldersCount, 
@@ -683,14 +683,17 @@
                     qbConfig, qbConnected, qbLoading, qbTorrentsData, qbSelectedHashes, loadQbConfig, connectQb, handleQbSelection, qbAction, qbBatchAction, qbDelete, qbBatchDelete,
                     getQbStateTag, getQbStateText, getQbStateColor,
                     factoryConfig, fillProForm, submitProTask, triggerTaskAllNodes,
-                    viewMode, switchViewMode, activeNodesCollapse, groupedFolders, selectAllPending, triggerBatch,
-                    detailVisible, activeDetail, openDetailView, closeDetailView, downloadFile, showOtaNotice, triggerOtaUpdate, formatBytes, formatDate, customColors,
+                    viewMode, switchViewMode, activeNodesCollapse, groupedFolders, handleFolderSelection, syncGridSelection, selectAllPending, triggerBatch,
+                    detailVisible, activeDetail, openDetailView, closeDetailView, downloadFile, showOtaNotice, formatBytes, formatDate, customColors,
                 };
             }
         });
         
-        // 全局注册 Element Plus 图标
-        for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+        // 核心装甲2：安全注册图标
+        try {
+            for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+        } catch (e) { console.error("Icon registration failed:", e); }
+        
         app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
         app.mount('#app');
     </script>
