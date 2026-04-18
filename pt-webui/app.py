@@ -1,225 +1,571 @@
-import os, time, json, shutil, subprocess
-import urllib.request, urllib.parse
-from fastapi import FastAPI, BackgroundTasks, Request
-from fastapi.responses import FileResponse, PlainTextResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional, Any
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ArgOSBX 终极集群控制台</title>
+    <style>
+        :root {
+            --sidebar-bg: #1e293b; --sidebar-hover: #334155; --sidebar-active: #3b82f6;
+            --bg-color: #f1f5f9; --card-bg: #ffffff; --text-main: #334155; --text-muted: #64748b;
+            --primary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; }
+        #app-layout { display: flex; width: 100%; height: 100%; transition: filter 0.3s ease;}
+        
+        #sidebar { width: 240px; background-color: var(--sidebar-bg); color: white; display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 100;}
+        .sidebar-logo { padding: 24px 20px; font-size: 22px; font-weight: 800; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px;}
+        .sidebar-logo span { font-size: 12px; background: var(--primary); padding: 2px 6px; border-radius: 6px;}
+        .sidebar-nav { display: flex; flex-direction: column; padding: 16px 10px; gap: 8px; flex-grow: 1;}
+        .nav-item { padding: 14px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: #cbd5e1; transition: all 0.2s; }
+        .nav-item:hover { background-color: var(--sidebar-hover); color: white; }
+        .nav-item.active { background-color: var(--sidebar-active); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        
+        #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-color);}
+        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); z-index: 10;}
+        .top-header h2 { margin: 0; font-size: 20px; color: #0f172a; }
+        .content-body { flex: 1; overflow-y: auto; padding: 24px 30px; }
+        
+        .tab-pane { display: none; animation: fadeIn 0.3s ease; }
+        .tab-pane.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 24px; overflow: hidden; border: 1px solid #f1f5f9; }
+        .card-header { padding: 18px 24px; border-bottom: 1px solid #f1f5f9; font-size: 16px; font-weight: 700; color: #1e293b; display: flex; justify-content: space-between; align-items: center;}
+        .card-body { padding: 24px; }
+        
+        .dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .stat-card { display: flex; align-items: center; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .stat-icon { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; margin-right: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .bg-purple { background: linear-gradient(135deg, #a855f7, #6366f1); color: white;}
+        .bg-pink { background: linear-gradient(135deg, #fb7185, #f43f5e); color: white;}
+        .bg-orange { background: linear-gradient(135deg, #fdba74, #f59e0b); color: white;}
+        .stat-label { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 26px; font-weight: 800; color: #0f172a; line-height: 1; }
+        
+        button { border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;}
+        .btn-update { background: linear-gradient(135deg, #ef4444, #b91c1c); padding: 10px 20px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);}
+        .btn-action { background: var(--primary); padding: 8px 16px;}
+        .btn-view { background: #0ea5e9; padding: 8px 16px;}
+        .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; border-radius: 12px;}
+        
+        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; margin-bottom: 16px; font-weight: 700; color: #1e293b;}
+        .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px;}
+        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 6px 0 16px 0; overflow: hidden; }
+        .sys-bar-fill { height: 100%; transition: width 0.6s ease; border-radius: 10px;}
+        .sys-net { display: flex; justify-content: space-between; font-family: Consolas, monospace; font-size: 13px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 15px;}
+        .form-input { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #f8fafc;}
+        
+        .view-toggle { display: flex; background: #e2e8f0; border-radius: 8px; padding: 4px; }
+        .view-toggle button { background: transparent; color: #64748b; padding: 6px 14px; font-size: 13px; font-weight: 700; border-radius: 6px; box-shadow: none; border: none; }
+        .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .node-group-header { font-size:15px; font-weight:800; color:#1e293b; margin-bottom:12px; display:inline-flex; align-items:center; gap:8px; cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: background 0.2s; user-select: none; }
+        .node-group-header:hover { background: #f1f5f9; }
+        .collapsed { display: none !important; }
 
-app = FastAPI()
-BASE_DIR = os.getenv("BASE_DIR", "/downloads")
-CONFIG_DIR = os.path.join(BASE_DIR, ".config")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
-TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
-LOG_FILE = os.path.join(CONFIG_DIR, "last_task.log")
+        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f1f5f9; border-radius: 10px; margin-bottom: 4px; gap: 10px;}
+        .items-container.list-view .item:hover { background: #f8fafc; }
+        .items-container.list-view .item-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+        .items-container.list-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding-bottom: 10px; }
+        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s; }
+        .items-container.grid-view .item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); border-color: #cbd5e1; }
+        .items-container.grid-view .item-info { display: flex; align-items: flex-start; gap: 12px; }
+        .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
+        .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
+        
+        /* 玻璃态弹窗模态框 */
+        #detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s ease; }
+        #detail-modal-overlay.show { display: flex; opacity: 1; }
+        
+        .detail-modal-container { background: var(--bg-color); width: 100%; max-width: 1400px; height: 92vh; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalPop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: white; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .modal-body { padding: 20px 24px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 20px; }
+        
+        .preview-container { display: flex; gap: 20px; align-items: stretch; flex-grow: 1; }
+        .preview-box { flex: 1; background: white; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 400px;}
+        
+        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; height: 0; min-height: 300px; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; }
+        
+        .media-sandbox { width: 100%; flex-grow: 1; height: 0; min-height: 300px; background: #0f172a; border-radius: 10px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
+        .image-zoom-container { width: 100%; height: 100%; cursor: grab; display: flex; align-items: center; justify-content: center; }
+        .image-zoom-container:active { cursor: grabbing; }
+        .preview-image { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center center; pointer-events: none; user-select: none; }
+        .video-player { display: none; width: 100%; height: 100%; outline: none; }
+        
+        #bottom-nav { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; justify-content: space-around; padding: 10px 0; padding-bottom: env(safe-area-inset-bottom, 10px); }
+        .bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); cursor: pointer; flex: 1; }
+        .bottom-nav-item.active { color: var(--primary); font-weight: bold; }
+        
+        .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        .qb-table th { background: #f8fafc; padding: 14px; font-size: 13px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer;}
+        .qb-table td { padding: 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
 
-os.makedirs(CONFIG_DIR, exist_ok=True)
+        @media (max-width: 768px) { 
+            #sidebar { display: none; } 
+            #bottom-nav { display: flex; } 
+            #main-content { padding-bottom: 70px; } 
+            .card-header { flex-direction: column; align-items: flex-start; gap: 15px;}
+            .card-header > div { width: 100%; overflow-x: auto; }
+            .items-container.list-view .item { flex-direction: column; align-items: flex-start; }
+            .items-container.list-view .item-actions { margin-top: 10px; width: 100%; justify-content: flex-end; }
+            .detail-modal-container { height: 95vh; width: 98%; border-radius: 16px; }
+            .modal-header { padding: 15px; }
+            .modal-body { padding: 15px; }
+            .preview-container { flex-direction: column; } 
+            .preview-box { width: 100%; min-height: 50vh; } 
+        }
+    </style>
+</head>
+<body>
+    <div id="app-layout">
+        <aside id="sidebar">
+            <div class="sidebar-logo">ArgOSBX <span>V6.8</span></div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
+                <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
+                <a class="nav-item" onclick="switchTab('qb')" id="nav-qb"><span>🔵</span> QB 调度</a>
+                <a class="nav-item" onclick="switchTab('factory')" id="nav-factory"><span>🏭</span> 种子工厂</a>
+                <a class="nav-item" onclick="switchTab('logs')" id="nav-logs"><span>📝</span> 日志审计</a>
+            </nav>
+        </aside>
+        <main id="main-content">
+            <header class="top-header">
+                <h2 id="page-title">主页大盘</h2>
+                <button class="btn-update" onclick="hotUpdateAllNodes()">🚀 引擎 OTA 同步</button>
+            </header>
+            <div class="content-body">
+                <div id="tab-dashboard" class="tab-pane active">
+                    <div class="dashboard-stats" id="global-stats">
+                        <div class="stat-card"><div class="stat-icon bg-purple">📊</div><div class="stat-info"><span class="stat-label">活跃节点</span><span class="stat-value" id="stat-nodes">0</span></div></div>
+                        <div class="stat-card"><div class="stat-icon bg-pink">📦</div><div class="stat-info"><span class="stat-label">全网任务</span><span class="stat-value" id="stat-total">0</span></div></div>
+                        <div class="stat-card"><div class="stat-icon bg-success" style="background: linear-gradient(135deg, #34d399, #10b981); color:white;">✅</div><div class="stat-info"><span class="stat-label">已完成</span><span class="stat-value" id="stat-ready">0</span></div></div>
+                        <div class="stat-card"><div class="stat-icon bg-orange">⏳</div><div class="stat-info"><span class="stat-label">排队中</span><span class="stat-value" id="stat-pending">0</span></div></div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <span style="display:flex; align-items:center; gap:10px;">
+                                📂 全网成品目录监控
+                                <div class="view-toggle">
+                                    <button id="btn-view-list" onclick="switchViewMode('list')">列表</button>
+                                    <button id="btn-view-grid" onclick="switchViewMode('grid')">网格</button>
+                                </div>
+                            </span>
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn-action" style="background:#64748b" onclick="selectAllPending()">☑️ 全选未完成</button>
+                                <button class="btn-action" onclick="triggerBatch()">🚀 批量执行队列</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding-top:10px;">
+                            <div id="folder-list"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="tab-fleet" class="tab-pane">
+                    <div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body">
+                    <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div>
+                </div>
+                <div id="tab-qb" class="tab-pane">
+                    <div class="card"><div class="card-header">🔵 qBittorrent 远程接管<div id="qb-batch-bar" style="display:none; gap:6px;"><button onclick="qbBatchAction('resume')" style="background:var(--success); padding:6px 12px;">▶ 开始</button><button onclick="qbBatchDelete()" style="background:var(--danger); padding:6px 12px;">🗑️ 删除</button></div></div>
+                    <div class="card-body"><div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;"><select id="qb-node-select" class="form-input" style="flex:1" onchange="loadQbConfig()"></select><input type="text" id="qb-url" class="form-input" style="flex:2" placeholder="QB 真实地址"><button class="btn-view" onclick="connectQb()">🔗 连接</button></div><div class="qb-table-wrapper" id="qb-table-container" style="display:none;"><table class="qb-table"><thead><tr><th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th><th onclick="setQbSort('name')">名称</th><th onclick="setQbSort('size')">大小</th><th onclick="setQbSort('progress')">进度</th><th onclick="setQbSort('state')">状态</th><th style="text-align:right;">操作</th></tr></thead><tbody id="qb-table-body"></tbody></table></div></div></div>
+                </div>
+                <div id="tab-factory" class="tab-pane">
+                    <div class="card"><div class="card-header">🏭 极客种子工厂 Pro</div><div class="card-body"><div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div><div class="pro-form-group"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div><div style="display:flex; flex-wrap:wrap; gap:20px;"><div class="pro-form-group" style="flex:1;"><label>🖼️ 排版引擎</label><select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select></div><div class="pro-form-group" style="flex:1;"><label>📦 分块大小</label><select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select></div></div><button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button></div></div>
+                </div>
+                <div id="tab-logs" class="tab-pane">
+                    <div class="card" style="height: calc(100vh - 120px); display: flex; flex-direction: column;"><div class="card-header">📝 实时日志审计<div style="display: flex; gap: 15px;"><label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="auto-scroll-cb" checked> 自动追踪</label><button class="btn-action" style="background:var(--danger); padding: 6px 12px;" onclick="clearLogs()">🗑️ 清空</button></div></div>
+                    <div class="card-body" style="flex: 1; padding: 0; background: #0f172a; overflow: hidden;"><pre id="log-container" style="margin: 0; padding: 20px; color: #a5b4fc; font-family: Consolas, monospace; font-size: 13px; height: 100%; overflow-y: auto; white-space: pre-wrap;"></pre></div></div>
+                </div>
+            </div>
+        </main>
+        <nav id="bottom-nav">
+            <div class="bottom-nav-item active" onclick="switchTab('dashboard')" id="mob-dashboard"><span class="icon">📊</span>主页</div>
+            <div class="bottom-nav-item" onclick="switchTab('fleet')" id="mob-fleet"><span class="icon">⚙️</span>节点</div>
+            <div class="bottom-nav-item" onclick="switchTab('qb')" id="mob-qb"><span class="icon">🔵</span>QB</div>
+            <div class="bottom-nav-item" onclick="switchTab('factory')" id="mob-factory"><span class="icon">🏭</span>工厂</div>
+            <div class="bottom-nav-item" onclick="switchTab('logs')" id="mob-logs"><span class="icon">📝</span>日志</div>
+        </nav>
+    </div>
+    
+    <div id="detail-modal-overlay">
+        <div class="detail-modal-container" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="success-title" style="margin:0; font-size:22px; color:#1e293b;">
+                    <span style="color:var(--success); margin-right:8px;">✅</span> 任务审核详情
+                </div>
+                <button class="btn-action" style="background:#f1f5f9; color:#475569; padding:8px 16px; border:1px solid #cbd5e1;" onclick="closeDetailView()">✖ 关闭预览</button>
+            </div>
+            
+            <div class="modal-body">
+                <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                    <div style="color: #64748b; font-size: 14px; font-weight:600;" id="detailPath"></div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button onclick="toggleVideoPlayback()" id="btn-play-video" style="background:#8b5cf6; padding:8px 16px;">▶️ 在线流播</button>
+                        <button onclick="downloadFile('torrent')" style="background:#15803d; padding:8px 16px;">⬇️ 种子</button>
+                        <button onclick="downloadFile('mediainfo')" style="background:#0ea5e9; padding:8px 16px;">⬇️ Info</button>
+                        <button onclick="downloadFile('image')" style="background:#f59e0b; color:#fff; padding:8px 16px;">⬇️ 4K 海报</button>
+                    </div>
+                </div>
+                
+                <div class="preview-container">
+                    <div class="preview-box">
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
+                            <span>📄 MediaInfo 物理探针参数:</span>
+                            <button onclick="copyMediaInfo()" style="background:#f1f5f9; color:#475569; padding:4px 12px; font-size:12px; border:1px solid #cbd5e1; cursor:pointer; border-radius:6px; font-weight:bold;">📋 一键复制</button>
+                        </div>
+                        <pre class="mediainfo-content" id="detailMediaInfo">跨机读取中...</pre>
+                    </div>
+                    <div class="preview-box">
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🖼️ 多媒体交互沙盒:</span>
+                            <div style="font-size:12px; font-weight:normal; color:#94a3b8; display:flex; align-items:center; gap:10px;">
+                                <span>🖱️ 滚轮缩放 / 拖拽平移</span>
+                                <button onclick="resetImageZoom()" style="background:#f1f5f9; color:#475569; padding:4px 10px; font-size:12px; border:1px solid #e2e8f0;">重置视角</button>
+                            </div>
+                        </div>
+                        <div class="media-sandbox">
+                            <div class="image-zoom-container" id="imageZoomContainer">
+                                <img class="preview-image" id="detailImage" src="" alt="4K Preview">
+                            </div>
+                            <video id="detailVideo" class="video-player" controls preload="metadata"></video>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    <script>
+        let clusterNodes = [], currentFolders = [], currentActiveFolder = "", currentActiveNodeUrl = "", nodeStats = {};
+        let qbTorrentsData = [], qbSortKey = 'added_on', qbSortAsc = false, qbSelectedHashes = new Set(), qbInterval = null, logInterval = null, isAutoScroll = true;
+        
+        let currentViewMode = localStorage.getItem('view_mode') || 'list';
+        let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
+        
+        document.getElementById('auto-scroll-cb').addEventListener('change', e => isAutoScroll = e.target.checked);
+        const titles = { 'dashboard':'主页大盘', 'fleet':'节点管理', 'qb':'QB 调度', 'factory':'种子工厂', 'logs':'日志审计' };
+        
+        function switchViewMode(m) { 
+            currentViewMode=m; localStorage.setItem('view_mode',m); 
+            document.getElementById('btn-view-list').className = m==='list'?'active':''; 
+            document.getElementById('btn-view-grid').className = m==='grid'?'active':''; 
+            renderList(); 
+        }
 
-class RunRequest(BaseModel):
-    folder: str = ""
-    tracker: Optional[str] = None
-    piece_size: Optional[str] = None
-    layout: Optional[str] = None
-    overwrite_torrent: bool = False
-    overwrite_image: bool = False
+        function toggleNodeGroup(n) { 
+            if(collapsedNodes.has(n)) collapsedNodes.delete(n); else collapsedNodes.add(n); 
+            localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes])); 
+            renderList(); 
+        }
+        
+        function switchTab(t) {
+            document.querySelectorAll('.tab-pane, .nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${t}`).classList.add('active');
+            const n = document.getElementById(`nav-${t}`), m = document.getElementById(`mob-${t}`);
+            if(n) n.classList.add('active'); if(m) m.classList.add('active');
+            document.getElementById('page-title').innerText = titles[t];
+            if (t === 'logs') { fetchLogs(true); if (!logInterval) logInterval = setInterval(() => fetchLogs(), 3000); }
+            else { if (logInterval) { clearInterval(logInterval); logInterval = null; } }
+        }
 
-class BatchRequest(BaseModel):
-    folders: List[str]
+        async function fetchLogs(m = false) {
+            try { const res = await fetch('/api/logs'), d = await res.json(), c = document.getElementById('log-container'); if (d.logs) c.innerText = d.logs; if (isAutoScroll || m) c.scrollTop = c.scrollHeight; } catch(e){}
+        }
+        async function clearLogs() { if(confirm("确定清空日志？")) { await fetch('/api/logs/clear', { method: 'POST' }); fetchLogs(true); } }
+        
+        function openDetailView(u, f, n) {
+            currentActiveNodeUrl = u; currentActiveFolder = f; 
+            
+            const overlay = document.getElementById('detail-modal-overlay');
+            overlay.classList.add('show');
+            document.getElementById('app-layout').style.filter = 'blur(4px)'; 
+            
+            document.getElementById('detailPath').innerText = `直连节点：[${n}] /downloads/${f}`; resetImageZoom();
+            document.getElementById('detailImage').src = `${u}/api/files/${encodeURIComponent(f)}/image?t=${Date.now()}`;
+            
+            document.getElementById('detailMediaInfo').innerText = "跨机桥接读取中...";
+            fetch(`${u}/api/preview/mediainfo/${encodeURIComponent(f)}`).then(r=>r.text()).then(t=>document.getElementById('detailMediaInfo').innerText=t);
+        }
+        
+        function closeDetailView() { 
+            document.getElementById('detail-modal-overlay').classList.remove('show'); 
+            document.getElementById('app-layout').style.filter = 'none';
+            document.getElementById('detailImage').src = ""; 
+            
+            const video = document.getElementById('detailVideo');
+            if(video) {
+                video.pause();
+                video.src = "";
+                video.style.display = 'none';
+            }
+            document.getElementById('imageZoomContainer').style.display = 'flex';
+            const btn = document.getElementById('btn-play-video');
+            if(btn) { btn.innerHTML = '▶️ 在线流播'; btn.style.background = '#8b5cf6'; }
+        }
+        
+        document.getElementById('detail-modal-overlay').addEventListener('click', function(e) {
+            if (e.target === this) closeDetailView();
+        });
 
-@app.get("/")
-def index(): return FileResponse("index.html")
+        // 在线视频无缝切换流播
+        function toggleVideoPlayback() {
+            const imgContainer = document.getElementById('imageZoomContainer');
+            const video = document.getElementById('detailVideo');
+            const btn = document.getElementById('btn-play-video');
+            
+            if (video.style.display === 'none' || video.style.display === '') {
+                imgContainer.style.display = 'none';
+                video.style.display = 'block';
+                video.src = `${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/video`;
+                video.play();
+                btn.innerHTML = '🖼️ 切回海报';
+                btn.style.background = '#64748b';
+            } else {
+                video.pause();
+                video.src = "";
+                video.style.display = 'none';
+                imgContainer.style.display = 'flex';
+                btn.innerHTML = '▶️ 在线流播';
+                btn.style.background = '#8b5cf6';
+            }
+        }
+        
+        // MediaInfo 剪贴板一键穿透
+        function copyMediaInfo() {
+            const text = document.getElementById('detailMediaInfo').innerText;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✅ 探针参数已复制到剪贴板！');
+                }).catch(err => alert('❌ 复制失败，请手动选择复制'));
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('✅ 探针参数已复制到剪贴板！');
+                } catch (err) { alert('❌ 复制失败，请手动选择复制'); }
+                document.body.removeChild(textArea);
+            }
+        }
 
-@app.get("/api/nodes")
-def get_nodes():
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
-        except: pass
-    return []
+        function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
+        function formatBytes(b) { if(b===0||!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i]; }
 
-@app.post("/api/nodes")
-def save_nodes(nodes: List[Any]):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f: json.dump(nodes, f, ensure_ascii=False, indent=2)
-    return {"status": "success"}
+        async function syncNodesToBackend(nodes) { 
+            try { await fetch('/api/nodes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(nodes) }); } catch(e){} 
+        }
+        
+        async function initNodes() {
+            const origin = window.location.origin; let saved = []; 
+            try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
+            
+            if(saved.length === 0) {
+                let local = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
+                saved = local.map(n => typeof n === 'string' ? {url:n, name:new URL(n).host} : n);
+                if(saved.length > 0) await syncNodesToBackend(saved);
+            }
 
-@app.get("/api/folders")
-def list_folders():
-    folders = []
-    if os.path.exists(BASE_DIR):
-        for item in os.listdir(BASE_DIR):
-            if item.startswith("."): continue
-            path = os.path.join(BASE_DIR, item)
-            if os.path.isdir(path):
-                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
-                has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
-                ready = has_torrent and has_img
-                status = "✅ 已完成" if ready else "⏳ 待处理"
-                folders.append({"name": item, "status": status, "ready": ready, "mtime": os.path.getmtime(path)})
-    folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
-    return {"folders": folders}
+            clusterNodes = [{ url: origin, name: "本机主控", status: "online" }];
+            saved.forEach(n => { if(n.url !== origin && !clusterNodes.find(c=>c.url===n.url)) clusterNodes.push({...n, status: "online"}); });
+            renderNodes(); populateQbNodes();
+        }
 
-@app.get("/api/sysinfo")
-def sysinfo():
-    try:
-        mem_path = '/host_proc/meminfo' if os.path.exists('/host_proc/meminfo') else '/proc/meminfo'
-        with open(mem_path, 'r') as f: mem_lines = f.readlines()
-        mem_total = int(mem_lines[0].split()[1]) * 1024
-        mem_used = mem_total - int(mem_lines[2].split()[1]) * 1024
-        stat_path = '/host_proc/stat' if os.path.exists('/host_proc/stat') else '/proc/stat'
-        with open(stat_path, 'r') as f: cpu_line = f.readline().split()
-        cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
-        cpu_total = sum(float(x) for x in cpu_line[1:8])
-        net_tx, net_rx = 0, 0
-        net_path = '/host_proc/1/net/dev' if os.path.exists('/host_proc/1/net/dev') else '/proc/net/dev'
-        with open(net_path, 'r') as f:
-            for line in f.readlines()[2:]:
-                parts = line.split(':')
-                if len(parts) == 2:
-                    iface = parts[0].strip()
-                    if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth"):
-                        vals = parts[1].split()
-                        net_rx += int(vals[0]); net_tx += int(vals[8])
-        current_month = time.strftime("%Y-%m")
-        traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
-        if os.path.exists(TRAFFIC_FILE):
-            try:
-                with open(TRAFFIC_FILE, "r") as f: traffic_data.update(json.load(f))
-            except: pass
-        if traffic_data.get("month") != current_month:
-            traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
-        dtx, drx = max(0, net_tx - traffic_data.get("last_tx", 0)), max(0, net_rx - traffic_data.get("last_rx", 0))
-        traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
-        traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
-        with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
-        try:
-            disk_usage = shutil.disk_usage(BASE_DIR)
-            disk_total, disk_used = disk_usage.total, disk_usage.used
-        except: disk_total, disk_used = 0, 0
-        return { "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total, "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"], "disk_total": disk_total, "disk_used": disk_used, "timestamp": time.time() }
-    except Exception as e: return {"error": str(e)}
+        function renderNodes() {
+            const c = document.getElementById('active-nodes'); c.innerHTML = '';
+            clusterNodes.forEach((n, i) => {
+                const s = n.status==='offline';
+                c.innerHTML += `<div class="sys-card" style="${s?'opacity:0.5':''}">
+                    <div class="sys-card-header"><div onclick="editNodeName('${n.url}')" style="cursor:pointer;"><strong>${s?'🔴':'🟢'} ${n.name}</strong></div>${i!==0?`<span onclick="removeNode('${n.url}')" style="cursor:pointer;color:var(--danger);font-size:12px;">移除</span>`:''}</div>
+                    <div id="sys-data-${i}">${s?'节点已离线或阻断':'建立探针通信...'}</div></div>`;
+            });
+        }
 
-@app.post("/api/qbittorrent")
-def qbittorrent_proxy(req: dict):
-    qb_url = req.get("url", "").rstrip("/"); action = req.get("action"); name = req.get("name", "")
-    user = req.get("user", ""); pwd = req.get("pwd", "")
-    if not qb_url: return {"error": "No QB URL"}
-    cookie = ""
-    if user:
-        try:
-            login_data = urllib.parse.urlencode({'username': user, 'password': pwd}).encode('utf-8')
-            l_req = urllib.request.Request(f"{qb_url}/api/v2/auth/login", data=login_data)
-            cookie = urllib.request.urlopen(l_req, timeout=5).headers.get('Set-Cookie').split(';')[0]
-        except: return {"error": "QB Login Failed"}
-    headers = {"Cookie": cookie} if cookie else {}
-    try:
-        if action == "list":
-            r = urllib.request.Request(f"{qb_url}/api/v2/torrents/info", headers=headers)
-            return json.loads(urllib.request.urlopen(r, timeout=5).read().decode('utf-8'))
-        elif action in ["pause", "resume"]:
-            data = urllib.parse.urlencode({'hashes': req.get('hashes', '')}).encode('utf-8')
-            urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/{action}", data=data, headers=headers), timeout=5)
-            return {"status": "ok"}
-        elif action == "delete":
-            del_files = req.get('delete_files'); del_flag = "true" if del_files else "false"
-            data = urllib.parse.urlencode({'hashes': req.get('hashes', ''), 'deleteFiles': del_flag}).encode('utf-8')
-            urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers), timeout=5)
-            if del_files and name:
-                for n in name.split("|"):
-                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                        p = os.path.join(BASE_DIR, f"{n.strip()}{ext}"); 
-                        if os.path.exists(p): os.remove(p)
-            return {"status": "ok"}
-    except Exception as e: return {"error": str(e)}
+        async function editNodeName(url) {
+            const i = clusterNodes.findIndex(n=>n.url===url); if(i===-1) return;
+            const newName = prompt(`修改节点别名：`, clusterNodes[i].name);
+            if(newName!==null && newName.trim()!=="") { 
+                clusterNodes[i].name = newName.trim(); 
+                await syncNodesToBackend(clusterNodes.filter((_,j)=>j!==0).map(n=>({url:n.url,name:n.name}))); 
+                renderNodes(); renderList(); updateProDropdown(); populateQbNodes(); 
+            }
+        }
 
-@app.post("/api/run/{mode}")
-def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
-    def execute_script():
-        if mode == "folder" and req.folder:
-            if req.overwrite_image:
-                for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
-                    if os.path.exists(p): os.remove(p)
-            if req.overwrite_torrent:
-                for ext in [".torrent", "_mediainfo.txt"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
-                    if os.path.exists(p): os.remove(p)
-        cmd = ["/bin/bash", "/app/pt_make.sh", f"--{mode}"]
-        if mode == "folder" and req.folder: cmd.append(req.folder)
-        env = os.environ.copy()
-        if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
-        if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
-        if req.layout: env["CUSTOM_LAYOUT"] = req.layout
-        with open(LOG_FILE, "a") as f:
-            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
-            f.flush(); os.fsync(f.fileno())
-            subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
-    background_tasks.add_task(execute_script)
-    return {"message": "Task Started"}
+        async function addNode() {
+            let ip = document.getElementById('newNodeIp').value.trim(), name = document.getElementById('newNodeName').value.trim();
+            if(!ip) return alert("请输入 API 地址"); 
+            if(!ip.startsWith('http')) ip='http://'+ip; if(ip.endsWith('/')) ip=ip.slice(0,-1);
+            if(!name) { try { name = new URL(ip).host; } catch(e){name=ip;} }
+            if(!clusterNodes.find(n=>n.url===ip)) {
+                let saved = clusterNodes.filter((_,i)=>i!==0).map(n=>({url:n.url,name:n.name})); saved.push({url:ip,name}); 
+                await syncNodesToBackend(saved);
+                document.getElementById('newNodeIp').value=''; document.getElementById('newNodeName').value='';
+                await initNodes();
+                fetchAllNodesFolders(); fetchSysInfo();
+            } else alert("节点 IP 已存在！");
+        }
 
-@app.post("/api/run_batch")
-def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
-    def execute_batch():
-        with open(LOG_FILE, "a") as f:
-            f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
-            f.flush(); os.fsync(f.fileno())
-            for folder in req.folders:
-                subprocess.run(["/bin/bash", "/app/pt_make.sh", "--folder", folder], stdout=f, stderr=subprocess.STDOUT)
-                f.flush()
-    background_tasks.add_task(execute_batch)
-    return {"message": "Batch Started"}
+        async function removeNode(url) {
+            if(confirm("确定剥离此节点？")) {
+                await syncNodesToBackend(clusterNodes.filter((n,i)=>i!==0 && n.url!==url).map(n=>({url:n.url,name:n.name}))); 
+                await initNodes();
+                fetchAllNodesFolders();
+            }
+        }
 
-@app.get("/api/logs")
-def get_logs():
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()
-                return {"logs": "".join(lines[-500:])}
-        except Exception as e: return {"error": str(e)}
-    return {"logs": "No logs yet."}
+        async function fetchAllNodesFolders() {
+            currentFolders = []; let count = 0;
+            const ps = clusterNodes.map(async n => {
+                try { const r = await fetch(`${n.url}/api/folders`), d = await r.json(); count++; n.status='online'; return d.folders.map(f=>({...f,nodeUrl:n.url,nodeName:n.name})); } catch(e){ n.status='offline'; return []; }
+            });
+            const rs = await Promise.all(ps); rs.forEach(r => currentFolders = currentFolders.concat(r));
+            currentFolders.sort((a,b)=>(a.ready===b.ready ? b.mtime-a.mtime : (a.ready?1:-1)));
+            document.getElementById('stat-nodes').innerText = count; document.getElementById('stat-total').innerText = currentFolders.length;
+            document.getElementById('stat-ready').innerText = currentFolders.filter(f=>f.ready).length;
+            document.getElementById('stat-pending').innerText = currentFolders.length - currentFolders.filter(f=>f.ready).length;
+            renderList(); updateProDropdown();
+        }
 
-@app.post("/api/logs/clear")
-def clear_logs():
-    try:
-        open(LOG_FILE, 'w').close()
-        return {"status": "ok"}
-    except Exception as e: return {"error": str(e)}
+        function renderList() {
+            const list = document.getElementById('folder-list'); const sel = new Set(Array.from(document.querySelectorAll('.folder-check:checked')).map(cb => cb.value));
+            list.innerHTML = ''; if(currentFolders.length===0) return;
+            let grouped = {}; currentFolders.forEach(f=>{if(!grouped[f.nodeName]) grouped[f.nodeName]=[]; grouped[f.nodeName].push(f);});
+            
+            for(const [nName, folders] of Object.entries(grouped)) {
+                const isCol = collapsedNodes.has(nName);
+                const safeN = nName.replace(/'/g,"\\'");
+                
+                let h = `<div style="margin-bottom:20px;">
+                            <div class="node-group-header" onclick="toggleNodeGroup('${safeN}')">
+                                ${isCol?'▶':'▼'} 🖥️ ${nName} 
+                                <span style="background:#e2e8f0;color:#334155;padding:2px 8px;border-radius:12px;font-size:12px;">${folders.length}</span>
+                            </div>
+                            <div class="items-container ${currentViewMode}-view ${isCol?'collapsed':''}">`;
+                
+                folders.forEach(f => {
+                    const cKey = `${f.nodeUrl}|${f.name}`, safeF = f.name.replace(/'/g,"\\'");
+                    const btn = f.ready ? 
+                        `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}','${safeF}','${nName}')">👁️ 预览</button>
+                         <button class="btn-action" style="background:#64748b;" onclick="fillProForm('${f.nodeUrl}','${safeF}')">🔄 重做</button>` 
+                        : 
+                        `<button class="btn-action" onclick="fillProForm('${f.nodeUrl}','${safeF}')">🚀 装载</button>`;
+                    
+                    h += `<div class="item">
+                            <div class="item-info">
+                                <input type="checkbox" class="folder-check" value="${cKey}" ${f.ready?'disabled':''} ${sel.has(cKey)?'checked':''}>
+                                <div>
+                                    <strong style="word-break:break-all; font-size:14px; color:#1e293b; line-height: 1.3; display: block; margin-bottom: 4px;">${f.name}</strong>
+                                    <span style="color:${f.ready?'var(--success)':'var(--warning)'};font-size:12px;font-weight:700">${f.status}</span>
+                                </div>
+                            </div>
+                            <div class="item-actions">${btn}</div>
+                          </div>`;
+                });
+                list.innerHTML += h + `</div></div>`;
+            }
+        }
 
-@app.post("/api/update")
-def update_system(background_tasks: BackgroundTasks):
-    def execute_ota():
-        time.sleep(1)
-        try:
-            base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui"
-            for f_name in ["index.html", "app.py", "pt_make.sh"]:
-                url = f"{base_url}/{f_name}"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                content = urllib.request.urlopen(req, timeout=15).read().decode('utf-8')
-                write_path = f"/app/{f_name}" if os.path.exists("/app") else f_name
-                with open(write_path, "w", encoding="utf-8") as f: f.write(content)
-            script_path = "/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "pt_make.sh"
-            if os.path.exists(script_path): os.chmod(script_path, 0o755)
-            with open(LOG_FILE, "a") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA Rebirth Triggered (shdetai)\n")
-                f.flush(); os.fsync(f.fileno())
-            time.sleep(2); os._exit(0) 
-        except Exception as e:
-            with open(LOG_FILE, "a") as f: f.write(f"\nOTA FAILED: {str(e)}\n"); f.flush()
-    background_tasks.add_task(execute_ota)
-    return {"message": "Update Triggered"}
+        function populateQbNodes() {
+            const s = document.getElementById('qb-node-select'), cur = s.value; s.innerHTML = '<option value="">-- 选择接管节点 --</option>';
+            clusterNodes.forEach(n => s.innerHTML+=`<option value="${n.url}">🖥️ ${n.name}</option>`);
+            if(cur) s.value = cur;
+        }
+        function loadQbConfig() {
+            const url = document.getElementById('qb-node-select').value; if(!url) return;
+            let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
+            document.getElementById('qb-url').value = cfg.url||''; document.getElementById('qb-user').value = cfg.user||''; document.getElementById('qb-pwd').value = cfg.pwd||'';
+            clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; qbSelectedHashes.clear(); updateQbBatchBar();
+        }
+        async function connectQb() {
+            const n = document.getElementById('qb-node-select').value, u = document.getElementById('qb-url').value, usr = document.getElementById('qb-user').value, p = document.getElementById('qb-pwd').value;
+            if(!n||!u) return alert("请选择节点并填写地址");
+            let cfgs = JSON.parse(localStorage.getItem('qb_configs'))||{}; cfgs[n] = {url:u, user:usr, pwd:p}; localStorage.setItem('qb_configs', JSON.stringify(cfgs));
+            await fetchQbData(true); if(qbInterval) clearInterval(qbInterval); qbInterval = setInterval(() => fetchQbData(false), 3000);
+        }
+        async function fetchQbData(isManual = false) {
+            const n = document.getElementById('qb-node-select').value; if(!n) return;
+            let cfg = (JSON.parse(localStorage.getItem('qb_configs'))||{})[n]; if(!cfg) return;
+            try {
+                const res = await fetch(`${n}/api/qbittorrent`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'list'})});
+                const data = await res.json(); 
+                if(data.error) { if(isManual) alert("连接失败: " + data.error); clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; return; }
+                qbTorrentsData = data; document.getElementById('qb-table-container').style.display='block'; renderQbTable();
+            } catch(e){ if(isManual) alert("连接超时"); clearInterval(qbInterval); }
+        }
+        function setQbSort(k) { if(qbSortKey===k) qbSortAsc=!qbSortAsc; else { qbSortKey=k; qbSortAsc=k!=='added_on'; } renderQbTable(); }
+        function toggleQbAll(c) { if(c) qbTorrentsData.forEach(t=>qbSelectedHashes.add(t.hash)); else qbSelectedHashes.clear(); renderQbTable(); }
+        function toggleQbHash(h,c) { if(c) qbSelectedHashes.add(h); else qbSelectedHashes.delete(h); updateQbBatchBar(); }
+        function updateQbBatchBar() {
+            const b = document.getElementById('qb-batch-bar'), c = document.getElementById('qb-sel-count'), a = document.getElementById('qb-chk-all');
+            if(c) c.innerText = qbSelectedHashes.size; if(b) b.style.display = qbSelectedHashes.size>0?'flex':'none';
+            if(a) a.checked = qbTorrentsData.length>0 && qbSelectedHashes.size===qbTorrentsData.length;
+        }
+        function renderQbTable() {
+            const b = document.getElementById('qb-table-body'); b.innerHTML = '';
+            document.querySelectorAll('.sort-icon').forEach(e=>{e.innerHTML='';e.className='sort-icon';});
+            const icon = document.getElementById(`sort-icon-${qbSortKey}`); if(icon) { icon.innerHTML=qbSortAsc?'▲':'▼'; icon.className='sort-icon active'; }
+            if(!qbTorrentsData.length) { b.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#64748b">暂无任务</td></tr>'; updateQbBatchBar(); return; }
+            let data = [...qbTorrentsData].sort((x,y) => { let v1 = x[qbSortKey], v2 = y[qbSortKey]; return qbSortAsc ? (v1>v2?1:-1) : (v1<v2?1:-1); });
+            const states = { 'downloading':['下载中','#3b82f6'], 'uploading':['做种中','#10b981'], 'pausedDL':['已暂停','#f59e0b'], 'pausedUP':['已暂停','#f59e0b'], 'stalledUP':['做种(空)','#10b981'], 'error':['错误','#ef4444']};
+            data.forEach(t => {
+                let s = states[t.state] || [t.state, '#64748b'], p = (t.progress*100).toFixed(1);
+                b.innerHTML += `<tr>
+                    <td style="text-align:center"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}',this.checked)" ${qbSelectedHashes.has(t.hash)?'checked':''}></td>
+                    <td><div style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.name}"><strong>${t.name}</strong></div></td>
+                    <td>${formatBytes(t.size)}</td>
+                    <td><div style="font-size:11px">${p}%</div><div style="background:#f1f5f9;height:6px;border-radius:10px;"><div style="height:100%;width:${p}%;background:${s[1]}"></div></div></td>
+                    <td style="color:${s[1]};font-weight:bold">${s[0]}</td>
+                    <td style="text-align:right">
+                        <button onclick="qbAction('${t.hash}','resume')" style="background:var(--success);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">▶</button>
+                        <button onclick="qbAction('${t.hash}','pause')" style="background:var(--warning);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">⏸</button>
+                        <button onclick="qbDelete('${t.hash}','${t.name.replace(/'/g,"\\'")}')" style="background:var(--danger);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">✖</button>
+                    </td>
+                </tr>`;
+            });
+            updateQbBatchBar();
+        }
+        async function qbAction(h,a) { const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h})}).then(()=>fetchQbData()); }
+        async function qbBatchAction(a) { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h.join('|')})}); fetchQbData(); }
+        async function qbDelete(h,name) { if(!confirm(`确定删除 [${name}]?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h,delete_files:d,name})}); qbSelectedHashes.delete(h); fetchQbData(); }
+        async function qbBatchDelete() { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), names=h.map(x=>qbTorrentsData.find(t=>t.hash===x)?.name||"").filter(x=>x); if(!confirm(`确定删除 ${h.length} 个任务?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h.join('|'),delete_files:d,name:names.join('|')})}); qbSelectedHashes.clear(); fetchQbData(); }
 
-@app.get("/api/files/{folder}/{file_type}")
-def download_file(folder: str, file_type: str):
-    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg"}
-    p = os.path.join(BASE_DIR, f"{folder}{exts.get(file_type, '')}")
-    if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
-    return {"error": "Not Found"}
+        function updateProDropdown() {
+            const s = document.getElementById("pro-folder"), cur = s.value; s.innerHTML = '<option value="">-- 选择目标目录 --</option>';
+            currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`);
+            if(cur) s.value = cur;
+        }
+        function fillProForm(url, folder) { 
+            document.getElementById("pro-folder").value = `${url}|${folder}`; document.getElementById("pro-overwrite-torrent").checked = false; document.getElementById("pro-overwrite-image").checked = false; switchTab('factory');
+        }
+        async function submitProTask() {
+            const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
+            const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
+            const t = document.getElementById("pro-tracker").value.trim(), p = document.getElementById("pro-piece").value, l = document.getElementById("pro-layout").value;
+            const ot = document.getElementById("pro-overwrite-torrent").checked, oi = document.getElementById("pro-overwrite-image").checked;
+            if(document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
+            alert(`任务指令已向 ${folder} 下发！`); switchTab('dashboard'); 
+            await fetch(`${url}/api/run/folder`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ folder, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi }) });
+            fetchAllNodesFolders();
+        }
+        function selectAllPending() { document.querySelectorAll('.items-container .folder-check:not(:disabled)').forEach(cb => cb.checked = true); }
+        async function triggerBatch() {
+            const sel = Array.from(document.querySelectorAll('.folder-check:checked')).map(c=>c.value); if(sel.length===0) return alert("请勾选需要处理的任务");
+            let batches = {}; sel.forEach(c => { const [u, f] = [c.substring(0,c.indexOf('|')), c.substring(c.indexOf('|')+1)]; if(!batches[u]) batches[u]=[]; batches[u].push(f); });
+            for(const [u, fds] of Object.entries(batches)) fetch(`${u}/api/run_batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({folders:fds}) });
+            alert(`已排队分配 ${sel.length} 个任务`); setTimeout(fetchAllNodesFolders, 2000);
+        }
 
-@app.get("/api/preview/mediainfo/{folder}")
-def preview_mediainfo(folder: str):
-    p = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
-    if os.path.exists(p):
-        with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
-    return PlainTextResponse("Not Found")
+        async function fetchSysInfo() {
+            clusterNodes.forEach(async (n, i) => {
+                if(n.status==='offline') return;
+                try
