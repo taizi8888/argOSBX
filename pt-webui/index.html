@@ -43,6 +43,7 @@
         .btn-action { background: var(--primary); padding: 8px 16px;}
         .btn-view { background: #0ea5e9; padding: 8px 16px;}
         .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; border-radius: 12px;}
+        
         .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
         .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; margin-bottom: 16px; font-weight: 700; color: #1e293b;}
         .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px;}
@@ -50,11 +51,31 @@
         .sys-bar-fill { height: 100%; transition: width 0.6s ease; border-radius: 10px;}
         .sys-net { display: flex; justify-content: space-between; font-family: Consolas, monospace; font-size: 13px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 15px;}
         .form-input { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #f8fafc;}
+        
+        /* 视图切换器 CSS */
+        .view-toggle { display: flex; background: #e2e8f0; border-radius: 8px; padding: 4px; }
+        .view-toggle button { background: transparent; color: #64748b; padding: 6px 14px; font-size: 13px; font-weight: 700; border-radius: 6px; box-shadow: none; border: none; }
+        .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* 节点折叠控制栏 CSS */
+        .node-group-header { font-size:15px; font-weight:800; color:#1e293b; margin-bottom:12px; display:inline-flex; align-items:center; gap:8px; cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: background 0.2s; user-select: none; }
+        .node-group-header:hover { background: #f1f5f9; }
+        .collapsed { display: none !important; }
+
+        /* 列表视图与网格视图 CSS */
         .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f1f5f9; border-radius: 10px; margin-bottom: 4px; gap: 10px;}
         .items-container.list-view .item:hover { background: #f8fafc; }
-        .item-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
-        .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary);}
+        .items-container.list-view .item-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+        .items-container.list-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding-bottom: 10px; }
+        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s; }
+        .items-container.grid-view .item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); border-color: #cbd5e1; }
+        .items-container.grid-view .item-info { display: flex; align-items: flex-start; gap: 12px; }
+        .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
+
+        .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
+        
         #detail-view { display: none; background: var(--bg-color); height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; z-index: 9999; padding: 20px; overflow-y: auto;}
         .preview-container { display: flex; gap: 20px; align-items: stretch; flex-grow: 1; margin-top: 10px;}
         .preview-box { flex: 1; background: white; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
@@ -76,15 +97,17 @@
             #main-content { padding-bottom: 70px; } 
             .preview-container { flex-direction: column; } 
             .preview-box { width: 100%; } 
+            .card-header { flex-direction: column; align-items: flex-start; gap: 15px;}
+            .card-header > div { width: 100%; overflow-x: auto; }
             .items-container.list-view .item { flex-direction: column; align-items: flex-start; }
-            .item-actions { margin-top: 10px; width: 100%; justify-content: flex-end; }
+            .items-container.list-view .item-actions { margin-top: 10px; width: 100%; justify-content: flex-end; }
         }
     </style>
 </head>
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V6.5</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V6.6</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -106,9 +129,27 @@
                         <div class="stat-card"><div class="stat-icon bg-success" style="background: linear-gradient(135deg, #34d399, #10b981); color:white;">✅</div><div class="stat-info"><span class="stat-label">已完成</span><span class="stat-value" id="stat-ready">0</span></div></div>
                         <div class="stat-card"><div class="stat-icon bg-orange">⏳</div><div class="stat-info"><span class="stat-label">排队中</span><span class="stat-value" id="stat-pending">0</span></div></div>
                     </div>
-                    <div class="card"><div class="card-header">📂 全网成品目录监控<div style="display:flex; gap:10px;"><button class="btn-action" style="background:#64748b" onclick="selectAllPending()">☑️ 全选</button><button class="btn-action" onclick="triggerBatch()">🚀 批量执行</button></div></div>
-                    <div class="card-body" style="padding-top:0;"><div id="folder-list"></div></div></div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <span style="display:flex; align-items:center; gap:10px;">
+                                📂 全网成品目录监控
+                                <div class="view-toggle">
+                                    <button id="btn-view-list" onclick="switchViewMode('list')">列表</button>
+                                    <button id="btn-view-grid" onclick="switchViewMode('grid')">网格</button>
+                                </div>
+                            </span>
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn-action" style="background:#64748b" onclick="selectAllPending()">☑️ 全选未完成</button>
+                                <button class="btn-action" onclick="triggerBatch()">🚀 批量执行队列</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding-top:10px;">
+                            <div id="folder-list"></div>
+                        </div>
+                    </div>
                 </div>
+                
                 <div id="tab-fleet" class="tab-pane">
                     <div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body">
                     <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div>
@@ -176,8 +217,28 @@
     <script>
         let clusterNodes = [], currentFolders = [], currentActiveFolder = "", currentActiveNodeUrl = "", nodeStats = {};
         let qbTorrentsData = [], qbSortKey = 'added_on', qbSortAsc = false, qbSelectedHashes = new Set(), qbInterval = null, logInterval = null, isAutoScroll = true;
+        
+        // 恢复：视图与折叠状态缓存控制
+        let currentViewMode = localStorage.getItem('view_mode') || 'list';
+        let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
+        
         document.getElementById('auto-scroll-cb').addEventListener('change', e => isAutoScroll = e.target.checked);
         const titles = { 'dashboard':'主页大盘', 'fleet':'节点管理', 'qb':'QB 调度', 'factory':'种子工厂', 'logs':'日志审计' };
+        
+        // 恢复：视图切换函数
+        function switchViewMode(m) { 
+            currentViewMode=m; localStorage.setItem('view_mode',m); 
+            document.getElementById('btn-view-list').className = m==='list'?'active':''; 
+            document.getElementById('btn-view-grid').className = m==='grid'?'active':''; 
+            renderList(); 
+        }
+
+        // 恢复：分组折叠切换函数
+        function toggleNodeGroup(n) { 
+            if(collapsedNodes.has(n)) collapsedNodes.delete(n); else collapsedNodes.add(n); 
+            localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes])); 
+            renderList(); 
+        }
         
         function switchTab(t) {
             document.querySelectorAll('.tab-pane, .nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
@@ -277,18 +338,25 @@
             renderList(); updateProDropdown();
         }
 
+        // 核心恢复：动态加载网格/列表与折叠状态的渲染循环
         function renderList() {
             const list = document.getElementById('folder-list'); const sel = new Set(Array.from(document.querySelectorAll('.folder-check:checked')).map(cb => cb.value));
             list.innerHTML = ''; if(currentFolders.length===0) return;
             let grouped = {}; currentFolders.forEach(f=>{if(!grouped[f.nodeName]) grouped[f.nodeName]=[]; grouped[f.nodeName].push(f);});
             
             for(const [nName, folders] of Object.entries(grouped)) {
-                let h = `<div style="margin-bottom:10px; font-weight:800; color:#1e293b;">🖥️ ${nName} <span style="background:#e2e8f0;color:#334155;padding:2px 8px;border-radius:12px;font-size:12px;">${folders.length}</span></div><div class="items-container list-view">`;
+                const isCol = collapsedNodes.has(nName);
+                const safeN = nName.replace(/'/g,"\\'");
+                
+                let h = `<div style="margin-bottom:20px;">
+                            <div class="node-group-header" onclick="toggleNodeGroup('${safeN}')">
+                                ${isCol?'▶':'▼'} 🖥️ ${nName} 
+                                <span style="background:#e2e8f0;color:#334155;padding:2px 8px;border-radius:12px;font-size:12px;">${folders.length}</span>
+                            </div>
+                            <div class="items-container ${currentViewMode}-view ${isCol?'collapsed':''}">`;
                 
                 folders.forEach(f => {
                     const cKey = `${f.nodeUrl}|${f.name}`, safeF = f.name.replace(/'/g,"\\'");
-                    
-                    // 核心修复：还原了 [已完成] 状态下的 👁️ 预览 和 🔄 重做 并列双按钮
                     const btn = f.ready ? 
                         `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}','${safeF}','${nName}')">👁️ 预览</button>
                          <button class="btn-action" style="background:#64748b;" onclick="fillProForm('${f.nodeUrl}','${safeF}')">🔄 重做</button>` 
@@ -298,12 +366,15 @@
                     h += `<div class="item">
                             <div class="item-info">
                                 <input type="checkbox" class="folder-check" value="${cKey}" ${f.ready?'disabled':''} ${sel.has(cKey)?'checked':''}>
-                                <div><strong style="word-break:break-all; font-size:14px;">${f.name}</strong><br><span style="color:${f.ready?'var(--success)':'var(--warning)'};font-size:12px;font-weight:700">${f.status}</span></div>
+                                <div>
+                                    <strong style="word-break:break-all; font-size:14px; color:#1e293b; line-height: 1.3; display: block; margin-bottom: 4px;">${f.name}</strong>
+                                    <span style="color:${f.ready?'var(--success)':'var(--warning)'};font-size:12px;font-weight:700">${f.status}</span>
+                                </div>
                             </div>
                             <div class="item-actions">${btn}</div>
                           </div>`;
                 });
-                list.innerHTML += h + `</div><br>`;
+                list.innerHTML += h + `</div></div>`;
             }
         }
 
@@ -430,7 +501,11 @@
             document.addEventListener('mousemove', e=>{ if(!isImageDragging) return; imgTX=e.clientX-imgDragStartX; imgTY=e.clientY-imgDragStartY; applyTransform(); });
             document.addEventListener('mouseup', ()=>isImageDragging=false);
         }
-        window.onload = () => { initImageZoomPan(); initNodes().then(()=>{ fetchSysInfo(); fetchAllNodesFolders(); setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000); }); };
+        window.onload = () => { 
+            document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : '';
+            document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : '';
+            initImageZoomPan(); initNodes().then(()=>{ fetchSysInfo(); fetchAllNodesFolders(); setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000); }); 
+        };
     </script>
 </body>
 </html>
