@@ -1,0 +1,18 @@
+{\rtf1\ansi\ansicpg936\cocoartf2867
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 argOSBX/ (\uc0\u20179 \u24211 \u26681 \u30446 \u24405 )\
+\uc0\u9492 \u9472 \u9472  pt-webui/ (\u9888 \u65039  \u24517 \u39035 \u26032 \u24314 \u36825 \u20010 \u25991 \u20214 \u22841 )\
+    \uc0\u9474 \
+    \uc0\u9500 \u9472 \u9472  app.py       (\u21151 \u33021 \u65306 FastAPI \u21518 \u31471 \u24341 \u25806 ) \
+    \uc0\u9474                 * \u24517 \u39035 \u26159 \u24102 \u26377  `os._exit(0)` \u33258 \u26432 \u24335 \u37325 \u21551 \u36923 \u36753 \u30340 \u26368 \u26032 \u29256 \u26412 \u12290 \
+    \uc0\u9474 \
+    \uc0\u9500 \u9472 \u9472  index.html   (\u21151 \u33021 \u65306 \u32431 \u21407 \u29983 \u32431 \u20928 \u29256 \u21069 \u31471  UI) \
+    \uc0\u9474                 * \u24517 \u39035 \u26159 \u24102 \u26377  `calc(100vh - 280px)` \u39640 \u24230 \u33258 \u36866 \u24212 \u19982 \u28378 \u36718 \u32553 \u25918 \u27801 \u30418 \u30340 \u26368 \u26032 \u29256 \u26412 \u12290 \
+    \uc0\u9474 \
+    \uc0\u9492 \u9472 \u9472  pt_make.sh   (\u21151 \u33021 \u65306 \u24213 \u23618 \u22810 \u23186 \u20307 \u35843 \u24230  Bash \u24341 \u25806 )\
+                     * \uc0\u24517 \u39035 \u26159 \u24102 \u26377  `MAX_CONCURRENT=3` \u30495  2K \u24182 \u21457 \u19982 \u32477 \u23545  Y \u36724 \u38450 \u20081 \u30721 \u22352 \u26631 \u30340 \u26368 \u26032 \u29256 \u26412 \u12290 }

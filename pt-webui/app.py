@@ -1,15 +1,10 @@
-from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
+import os, time, json, shutil, subprocess
+import urllib.request, urllib.parse
+from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Any
-import urllib.request
-import urllib.parse
-import subprocess
-import os
-import time
-import json
-import shutil
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
@@ -17,57 +12,24 @@ CONFIG_DIR = os.path.join(BASE_DIR, ".config")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
 TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
 LOG_FILE = os.path.join(CONFIG_DIR, "last_task.log")
-AUTH_FILE = os.path.join(CONFIG_DIR, "auth.json")
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 class RunRequest(BaseModel):
     folder: str = ""
     tracker: Optional[str] = None
     piece_size: Optional[str] = None
     layout: Optional[str] = None
+    overwrite_torrent: bool = False
+    overwrite_image: bool = False
 
 class BatchRequest(BaseModel):
     folders: List[str]
 
-# ================= 安全鉴权逻辑 =================
-def get_auth_config():
-    if not os.path.exists(AUTH_FILE):
-        with open(AUTH_FILE, "w", encoding="utf-8") as f:
-            json.dump({"username": "admin", "password": "admin888"}, f, indent=2)
-    try:
-        with open(AUTH_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {"username": "admin", "password": "admin888"}
-
-def check_auth(request: Request):
-    auth_config = get_auth_config()
-    auth_header = request.headers.get("Authorization")
-    # 为了简单跨节点通信，我们采用 Bearer 密码 的方式作为 Token
-    expected_token = f"Bearer {auth_config.get('password')}"
-    if auth_header != expected_token:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-@app.post("/api/login")
-def login(req: dict):
-    auth_config = get_auth_config()
-    if req.get("username") == auth_config.get("username") and req.get("password") == auth_config.get("password"):
-        return {"status": "success", "token": auth_config.get("password")}
-    return {"error": "账号或密码错误"}
-
-# ================= 业务接口 =================
 @app.get("/")
-def index():
-    return FileResponse("index.html")
+def index(): return FileResponse("index.html")
 
 @app.get("/api/nodes")
 def get_nodes():
@@ -78,10 +40,8 @@ def get_nodes():
     return []
 
 @app.post("/api/nodes")
-def save_nodes(nodes: List[Any], request: Request):
-    check_auth(request) # 【安全拦截】
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(nodes, f, ensure_ascii=False, indent=2)
+def save_nodes(nodes: List[Any]):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f: json.dump(nodes, f, ensure_ascii=False, indent=2)
     return {"status": "success"}
 
 @app.get("/api/folders")
@@ -96,8 +56,7 @@ def list_folders():
                 has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
                 ready = has_torrent and has_img
                 status = "✅ 已完成" if ready else "⏳ 待处理"
-                mtime = os.path.getmtime(path)
-                folders.append({"name": item, "status": status, "ready": ready, "mtime": mtime})
+                folders.append({"name": item, "status": status, "ready": ready, "mtime": os.path.getmtime(path)})
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
@@ -107,8 +66,7 @@ def sysinfo():
         mem_path = '/host_proc/meminfo' if os.path.exists('/host_proc/meminfo') else '/proc/meminfo'
         with open(mem_path, 'r') as f: mem_lines = f.readlines()
         mem_total = int(mem_lines[0].split()[1]) * 1024
-        mem_available = int(mem_lines[2].split()[1]) * 1024
-        mem_used = mem_total - mem_available
+        mem_used = mem_total - int(mem_lines[2].split()[1]) * 1024
 
         stat_path = '/host_proc/stat' if os.path.exists('/host_proc/stat') else '/proc/stat'
         with open(stat_path, 'r') as f: cpu_line = f.readline().split()
@@ -135,30 +93,22 @@ def sysinfo():
         if traffic_data.get("month") != current_month:
             traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
 
-        dtx = net_tx - traffic_data.get("last_tx", 0); drx = net_rx - traffic_data.get("last_rx", 0)
-        if dtx < 0: dtx = net_tx
-        if drx < 0: drx = net_rx
+        dtx, drx = max(0, net_tx - traffic_data.get("last_tx", 0)), max(0, net_rx - traffic_data.get("last_rx", 0))
         traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
         traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
         
         try:
             disk_usage = shutil.disk_usage(BASE_DIR)
-            disk_total = disk_usage.total; disk_used = disk_usage.used; disk_free = disk_usage.free
+            disk_total, disk_used, disk_free = disk_usage.total, disk_usage.used, disk_usage.free
         except Exception:
             disk_total, disk_used, disk_free = 0, 0, 0
 
-        return {
-            "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total,
-            "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"],
-            "disk_total": disk_total, "disk_used": disk_used, "disk_free": disk_free,
-            "timestamp": time.time()
-        }
+        return { "mem_total": mem_total, "mem_used": mem_used, "cpu_idle": cpu_idle, "cpu_total": cpu_total, "net_tx": net_tx, "net_rx": net_rx, "month_tx": traffic_data["month_tx"], "month_rx": traffic_data["month_rx"], "disk_total": disk_total, "disk_used": disk_used, "disk_free": disk_free, "timestamp": time.time() }
     except Exception as e: return {"error": str(e)}
 
 @app.post("/api/qbittorrent")
-def qbittorrent_proxy(req: dict, request: Request):
-    check_auth(request) # 【安全拦截】
+def qbittorrent_proxy(req: dict):
     qb_url = req.get("url", "").rstrip("/"); action = req.get("action"); name = req.get("name", "")
     user = req.get("user", ""); pwd = req.get("pwd", "")
     if not qb_url: return {"error": "No QB URL"}
@@ -167,8 +117,7 @@ def qbittorrent_proxy(req: dict, request: Request):
         try:
             login_data = urllib.parse.urlencode({'username': user, 'password': pwd}).encode('utf-8')
             l_req = urllib.request.Request(f"{qb_url}/api/v2/auth/login", data=login_data)
-            l_resp = urllib.request.urlopen(l_req, timeout=5)
-            cookie = l_resp.headers.get('Set-Cookie').split(';')[0]
+            cookie = urllib.request.urlopen(l_req, timeout=5).headers.get('Set-Cookie').split(';')[0]
         except: return {"error": "QB Login Failed"}
     headers = {"Cookie": cookie} if cookie else {}
     try:
@@ -192,20 +141,18 @@ def qbittorrent_proxy(req: dict, request: Request):
     except Exception as e: return {"error": str(e)}
 
 @app.post("/api/run/{mode}")
-def run_task(mode: str, req: RunRequest, request: Request, background_tasks: BackgroundTasks):
-    check_auth(request) # 【安全拦截】
+def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         if mode == "folder" and req.folder:
-            folder_name = req.folder
-            for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
-                if os.path.exists(p): os.remove(p)
-            if req.tracker or req.piece_size:
-                for ext in [".torrent", "_mediainfo.txt"]:
-                    p = os.path.join(BASE_DIR, f"{folder_name}{ext}")
+            if req.overwrite_image:
+                for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
+                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
                     if os.path.exists(p): os.remove(p)
-                    
-        cmd = ["/bin/bash", "/app/pt_make_headless.sh", f"--{mode}"]
+            if req.overwrite_torrent:
+                for ext in [".torrent", "_mediainfo.txt"]:
+                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
+                    if os.path.exists(p): os.remove(p)
+        cmd = ["/bin/bash", "/app/pt_make.sh", f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
         env = os.environ.copy()
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
@@ -213,36 +160,60 @@ def run_task(mode: str, req: RunRequest, request: Request, background_tasks: Bac
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
+            f.flush()
+            os.fsync(f.fileno())
             subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT)
     background_tasks.add_task(execute_script)
     return {"message": "Task Started"}
 
 @app.post("/api/run_batch")
-def run_batch(req: BatchRequest, request: Request, background_tasks: BackgroundTasks):
-    check_auth(request) # 【安全拦截】
+def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     def execute_batch():
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
+            f.flush()
+            os.fsync(f.fileno())
             for folder in req.folders:
-                cmd = ["/bin/bash", "/app/pt_make_headless.sh", "--folder", folder]
-                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+                subprocess.run(["/bin/bash", "/app/pt_make.sh", "--folder", folder], stdout=f, stderr=subprocess.STDOUT)
+                f.flush()
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
 @app.post("/api/update")
-def update_system(request: Request, background_tasks: BackgroundTasks):
-    check_auth(request) # 【安全拦截】
-    try:
-        base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
-        for f_name in ["index.html", "pt_make_headless.sh", "app.py"]:
-            url = f"{base_url}/{f_name}"
-            content = urllib.request.urlopen(url).read().decode('utf-8')
-            with open(f_name if f_name!="app.py" else "/app/app.py", "w", encoding="utf-8") as f: f.write(content)
-        os.chmod("pt_make_headless.sh", 0o755)
-        def restart(): time.sleep(2); os._exit(0)
-        background_tasks.add_task(restart)
-        return {"message": "OTA Success"}
-    except Exception as e: return {"message": f"Error: {e}"}
+def update_system(background_tasks: BackgroundTasks):
+    def execute_ota():
+        time.sleep(1)
+        try:
+            # 【核心修正】：移除 ghproxy，恢复 GitHub 官方源的全球直连
+            base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
+            for f_name in ["index.html", "app.py", "pt_make.sh"]:
+                url = f"{base_url}/{f_name}"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                content = urllib.request.urlopen(req, timeout=15).read().decode('utf-8')
+                
+                write_path = f"/app/{f_name}" if os.path.exists("/app") else f_name
+                with open(write_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    
+            script_path = "/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "pt_make.sh"
+            if os.path.exists(script_path): os.chmod(script_path, 0o755)
+            
+            with open(LOG_FILE, "a") as f:
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] 引擎自我覆写完成，即将剥离重启...\n")
+                f.flush()
+                os.fsync(f.fileno())
+                
+            time.sleep(2)
+            os._exit(0) 
+            
+        except Exception as e:
+            with open(LOG_FILE, "a") as f:
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA 升级失败: {str(e)}\n")
+                f.flush()
+                os.fsync(f.fileno())
+
+    background_tasks.add_task(execute_ota)
+    return {"message": "OTA Update Triggered"}
 
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
