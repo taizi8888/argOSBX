@@ -1,3 +1,4 @@
+cat << 'EOF' > /root/argosbx-web/pt-webui/app.py
 import os, time, json, shutil, subprocess
 import urllib.request, urllib.parse
 from fastapi import FastAPI, BackgroundTasks, Request
@@ -179,13 +180,32 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_batch)
     return {"message": "批量任务已启动！"}
 
+@app.get("/api/logs")
+def get_logs():
+    if os.path.exists(LOG_FILE):
+        try:
+            with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+                # 仅读取最后 500 行，防止前端内存溢出
+                return {"logs": "".join(lines[-500:])}
+        except Exception as e:
+            return {"error": str(e)}
+    return {"logs": "系统日志文件尚不存在，等待任务生成中..."}
+
+@app.post("/api/logs/clear")
+def clear_logs():
+    try:
+        open(LOG_FILE, 'w').close()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
     def execute_ota():
         time.sleep(1)
         try:
-            # 【核心修正】：移除 ghproxy，恢复 GitHub 官方源的全球直连
-            base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/main/pt-webui"
+            base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui"
             for f_name in ["index.html", "app.py", "pt_make.sh"]:
                 url = f"{base_url}/{f_name}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -199,7 +219,7 @@ def update_system(background_tasks: BackgroundTasks):
             if os.path.exists(script_path): os.chmod(script_path, 0o755)
             
             with open(LOG_FILE, "a") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] 引擎自我覆写完成，即将剥离重启...\n")
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] 引擎自我覆写完成 (shdetai分支)，即将剥离重启...\n")
                 f.flush()
                 os.fsync(f.fileno())
                 
@@ -228,3 +248,4 @@ def preview_mediainfo(folder: str):
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
     return PlainTextResponse("Not Found")
+EOF
