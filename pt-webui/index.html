@@ -67,7 +67,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V6.3</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V6.4</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -124,6 +124,7 @@
         let qbTorrentsData = [], qbSortKey = 'added_on', qbSortAsc = false, qbSelectedHashes = new Set(), qbInterval = null, logInterval = null, isAutoScroll = true;
         document.getElementById('auto-scroll-cb').addEventListener('change', e => isAutoScroll = e.target.checked);
         const titles = { 'dashboard':'主页大盘', 'fleet':'节点管理', 'qb':'QB 调度', 'factory':'种子工厂', 'logs':'日志审计' };
+        
         function switchTab(t) {
             document.querySelectorAll('.tab-pane, .nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${t}`).classList.add('active');
@@ -133,10 +134,12 @@
             if (t === 'logs') { fetchLogs(true); if (!logInterval) logInterval = setInterval(() => fetchLogs(), 3000); }
             else { if (logInterval) { clearInterval(logInterval); logInterval = null; } }
         }
+
         async function fetchLogs(m = false) {
             try { const res = await fetch('/api/logs'), d = await res.json(), c = document.getElementById('log-container'); if (d.logs) c.innerText = d.logs; if (isAutoScroll || m) c.scrollTop = c.scrollHeight; } catch(e){}
         }
         async function clearLogs() { if(confirm("确定清空日志？")) { await fetch('/api/logs/clear', { method: 'POST' }); fetchLogs(true); } }
+        
         function openDetailView(u, f, n) {
             currentActiveNodeUrl = u; currentActiveFolder = f; document.getElementById('app-layout').style.display = 'none'; document.getElementById('detail-view').style.display = 'block';
             document.getElementById('detailPath').innerText = `节点：[${n}] /downloads/${f}`; resetImageZoom();
@@ -144,24 +147,75 @@
             fetch(`${u}/api/preview/mediainfo/${encodeURIComponent(f)}`).then(r=>r.text()).then(t=>document.getElementById('detailMediaInfo').innerText=t);
         }
         function closeDetailView() { document.getElementById('detail-view').style.display = 'none'; document.getElementById('app-layout').style.display = 'flex'; }
-        // 以下逻辑保持 V6.2 精髓，略作压缩兼容 Tab 架构
         function formatBytes(b) { if(b===0||!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i]; }
+
+        async function syncNodesToBackend(nodes) { 
+            try { await fetch('/api/nodes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(nodes) }); } catch(e){} 
+        }
+        
         async function initNodes() {
-            const origin = window.location.origin; let saved = []; try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
+            const origin = window.location.origin; let saved = []; 
+            try { saved = await (await fetch('/api/nodes')).json(); } catch(e){}
+            
+            // 【核心修复】：缓存救援机制。如果后端文件为空，自动从浏览器历史缓存中挽回数据并重新写回后端
+            if(saved.length === 0) {
+                let local = JSON.parse(localStorage.getItem('cluster_nodes')) || [];
+                saved = local.map(n => typeof n === 'string' ? {url:n, name:new URL(n).host} : n);
+                if(saved.length > 0) await syncNodesToBackend(saved);
+            }
+
             clusterNodes = [{ url: origin, name: "本机主控", status: "online" }];
             saved.forEach(n => { if(n.url !== origin && !clusterNodes.find(c=>c.url===n.url)) clusterNodes.push({...n, status: "online"}); });
             renderNodes(); populateQbNodes();
         }
+
         function renderNodes() {
             const c = document.getElementById('active-nodes'); c.innerHTML = '';
             clusterNodes.forEach((n, i) => {
-                c.innerHTML += `<div class="sys-card"><div class="sys-card-header">${n.name}</div><div id="sys-data-${i}">建立连接...</div></div>`;
+                const s = n.status==='offline';
+                c.innerHTML += `<div class="sys-card" style="${s?'opacity:0.5':''}">
+                    <div class="sys-card-header"><div onclick="editNodeName('${n.url}')" style="cursor:pointer;"><strong>${s?'🔴':'🟢'} ${n.name}</strong></div>${i!==0?`<span onclick="removeNode('${n.url}')" style="cursor:pointer;color:var(--danger);font-size:12px;">移除</span>`:''}</div>
+                    <div id="sys-data-${i}">${s?'节点已离线或阻断':'建立探针通信...'}</div></div>`;
             });
         }
+
+        async function editNodeName(url) {
+            const i = clusterNodes.findIndex(n=>n.url===url); if(i===-1) return;
+            const newName = prompt(`修改节点别名：`, clusterNodes[i].name);
+            if(newName!==null && newName.trim()!=="") { 
+                clusterNodes[i].name = newName.trim(); 
+                await syncNodesToBackend(clusterNodes.filter((_,j)=>j!==0).map(n=>({url:n.url,name:n.name}))); 
+                renderNodes(); renderList(); updateProDropdown(); populateQbNodes(); 
+            }
+        }
+
+        async function addNode() {
+            let ip = document.getElementById('newNodeIp').value.trim(), name = document.getElementById('newNodeName').value.trim();
+            if(!ip) return alert("请输入 API 地址"); 
+            if(!ip.startsWith('http')) ip='http://'+ip; if(ip.endsWith('/')) ip=ip.slice(0,-1);
+            if(!name) { try { name = new URL(ip).host; } catch(e){name=ip;} }
+            if(!clusterNodes.find(n=>n.url===ip)) {
+                let saved = clusterNodes.filter((_,i)=>i!==0).map(n=>({url:n.url,name:n.name})); saved.push({url:ip,name}); 
+                // 【核心修复】：加上 await 确保写入完毕后再刷新，避免抢占冲突
+                await syncNodesToBackend(saved);
+                document.getElementById('newNodeIp').value=''; document.getElementById('newNodeName').value='';
+                await initNodes();
+                fetchAllNodesFolders(); fetchSysInfo();
+            } else alert("节点 IP 已存在！");
+        }
+
+        async function removeNode(url) {
+            if(confirm("确定剥离此节点？")) {
+                await syncNodesToBackend(clusterNodes.filter((n,i)=>i!==0 && n.url!==url).map(n=>({url:n.url,name:n.name}))); 
+                await initNodes();
+                fetchAllNodesFolders();
+            }
+        }
+
         async function fetchAllNodesFolders() {
             currentFolders = []; let count = 0;
             const ps = clusterNodes.map(async n => {
-                try { const r = await fetch(`${n.url}/api/folders`), d = await r.json(); count++; return d.folders.map(f=>({...f,nodeUrl:n.url,nodeName:n.name})); } catch(e){ return []; }
+                try { const r = await fetch(`${n.url}/api/folders`), d = await r.json(); count++; n.status='online'; return d.folders.map(f=>({...f,nodeUrl:n.url,nodeName:n.name})); } catch(e){ n.status='offline'; return []; }
             });
             const rs = await Promise.all(ps); rs.forEach(r => currentFolders = currentFolders.concat(r));
             currentFolders.sort((a,b)=>(a.ready===b.ready ? b.mtime-a.mtime : (a.ready?1:-1)));
@@ -184,11 +238,131 @@
                 list.innerHTML += h + `</div>`;
             }
         }
+
+        function populateQbNodes() {
+            const s = document.getElementById('qb-node-select'), cur = s.value; s.innerHTML = '<option value="">-- 选择接管节点 --</option>';
+            clusterNodes.forEach(n => s.innerHTML+=`<option value="${n.url}">🖥️ ${n.name}</option>`);
+            if(cur) s.value = cur;
+        }
+        function loadQbConfig() {
+            const url = document.getElementById('qb-node-select').value; if(!url) return;
+            let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
+            document.getElementById('qb-url').value = cfg.url||''; document.getElementById('qb-user').value = cfg.user||''; document.getElementById('qb-pwd').value = cfg.pwd||'';
+            clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; qbSelectedHashes.clear(); updateQbBatchBar();
+        }
+        async function connectQb() {
+            const n = document.getElementById('qb-node-select').value, u = document.getElementById('qb-url').value, usr = document.getElementById('qb-user').value, p = document.getElementById('qb-pwd').value;
+            if(!n||!u) return alert("请选择节点并填写地址");
+            let cfgs = JSON.parse(localStorage.getItem('qb_configs'))||{}; cfgs[n] = {url:u, user:usr, pwd:p}; localStorage.setItem('qb_configs', JSON.stringify(cfgs));
+            await fetchQbData(true); if(qbInterval) clearInterval(qbInterval); qbInterval = setInterval(() => fetchQbData(false), 3000);
+        }
+        async function fetchQbData(isManual = false) {
+            const n = document.getElementById('qb-node-select').value; if(!n) return;
+            let cfg = (JSON.parse(localStorage.getItem('qb_configs'))||{})[n]; if(!cfg) return;
+            try {
+                const res = await fetch(`${n}/api/qbittorrent`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'list'})});
+                const data = await res.json(); 
+                if(data.error) { if(isManual) alert("连接失败: " + data.error); clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; return; }
+                qbTorrentsData = data; document.getElementById('qb-table-container').style.display='block'; renderQbTable();
+            } catch(e){ if(isManual) alert("连接超时"); clearInterval(qbInterval); }
+        }
+        function setQbSort(k) { if(qbSortKey===k) qbSortAsc=!qbSortAsc; else { qbSortKey=k; qbSortAsc=k!=='added_on'; } renderQbTable(); }
+        function toggleQbAll(c) { if(c) qbTorrentsData.forEach(t=>qbSelectedHashes.add(t.hash)); else qbSelectedHashes.clear(); renderQbTable(); }
+        function toggleQbHash(h,c) { if(c) qbSelectedHashes.add(h); else qbSelectedHashes.delete(h); updateQbBatchBar(); }
+        function updateQbBatchBar() {
+            const b = document.getElementById('qb-batch-bar'), c = document.getElementById('qb-sel-count'), a = document.getElementById('qb-chk-all');
+            if(c) c.innerText = qbSelectedHashes.size; if(b) b.style.display = qbSelectedHashes.size>0?'flex':'none';
+            if(a) a.checked = qbTorrentsData.length>0 && qbSelectedHashes.size===qbTorrentsData.length;
+        }
+        function renderQbTable() {
+            const b = document.getElementById('qb-table-body'); b.innerHTML = '';
+            document.querySelectorAll('.sort-icon').forEach(e=>{e.innerHTML='';e.className='sort-icon';});
+            const icon = document.getElementById(`sort-icon-${qbSortKey}`); if(icon) { icon.innerHTML=qbSortAsc?'▲':'▼'; icon.className='sort-icon active'; }
+            if(!qbTorrentsData.length) { b.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#64748b">暂无任务</td></tr>'; updateQbBatchBar(); return; }
+            let data = [...qbTorrentsData].sort((x,y) => { let v1 = x[qbSortKey], v2 = y[qbSortKey]; return qbSortAsc ? (v1>v2?1:-1) : (v1<v2?1:-1); });
+            const states = { 'downloading':['下载中','#3b82f6'], 'uploading':['做种中','#10b981'], 'pausedDL':['已暂停','#f59e0b'], 'pausedUP':['已暂停','#f59e0b'], 'stalledUP':['做种(空)','#10b981'], 'error':['错误','#ef4444']};
+            data.forEach(t => {
+                let s = states[t.state] || [t.state, '#64748b'], p = (t.progress*100).toFixed(1);
+                b.innerHTML += `<tr>
+                    <td style="text-align:center"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}',this.checked)" ${qbSelectedHashes.has(t.hash)?'checked':''}></td>
+                    <td><div style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.name}"><strong>${t.name}</strong></div></td>
+                    <td>${formatBytes(t.size)}</td>
+                    <td><div style="font-size:11px">${p}%</div><div style="background:#f1f5f9;height:6px;border-radius:10px;"><div style="height:100%;width:${p}%;background:${s[1]}"></div></div></td>
+                    <td style="color:${s[1]};font-weight:bold">${s[0]}</td>
+                    <td style="text-align:right">
+                        <button onclick="qbAction('${t.hash}','resume')" style="background:var(--success);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">▶</button>
+                        <button onclick="qbAction('${t.hash}','pause')" style="background:var(--warning);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">⏸</button>
+                        <button onclick="qbDelete('${t.hash}','${t.name.replace(/'/g,"\\'")}')" style="background:var(--danger);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">✖</button>
+                    </td>
+                </tr>`;
+            });
+            updateQbBatchBar();
+        }
+        async function qbAction(h,a) { const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h})}).then(()=>fetchQbData()); }
+        async function qbBatchAction(a) { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h.join('|')})}); fetchQbData(); }
+        async function qbDelete(h,name) { if(!confirm(`确定删除 [${name}]?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h,delete_files:d,name})}); qbSelectedHashes.delete(h); fetchQbData(); }
+        async function qbBatchDelete() { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), names=h.map(x=>qbTorrentsData.find(t=>t.hash===x)?.name||"").filter(x=>x); if(!confirm(`确定删除 ${h.length} 个任务?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h.join('|'),delete_files:d,name:names.join('|')})}); qbSelectedHashes.clear(); fetchQbData(); }
+
+        function updateProDropdown() {
+            const s = document.getElementById("pro-folder"), cur = s.value; s.innerHTML = '<option value="">-- 选择目标目录 --</option>';
+            currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`);
+            if(cur) s.value = cur;
+        }
+        function fillProForm(url, folder) { 
+            document.getElementById("pro-folder").value = `${url}|${folder}`; document.getElementById("pro-overwrite-torrent").checked = false; document.getElementById("pro-overwrite-image").checked = false; switchTab('factory');
+        }
+        async function submitProTask() {
+            const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
+            const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
+            const t = document.getElementById("pro-tracker").value.trim(), p = document.getElementById("pro-piece").value, l = document.getElementById("pro-layout").value;
+            const ot = document.getElementById("pro-overwrite-torrent").checked, oi = document.getElementById("pro-overwrite-image").checked;
+            if(document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
+            alert(`任务指令已向 ${folder} 下发！`); switchTab('dashboard'); 
+            await fetch(`${url}/api/run/folder`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ folder, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi }) });
+            fetchAllNodesFolders();
+        }
+        function selectAllPending() { document.querySelectorAll('.items-container .folder-check:not(:disabled)').forEach(cb => cb.checked = true); }
+        async function triggerBatch() {
+            const sel = Array.from(document.querySelectorAll('.folder-check:checked')).map(c=>c.value); if(sel.length===0) return alert("请勾选需要处理的任务");
+            let batches = {}; sel.forEach(c => { const [u, f] = [c.substring(0,c.indexOf('|')), c.substring(c.indexOf('|')+1)]; if(!batches[u]) batches[u]=[]; batches[u].push(f); });
+            for(const [u, fds] of Object.entries(batches)) fetch(`${u}/api/run_batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({folders:fds}) });
+            alert(`已排队分配 ${sel.length} 个任务`); setTimeout(fetchAllNodesFolders, 2000);
+        }
+
+        async function fetchSysInfo() {
+            clusterNodes.forEach(async (n, i) => {
+                if(n.status==='offline') return;
+                try {
+                    const res = await fetch(`${n.url}/api/sysinfo`), cur = await res.json(); if(cur.error) return;
+                    let prev = nodeStats[n.url];
+                    if(prev && cur.timestamp > prev.timestamp) {
+                        let tDiff = cur.timestamp - prev.timestamp;
+                        let cpu = Math.max(0, Math.min(100, ((cur.cpu_total-prev.cpu_total)-(cur.cpu_idle-prev.cpu_idle))/(cur.cpu_total-prev.cpu_total)*100));
+                        let mem = (cur.mem_used/cur.mem_total)*100;
+                        let tx = Math.max(0, (cur.net_tx-prev.net_tx)/tDiff), rx = Math.max(0, (cur.net_rx-prev.net_rx)/tDiff);
+                        let totalMo = (cur.month_tx||0) + (cur.month_rx||0);
+                        let diskTotal = cur.disk_total || 0, diskUsed = cur.disk_used || 0, diskPct = diskTotal > 0 ? (diskUsed/diskTotal)*100 : 0;
+                        let diskColor = diskPct > 95 ? '#ef4444' : (diskPct > 80 ? '#f59e0b' : '#8b5cf6');
+                        const el = document.getElementById(`sys-data-${i}`);
+                        if(el) el.innerHTML = `<div class="sys-stat-row"><span>💻 CPU</span><span style="font-weight:600">${cpu.toFixed(1)}%</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${cpu}%;background:linear-gradient(90deg, #60a5fa, #3b82f6)"></div></div><div class="sys-stat-row"><span>🧠 RAM</span><span style="font-weight:600">${formatBytes(cur.mem_used)} / ${formatBytes(cur.mem_total)}</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${mem}%;background:linear-gradient(90deg, #34d399, #10b981)"></div></div><div class="sys-stat-row"><span>💾 硬盘</span><span style="font-weight:600">${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${diskPct}%;background:${diskColor}"></div></div><div class="sys-stat-row" style="margin-top:12px;"><span>📅 本月流量</span><span style="font-weight:800;color:var(--primary)">${formatBytes(totalMo)}</span></div><div class="sys-net"><span style="color:var(--success)">↓ ${formatBytes(rx)}/s</span><span style="color:var(--primary)">↑ ${formatBytes(tx)}/s</span></div>`;
+                    }
+                    nodeStats[n.url] = cur;
+                } catch(e){}
+            });
+        }
+
         async function hotUpdateAllNodes() { if(confirm("确认 OTA 升级？")) { await fetch('/api/update', { method: 'POST' }); alert("主控重启中，8秒后刷新..."); setTimeout(() => location.reload(true), 8000); } }
         let imgScale=1, imgTX=0, imgTY=0;
         function resetImageZoom() { imgScale=1; imgTX=0; imgTY=0; applyTransform(); }
         function applyTransform() { const i=document.getElementById('detailImage'); if(i) i.style.transform=`translate(${imgTX}px, ${imgTY}px) scale(${imgScale})`; }
-        window.onload = () => { initImageZoomPan(); initNodes(); fetchAllNodesFolders(); setInterval(fetchAllNodesFolders, 10000); };
+        function initImageZoomPan() {
+            const c=document.getElementById('imageZoomContainer'); if(!c) return;
+            c.addEventListener('wheel', e=>{ e.preventDefault(); imgScale=Math.max(0.2, Math.min(imgScale+(e.deltaY>0?-1:1)*0.15*imgScale, 15)); applyTransform(); }, {passive:false});
+            c.addEventListener('mousedown', e=>{ e.preventDefault(); isImageDragging=true; imgDragStartX=e.clientX-imgTX; imgDragStartY=e.clientY-imgTY; });
+            document.addEventListener('mousemove', e=>{ if(!isImageDragging) return; imgTX=e.clientX-imgDragStartX; imgTY=e.clientY-imgDragStartY; applyTransform(); });
+            document.addEventListener('mouseup', ()=>isImageDragging=false);
+        }
+        window.onload = () => { initImageZoomPan(); initNodes().then(()=>{ fetchSysInfo(); fetchAllNodesFolders(); setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000); }); };
     </script>
 </body>
 </html>
