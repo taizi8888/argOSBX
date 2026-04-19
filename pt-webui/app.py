@@ -188,38 +188,36 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：代理反射穿透引擎 (彻底规避甲骨文 IP 封锁)
+# 核心重构：Wiki 垂直定点爆破引擎
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
-    keyword = keyword.strip().upper()
-    search_query = urllib.parse.quote(f"{keyword} site:dmm.co.jp")
+    keyword = keyword.strip().lower() # Wiki 通常用小写 URL
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
-        match = re.search(r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>\?&]+)', decoded_html)
+        # 兼容纯净版、video版、以及推广版(al.dmm.co.jp) 链接，遇到引号或空格截断
+        match = re.search(r'(https?://(?:[a-zA-Z0-9-]+\.)?dmm\.co\.jp/[^\s"\'<>]+)', decoded_html)
         return match.group(1) if match else None
 
-    # 引擎 1: AllOrigins 反射代理直连 Javbus (隐匿甲骨文 IP，绕过 Cloudflare 503 拦截)
+    # 引擎 1: 精确制导，直接请求 ShiroutoWiki 的文章页 (通过 AllOrigins 代理)
     try:
-        javbus_url = urllib.parse.quote(f"https://www.javbus.com/{keyword}")
-        proxy_url = f"https://api.allorigins.win/get?url={javbus_url}"
+        direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
+        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
         req = urllib.request.Request(proxy_url, headers=headers)
         resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        # AllOrigins 返回的是 JSON 格式，提取其中的 contents 字段
         html = json.loads(resp).get("contents", "")
         link = extract_dmm_link(html)
         if link: return {"link": link}
-    except Exception as e:
+    except Exception:
         pass
 
-    # 引擎 2: CodeTabs 反射代理直连 Yahoo Japan (彻底绕过跨国搜索的 IP 盾)
+    # 引擎 2: 降级调用 Wiki 的站内搜索功能 (通过 CodeTabs 代理)
     try:
-        yahoo_url = f"https://search.yahoo.co.jp/search?p={urllib.parse.quote(keyword + ' site:dmm.co.jp')}"
-        proxy_url2 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(yahoo_url)}"
+        search_url = f"https://shiroutowiki.work/?s={keyword}"
+        proxy_url2 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
         req2 = urllib.request.Request(proxy_url2, headers=headers)
         html2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
         link2 = extract_dmm_link(html2)
@@ -227,18 +225,18 @@ def scrape_link(keyword: str):
     except Exception:
         pass
 
-    # 引擎 3: 本机直连 DuckDuckGo Lite (POST 方式抗封杀能力极强)
+    # 引擎 3: 最后降级，使用 DuckDuckGo 站内检索兜底
     try:
-        ddg_url = "https://lite.duckduckgo.com/lite/"
-        data = urllib.parse.urlencode({'q': f"{keyword} site:dmm.co.jp"}).encode('utf-8')
-        req3 = urllib.request.Request(ddg_url, data=data, headers=headers)
+        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
+        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
+        req3 = urllib.request.Request(ddg_url, headers=headers)
         html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
         link3 = extract_dmm_link(html3)
         if link3: return {"link": link3}
     except Exception:
         pass
 
-    return {"error": "云端代理反射及直连防线均被击穿，请使用右侧【🌐 浏览器搜索】"}
+    return {"error": "Wiki数据源及备用引擎均未命中，请使用右侧【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
