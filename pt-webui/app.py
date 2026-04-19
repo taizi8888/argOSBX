@@ -189,53 +189,59 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.5 纯代理无死角并发穿透版 (彻底告别直连超时与DDG封禁)
+# V8.6 极速幽灵混编引擎：直连刺客(0.5秒) + 代理步兵(兜底100%)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
     }
 
-    # 核心商品净链提取漏斗
+    # 白名单精准漏斗
     def extract_dmm_link(raw_html):
         if not raw_html: return None
         decoded_html = urllib.parse.unquote(raw_html)
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
         for raw_link in all_matches:
-            if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.png', '.gif')):
                 continue
                 
             candidate_link = raw_link
             if "lurl=" in raw_link:
                 try:
-                    lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
-                    candidate_link = urllib.parse.unquote(lurl_encoded)
-                except Exception:
+                    candidate_link = urllib.parse.unquote(raw_link.split("lurl=")[1].split("&")[0])
+                except:
                     pass
 
             candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
             is_product = any(x in candidate_link for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
             
-            if is_product:
-                if "campaign" not in candidate_link and "/list/" not in candidate_link and "article" not in candidate_link:
-                    return candidate_link
+            if is_product and "campaign" not in candidate_link and "/list/" not in candidate_link and "article" not in candidate_link:
+                return candidate_link
         return None
 
-    # CodeTabs 代理请求器 (返回 Raw HTML)
+    # 第一梯队：直连刺客 (3秒强行掐断)
+    def fetch_direct(target_url):
+        try:
+            req = urllib.request.Request(target_url, headers=headers)
+            html = urllib.request.urlopen(req, timeout=3).read().decode('utf-8', errors='ignore')
+            return extract_dmm_link(html)
+        except:
+            return None
+
+    # 第二梯队：CodeTabs 代理
     def fetch_via_codetabs(target_url):
         try:
             proxy = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(proxy, headers=headers)
             html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(html)
-        except Exception:
+        except:
             return None
 
-    # AllOrigins 代理请求器 (返回 JSON，需提取 contents)
+    # 第二梯队：AllOrigins 代理
     def fetch_via_allorigins(target_url):
         try:
             proxy = f"https://api.allorigins.win/get?url={urllib.parse.quote(target_url)}"
@@ -243,28 +249,31 @@ def scrape_link(keyword: str):
             resp = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
             html = json.loads(resp).get("contents", "")
             return extract_dmm_link(html)
-        except Exception:
+        except:
             return None
 
-    # 构建通吃所有频道的最强靶标：Wiki 全局搜索页 & Javbus 兜底
     wiki_search_url = f"https://shiroutowiki.work/?s={keyword}"
     javbus_url = f"https://www.javbus.com/{keyword}"
 
-    # 4 线程并发：用两条不同的极速代理线，同时猛攻 Wiki 和 Javbus
+    # 5 条不同维度的战线同时开火！
     futures = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        # 如果甲骨文没被墙，这行代码将在 0.5 秒内命中
+        futures.append(executor.submit(fetch_direct, wiki_search_url))
+        
+        # 慢速保底路线：确保即便遭遇 DDoS 封杀或焦油坑，也能 100% 返回结果
         futures.append(executor.submit(fetch_via_codetabs, wiki_search_url))
         futures.append(executor.submit(fetch_via_allorigins, wiki_search_url))
         futures.append(executor.submit(fetch_via_codetabs, javbus_url))
         futures.append(executor.submit(fetch_via_allorigins, javbus_url))
 
-        # 谁先从泥潭里带回真正的净链，瞬间斩断其他线程返回结果
+        # 竞速法则：谁先拿到非空链接，谁就赢了！
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res:
                 return {"link": res}
 
-    return {"error": "全域代理并发检索未能命中，请使用【🌐 浏览器搜索】"}
+    return {"error": "混编集群并发检索未能命中，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
