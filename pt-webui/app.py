@@ -1,5 +1,6 @@
 import os, time, json, shutil, subprocess, re
 import urllib.request, urllib.parse
+import concurrent.futures
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -188,7 +189,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.0 终极缝合引擎：代理反射(绕过20秒焦油坑) + 广告屏蔽净链提取
+# V8.1 终极版：多线程并发极速抓取引擎 (并发直连)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -196,17 +197,13 @@ def scrape_link(keyword: str):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
+    # 漏斗过滤器：提取并清洗真实的商品落地页
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
-        # 全网打捞
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
-        
         for raw_link in all_matches:
-            # 1. 踢掉图片
             if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
-                
-            # 2. 剥离 Affiliate
             candidate_link = raw_link
             if "lurl=" in raw_link:
                 try:
@@ -216,60 +213,37 @@ def scrape_link(keyword: str):
                     candidate_link = raw_link.split("&")[0]
             else:
                 candidate_link = raw_link.split("&")[0]
-
-            # 3. 白名单漏斗过滤广告
             if "detail" in candidate_link or "id=" in candidate_link or "cid=" in candidate_link:
                 if "campaign" not in candidate_link and "/list/" not in candidate_link:
                     return candidate_link
         return None
 
-    # 引擎 1: AllOrigins 代理反射 Wiki 详情页 (约 2-3 秒)
-    try:
-        direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
-        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
-        req = urllib.request.Request(proxy_url, headers=headers)
-        resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        html = json.loads(resp).get("contents", "")
-        link = extract_dmm_link(html)
-        if link: return {"link": link}
-    except Exception:
-        pass
+    # 核心 Worker 函数：执行单次网络请求
+    def fetch_url(url):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            # 设置极短的超时，强迫爬虫快速反应
+            html = urllib.request.urlopen(req, timeout=5).read().decode('utf-8', errors='ignore')
+            return extract_dmm_link(html)
+        except Exception:
+            return None
 
-    # 引擎 2: AllOrigins 代理反射 Wiki 备用目录
-    try:
-        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
-        proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
-        req2 = urllib.request.Request(proxy_url2, headers=headers)
-        resp2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
-        html2 = json.loads(resp2).get("contents", "")
-        link2 = extract_dmm_link(html2)
-        if link2: return {"link": link2}
-    except Exception:
-        pass
+    # 构建我们要同时轰炸的 3 个引擎路线
+    targets = [
+        f"https://shiroutowiki.work/fanza-video/{keyword}/",
+        f"https://shiroutowiki.work/?s={keyword}",
+        f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}&kp=-2"
+    ]
 
-    # 引擎 3: CodeTabs 代理反射 Wiki 站内搜索
-    try:
-        search_url = f"https://shiroutowiki.work/?s={keyword}"
-        proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
-        req3 = urllib.request.Request(proxy_url3, headers=headers)
-        html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
-        link3 = extract_dmm_link(html3)
-        if link3: return {"link": link3}
-    except Exception:
-        pass
+    # 并发执行：多条狗一起跑出去找骨头，谁先叼回来真的，就立刻结束返回！
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_url = {executor.submit(fetch_url, url): url for url in targets}
+        for future in concurrent.futures.as_completed(future_to_url):
+            result = future.result()
+            if result:
+                return {"link": result}
 
-    # 引擎 4: DuckDuckGo Lite API 兜底搜索
-    try:
-        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
-        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
-        req4 = urllib.request.Request(ddg_url, headers=headers)
-        html4 = urllib.request.urlopen(req4, timeout=8).read().decode('utf-8', errors='ignore')
-        link4 = extract_dmm_link(html4)
-        if link4: return {"link": link4}
-    except Exception:
-        pass
-
-    return {"error": "云端代理反射及全栈防线均被击穿，请使用右侧【🌐 浏览器搜索】"}
+    return {"error": "全域并发检索均未能找到商品净链，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
