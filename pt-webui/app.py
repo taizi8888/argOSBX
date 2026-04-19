@@ -188,26 +188,30 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：防图黑名单漏斗与全量扫网引擎
+# 核心重构：无代理全速直连测试版 (极限压缩请求时间)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
+    
+    # 模拟真实用户的请求头，尽量降低被墙概率
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+        'Referer': 'https://www.google.com/'
     }
 
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
-        
-        # 核心修复：使用 findall 抓取所有符合特征的链接，而不是只抓第一个
+        # 智能漏斗全量提取
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
         for raw_link in all_matches:
-            # 黑名单过滤：无情踢开所有图片域名和扩展名
+            # 过滤图片源
             if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
                 
-            # 如果是包含 lurl= 的推广链接，强行剥离出真实的 DMM 地址
+            # Affiliate 剥离解码
             if "lurl=" in raw_link:
                 try:
                     lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
@@ -216,58 +220,41 @@ def scrape_link(keyword: str):
                 except Exception:
                     return raw_link.split("&")[0]
                     
-            # 正常的商品页链接，直接返回
             return raw_link.split("&")[0]
-            
         return None
 
-    # 引擎 1: 精确制导，请求 Wiki FANZA 频道
+    # 引擎 1: 主控机极限直连 Wiki 详情页
     try:
         direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
-        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
-        req = urllib.request.Request(proxy_url, headers=headers)
-        resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        html = json.loads(resp).get("contents", "")
+        req = urllib.request.Request(direct_url, headers=headers)
+        # 将超时时间缩短为 4 秒，确保快速响应
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
         link = extract_dmm_link(html)
         if link: return {"link": link}
     except Exception:
         pass
 
-    # 引擎 2: 精确制导，请求 Wiki 备用频道
-    try:
-        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
-        proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
-        req2 = urllib.request.Request(proxy_url2, headers=headers)
-        resp2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
-        html2 = json.loads(resp2).get("contents", "")
-        link2 = extract_dmm_link(html2)
-        if link2: return {"link": link2}
-    except Exception:
-        pass
-
-    # 引擎 3: 降级调用 Wiki 站内搜索
+    # 引擎 2: 主控机极限直连 Wiki 搜索页
     try:
         search_url = f"https://shiroutowiki.work/?s={keyword}"
-        proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
-        req3 = urllib.request.Request(proxy_url3, headers=headers)
-        html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
-        link3 = extract_dmm_link(html3)
-        if link3: return {"link": link3}
+        req = urllib.request.Request(search_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+        link = extract_dmm_link(html)
+        if link: return {"link": link}
     except Exception:
         pass
 
-    # 引擎 4: 最后降级，使用 DuckDuckGo 站内检索兜底
+    # 引擎 3: 主控机直连 Wiki 备用目录
     try:
-        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
-        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
-        req4 = urllib.request.Request(ddg_url, headers=headers)
-        html4 = urllib.request.urlopen(req4, timeout=8).read().decode('utf-8', errors='ignore')
-        link4 = extract_dmm_link(html4)
-        if link4: return {"link": link4}
+        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
+        req = urllib.request.Request(direct_url2, headers=headers)
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+        link = extract_dmm_link(html)
+        if link: return {"link": link}
     except Exception:
         pass
 
-    return {"error": "Wiki数据源及备用引擎均未命中，请使用右侧【🌐 浏览器搜索】"}
+    return {"error": "直连测试失败，Wiki 防线阻断了甲骨文 IP。请用浏览器或退回 V7.7 版本。"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
