@@ -188,7 +188,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：Fanza / DMM 全域深度解码器
+# 核心重构：防图黑名单漏斗与全量扫网引擎
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -197,33 +197,31 @@ def scrape_link(keyword: str):
     }
 
     def extract_dmm_link(raw_html):
-        # 1. 第一层解码：解开 HTML 实体与基础 URL 编码
         decoded_html = urllib.parse.unquote(raw_html)
         
-        # 2. 匹配可能存在的深层 Affiliate 参数中的 lurl (如 https://al.fanza.co.jp/?lurl=https%3A%2F%2Fvideo.dmm.co.jp...)
-        # 允许匹配 fanza.co.jp 或 dmm.co.jp 开头的各种形态
-        match = re.search(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
+        # 核心修复：使用 findall 抓取所有符合特征的链接，而不是只抓第一个
+        all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
-        if not match:
-            return None
-            
-        raw_link = match.group(1)
-        
-        # 3. 如果是包含 lurl= 的推广链接，强行剥离出真实的 DMM 地址
-        if "lurl=" in raw_link:
-            try:
-                # 提取 lurl= 后面的内容，并切掉其他无用参数 (&af_id=...)
-                lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
-                # 深度执行二次 URL 解码，将 %3A%2F%2F 还原为 ://
-                real_link = urllib.parse.unquote(lurl_encoded)
-                # 确保解出来的链接也是干净的
-                return real_link.split("&")[0]
-            except Exception:
-                return raw_link # 剥离失败则原样返回
+        for raw_link in all_matches:
+            # 黑名单过滤：无情踢开所有图片域名和扩展名
+            if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                continue
                 
-        return raw_link.split("&")[0] # 普通链接也防卫性切除追踪尾巴
+            # 如果是包含 lurl= 的推广链接，强行剥离出真实的 DMM 地址
+            if "lurl=" in raw_link:
+                try:
+                    lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
+                    real_link = urllib.parse.unquote(lurl_encoded)
+                    return real_link.split("&")[0]
+                except Exception:
+                    return raw_link.split("&")[0]
+                    
+            # 正常的商品页链接，直接返回
+            return raw_link.split("&")[0]
+            
+        return None
 
-    # 引擎 1: 精确制导，请求 Wiki FANZA 频道 (通过 AllOrigins 代理)
+    # 引擎 1: 精确制导，请求 Wiki FANZA 频道
     try:
         direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
         proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
@@ -235,7 +233,7 @@ def scrape_link(keyword: str):
     except Exception:
         pass
 
-    # 引擎 2: 精确制导，请求 Wiki FC2/MGS 等其他频道 (备用)
+    # 引擎 2: 精确制导，请求 Wiki 备用频道
     try:
         direct_url2 = f"https://shiroutowiki.work/{keyword}/"
         proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
@@ -247,7 +245,7 @@ def scrape_link(keyword: str):
     except Exception:
         pass
 
-    # 引擎 3: 降级调用 Wiki 站内搜索 (通过 CodeTabs 代理)
+    # 引擎 3: 降级调用 Wiki 站内搜索
     try:
         search_url = f"https://shiroutowiki.work/?s={keyword}"
         proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
@@ -270,7 +268,6 @@ def scrape_link(keyword: str):
         pass
 
     return {"error": "Wiki数据源及备用引擎均未命中，请使用右侧【🌐 浏览器搜索】"}
-
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
