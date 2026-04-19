@@ -78,6 +78,7 @@
         .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
         .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
         
+        /* 玻璃态弹窗模态框 */
         #detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s ease; }
         #detail-modal-overlay.show { display: flex; opacity: 1; }
         
@@ -128,7 +129,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V7.0</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V7.1</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -294,7 +295,6 @@
         }
         async function clearLogs() { if(confirm("确定清空日志？")) { await fetch('/api/logs/clear', { method: 'POST' }); fetchLogs(true); } }
         
-        // 核心正则：提取番号
         function extractJavCode(folder) {
             const match = folder.match(/[a-zA-Z]{2,5}-\d{3,4}/);
             return match ? match[0].toLowerCase() : folder;
@@ -310,7 +310,6 @@
             document.getElementById('detailPath').innerText = `节点：[${n}] /downloads/${f}`; resetImageZoom();
             document.getElementById('detailImage').src = `${u}/api/files/${encodeURIComponent(f)}/image?t=${Date.now()}`;
             
-            // 自动提取并填充番号，清空历史结果
             document.getElementById('meta-keyword').value = extractJavCode(f);
             document.getElementById('meta-result').value = "";
             
@@ -328,7 +327,7 @@
             if (e.target === this) closeDetailView();
         });
 
-        // ================= DMM 抓取模块 =================
+        // ================= DMM 抓取模块 (核心修复) =================
         async function fetchDmmLink() {
             const keyword = document.getElementById('meta-keyword').value.trim();
             if(!keyword) return alert("提取番号不能为空！");
@@ -336,7 +335,8 @@
             const resInput = document.getElementById('meta-result');
             resInput.value = "⏳ 云端引擎深度检索中...";
             try {
-                const res = await fetch(`${currentActiveNodeUrl}/api/scraper/${encodeURIComponent(keyword)}`);
+                // 修复点：剥离 currentActiveNodeUrl，强制让主控机(Master)执行爬虫任务
+                const res = await fetch(`/api/scraper/${encodeURIComponent(keyword)}`);
                 const data = await res.json();
                 if(data.link) resInput.value = data.link;
                 else resInput.value = data.error || "未找到匹配链接";
@@ -371,7 +371,7 @@
                 catch (err) { fallbackCopyTextToClipboard(text, successFeedback); }
             } else { fallbackCopyTextToClipboard(text, successFeedback); }
         }
-        // ===============================================
+        // =======================================================
 
         async function copyMediaInfo() {
             const text = document.getElementById('detailMediaInfo').innerText;
