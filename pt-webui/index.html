@@ -91,7 +91,13 @@
         .preview-container { display: flex; gap: 20px; align-items: stretch; flex-grow: 1; }
         .preview-box { flex: 1; background: white; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 400px;}
         
-        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; height: 0; min-height: 300px; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; }
+        /* 代码块复制样式重构 */
+        .mediainfo-wrapper { position: relative; flex-grow: 1; height: 0; min-height: 300px; display: flex; flex-direction: column; }
+        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; }
+        .btn-copy-code { position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.6); color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px); }
+        .btn-copy-code:hover { background: rgba(15, 23, 42, 0.8); }
+        .btn-copy-code.copied { background: var(--success); color: white; }
+
         .image-zoom-container { width: 100%; flex-grow: 1; height: 0; min-height: 300px; background: #0f172a; border-radius: 10px; overflow: hidden; position: relative; cursor: grab; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
         .preview-image { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center center; pointer-events: none; user-select: none; }
         
@@ -125,7 +131,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V6.8</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V6.9</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -215,11 +221,11 @@
                 
                 <div class="preview-container">
                     <div class="preview-box">
-                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
-                            <span>📄 MediaInfo 物理探针参数:</span>
-                            <button id="btn-copy-mediainfo" onclick="copyMediaInfo()" style="background:#f1f5f9; color:#475569; padding:4px 10px; font-size:12px; border:1px solid #e2e8f0;">📋 一键复制</button>
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b;">📄 MediaInfo 物理探针参数:</div>
+                        <div class="mediainfo-wrapper">
+                            <button id="btn-copy-mediainfo" class="btn-copy-code" onclick="copyMediaInfo()">📋 复制代码</button>
+                            <pre class="mediainfo-content" id="detailMediaInfo">跨机读取中...</pre>
                         </div>
-                        <pre class="mediainfo-content" id="detailMediaInfo">跨机读取中...</pre>
                     </div>
                     <div class="preview-box">
                         <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
@@ -300,29 +306,55 @@
             if (e.target === this) closeDetailView();
         });
 
-        // 核心新增：MediaInfo 异步剪贴板复制引擎
+        // 核心修改：基于 textarea 降级的全局兼容剪贴板引擎
         async function copyMediaInfo() {
             const text = document.getElementById('detailMediaInfo').innerText;
-            if (!text || text === "跨机读取中..." || text === "读取失败") return;
+            if (!text || text.includes("跨机读取中...") || text.includes("读取失败")) return;
             
-            try {
-                await navigator.clipboard.writeText(text);
-                const btn = document.getElementById('btn-copy-mediainfo');
-                const originalHTML = btn.innerHTML;
+            const btn = document.getElementById('btn-copy-mediainfo');
+            const originalHTML = btn.innerHTML;
+            
+            const successFeedback = () => {
                 btn.innerHTML = "✅ 已复制";
-                btn.style.background = "#dcfce3";
-                btn.style.color = "#166534";
-                btn.style.borderColor = "#86efac";
-                
+                btn.classList.add('copied');
                 setTimeout(() => {
                     btn.innerHTML = originalHTML;
-                    btn.style.background = "#f1f5f9";
-                    btn.style.color = "#475569";
-                    btn.style.borderColor = "#e2e8f0";
+                    btn.classList.remove('copied');
                 }, 2000);
-            } catch (err) {
-                alert("复制失败，请手动全选复制！");
+            };
+
+            // 如果处于 HTTPS 或 localhost 环境，优先使用现代 API
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    successFeedback();
+                } catch (err) {
+                    fallbackCopyTextToClipboard(text, successFeedback);
+                }
+            } else {
+                // 如果处于 HTTP 不安全环境，使用降级处理方案
+                fallbackCopyTextToClipboard(text, successFeedback);
             }
+        }
+
+        // 降级复制函数
+        function fallbackCopyTextToClipboard(text, callback) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.top = "-999999px";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) callback();
+                else alert("当前浏览器阻断了复制，请手动选中复制！");
+            } catch (err) {
+                alert("当前浏览器阻断了复制，请手动选中复制！");
+            }
+            document.body.removeChild(textArea);
         }
 
         function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
