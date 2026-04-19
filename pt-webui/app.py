@@ -189,12 +189,14 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.2 终极漏洞修补：严格参数边界匹配 + 跨域业务拉黑
+# V8.3 终极稳定版：并发请求 + 绝对优先级仲裁
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     }
 
     def extract_dmm_link(raw_html):
@@ -202,7 +204,6 @@ def scrape_link(keyword: str):
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
         for raw_link in all_matches:
-            # 1. 核心修复 A：直接拉黑图片服务器、电子书(book)、游戏(games) 等非视频子域名
             if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
                 
@@ -210,17 +211,16 @@ def scrape_link(keyword: str):
             if "lurl=" in raw_link:
                 try:
                     lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
-                    candidate_link = urllib.parse.unquote(lurl_encoded).split("&")[0]
+                    candidate_link = urllib.parse.unquote(lurl_encoded)
                 except Exception:
-                    candidate_link = raw_link.split("&")[0]
-            else:
-                candidate_link = raw_link.split("&")[0]
+                    pass
 
-            # 2. 核心修复 B：严格匹配 ?id= 或 &id= 边界，防止匹配到 aiad_clid= 这种广告参数
+            # 清洗参数尾巴，防止脏数据
+            candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
+            
             is_product = any(x in candidate_link for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
             
             if is_product:
-                # 3. 拦截促销页、列表页、文章页
                 if "campaign" not in candidate_link and "/list/" not in candidate_link and "article" not in candidate_link:
                     return candidate_link
         return None
@@ -228,26 +228,35 @@ def scrape_link(keyword: str):
     def fetch_url(url):
         try:
             req = urllib.request.Request(url, headers=headers)
-            html = urllib.request.urlopen(req, timeout=5).read().decode('utf-8', errors='ignore')
+            # 超时设为6秒，兼顾容错与速度
+            html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(html)
         except Exception:
             return None
 
-    # 并发并发，天下武功唯快不破
-    targets = [
-        f"https://shiroutowiki.work/fanza-video/{keyword}/",
-        f"https://shiroutowiki.work/?s={keyword}",
-        f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}&kp=-2"
-    ]
-
+    # 核心重构：绝对优先生存法则 (Strict Priority Evaluation)
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        future_to_url = {executor.submit(fetch_url, url): url for url in targets}
-        for future in concurrent.futures.as_completed(future_to_url):
-            result = future.result()
-            if result:
-                return {"link": result}
+        # 3个任务同时下发，底层并发进行网络 I/O，互不阻塞
+        f1 = executor.submit(fetch_url, f"https://shiroutowiki.work/fanza-video/{keyword}/")
+        f2 = executor.submit(fetch_url, f"https://shiroutowiki.work/?s={keyword}")
+        f3 = executor.submit(fetch_url, f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}&kp=-2")
 
-    return {"error": "全域并发检索均未能找到商品净链，请使用【🌐 浏览器搜索】"}
+        # 绝对优先级 1：等待 Wiki 详情页的结果。如果它有了，直接斩杀其他两个！
+        res1 = f1.result()
+        if res1: 
+            return {"link": res1}
+
+        # 绝对优先级 2：如果详情页 404 了，再看 Wiki 搜索页的结果
+        res2 = f2.result()
+        if res2: 
+            return {"link": res2}
+
+        # 绝对优先级 3：如果 Wiki 彻底没数据，最后才使用极易被反爬的 DDG 兜底结果
+        res3 = f3.result()
+        if res3: 
+            return {"link": res3}
+
+    return {"error": "全域检索均未能找到商品净链，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
