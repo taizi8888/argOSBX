@@ -188,54 +188,57 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：主控端三重引擎交叉验证与 HTML 解码器
+# 核心重构：代理反射穿透引擎 (彻底规避甲骨文 IP 封锁)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
-    keyword = keyword.strip()
+    keyword = keyword.strip().upper()
     search_query = urllib.parse.quote(f"{keyword} site:dmm.co.jp")
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     }
 
     def extract_dmm_link(raw_html):
-        # 核心防爬解码：解开搜索引擎(如 DuckDuckGo uddg)的 URL 包装
         decoded_html = urllib.parse.unquote(raw_html)
-        # 精准切除重定向参数：用 [^\s"\'<>\?&]+ 隔离 & 和 ?，只保留官方净链
-        match = re.search(r'(https?://(?:www\.|video\.)?dmm\.co\.jp/(?:mono|digital|rental|detail)/[^\s"\'<>\?&]+)', decoded_html)
+        match = re.search(r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>\?&]+)', decoded_html)
         return match.group(1) if match else None
 
-    # 引擎 1：Yahoo Japan Search (对日本本土内容支持极佳，免疫云端封锁)
+    # 引擎 1: AllOrigins 反射代理直连 Javbus (隐匿甲骨文 IP，绕过 Cloudflare 503 拦截)
     try:
-        yahoo_url = f"https://search.yahoo.co.jp/search?p={search_query}"
-        req = urllib.request.Request(yahoo_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
+        javbus_url = urllib.parse.quote(f"https://www.javbus.com/{keyword}")
+        proxy_url = f"https://api.allorigins.win/get?url={javbus_url}"
+        req = urllib.request.Request(proxy_url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
+        # AllOrigins 返回的是 JSON 格式，提取其中的 contents 字段
+        html = json.loads(resp).get("contents", "")
         link = extract_dmm_link(html)
         if link: return {"link": link}
+    except Exception as e:
+        pass
+
+    # 引擎 2: CodeTabs 反射代理直连 Yahoo Japan (彻底绕过跨国搜索的 IP 盾)
+    try:
+        yahoo_url = f"https://search.yahoo.co.jp/search?p={urllib.parse.quote(keyword + ' site:dmm.co.jp')}"
+        proxy_url2 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(yahoo_url)}"
+        req2 = urllib.request.Request(proxy_url2, headers=headers)
+        html2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
+        link2 = extract_dmm_link(html2)
+        if link2: return {"link": link2}
     except Exception:
         pass
 
-    # 引擎 2：DuckDuckGo HTML (参数 kp=-2 强制关闭安全验证)
+    # 引擎 3: 本机直连 DuckDuckGo Lite (POST 方式抗封杀能力极强)
     try:
-        ddg_url = f"https://html.duckduckgo.com/html/?q={search_query}&kp=-2"
-        req = urllib.request.Request(ddg_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        link = extract_dmm_link(html)
-        if link: return {"link": link}
-    except Exception:
-        pass
-        
-    # 引擎 3：Bing API 兜底 (携带 ADLT=OFF 欺骗验证)
-    try:
-        headers['Cookie'] = 'SRCHHPGUSR=ADLT=OFF;'
-        bing_url = f"https://www.bing.com/search?q={search_query}"
-        req = urllib.request.Request(bing_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        link = extract_dmm_link(html)
-        if link: return {"link": link}
+        ddg_url = "https://lite.duckduckgo.com/lite/"
+        data = urllib.parse.urlencode({'q': f"{keyword} site:dmm.co.jp"}).encode('utf-8')
+        req3 = urllib.request.Request(ddg_url, data=data, headers=headers)
+        html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
+        link3 = extract_dmm_link(html3)
+        if link3: return {"link": link3}
     except Exception:
         pass
 
-    return {"error": "云端全栈引擎(Yahoo/DDG/Bing)均被阻断，请使用右侧【浏览器搜索】"}
+    return {"error": "云端代理反射及直连防线均被击穿，请使用右侧【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
