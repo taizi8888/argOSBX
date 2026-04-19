@@ -1,4 +1,4 @@
-import os, time, json, shutil, subprocess
+import os, time, json, shutil, subprocess, re
 import urllib.request, urllib.parse
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -186,6 +186,22 @@ def clear_logs():
         open(LOG_FILE, 'w').close()
         return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
+
+# 核心新增：云端 Bing 智能提取引擎 (防封杀版)
+@app.get("/api/scraper/{keyword}")
+def scrape_link(keyword: str):
+    try:
+        url = f"https://www.bing.com/search?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
+        match = re.search(r'href="(https?://(?:www\.|video\.)?dmm\.co\.jp/[^"]*)"', html)
+        if match: 
+            return {"link": match.group(1)}
+        return {"error": "未找到匹配的 DMM 链接"}
+    except Exception as e: 
+        return {"error": "搜索超时或云端IP被拦截"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
