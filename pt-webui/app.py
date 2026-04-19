@@ -188,41 +188,50 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：双引擎混合智能抓取器 (解除安全过滤版)
+# 核心重构：Javbus 垂直穿透 + 搜索引擎降级
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
-    search_query = urllib.parse.quote(f"{keyword} site:dmm.co.jp")
+    keyword = keyword.strip().upper()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cookie': 'SRCHHPGUSR=ADLT=OFF;'  # 强制解除 Bing 成人安全搜索
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    # 通用无死角正则引擎：扫描 HTML 文本中的所有潜在 DMM 链接
-    regex_pattern = r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>]+)'
-
-    # 引擎 1：优先使用 DuckDuckGo HTML 版 (反爬极弱，原生关闭安全搜索)
+    # 策略 1：Javbus 精准直连 (速度最快，100% 准确提取 DMM 官方链接)
     try:
-        ddg_url = f"https://html.duckduckgo.com/html/?q={search_query}&kp=-2"
-        req = urllib.request.Request(ddg_url, headers=headers)
+        javbus_url = f"https://www.javbus.com/{urllib.parse.quote(keyword)}"
+        req = urllib.request.Request(javbus_url, headers=headers)
         html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
-        match = re.search(regex_pattern, html)
-        if match: 
-            return {"link": match.group(1)}
-    except Exception:
-        pass # DDG 失败则静默降级，交给 Bing
-        
-    # 引擎 2：降级使用 Bing (挂载 ADLT=OFF 强力 Cookie)
-    try:
-        bing_url = f"https://www.bing.com/search?q={search_query}"
-        req = urllib.request.Request(bing_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
-        match = re.search(regex_pattern, html)
+        match = re.search(r'href="(https?://(?:www\.|video\.)?dmm\.co\.jp/[^"]+)"', html)
         if match: 
             return {"link": match.group(1)}
     except Exception:
         pass
 
-    return {"error": "未找到匹配链接，搜索引擎未收录该番号"}
+    # 策略 2：DuckDuckGo HTML 搜索引擎降级 (关闭安全搜索)
+    search_query = urllib.parse.quote(f"{keyword} site:dmm.co.jp")
+    try:
+        ddg_url = f"https://html.duckduckgo.com/html/?q={search_query}&kp=-2"
+        req = urllib.request.Request(ddg_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
+        match = re.search(r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>]+)', html)
+        if match: 
+            return {"link": match.group(1)}
+    except Exception:
+        pass
+        
+    # 策略 3：Bing 最终降级 (强制卸载成人保护 Cookie)
+    try:
+        headers['Cookie'] = 'SRCHHPGUSR=ADLT=OFF;'
+        bing_url = f"https://www.bing.com/search?q={search_query}"
+        req = urllib.request.Request(bing_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
+        match = re.search(r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>]+)', html)
+        if match: 
+            return {"link": match.group(1)}
+    except Exception:
+        pass
+
+    return {"error": "云端全栈引擎未找到匹配链接，请使用右侧【浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
