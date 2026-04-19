@@ -189,7 +189,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.3 终极稳定版：并发请求 + 绝对优先级仲裁
+# V8.4 终极地毯式扫描：全频道并发直连 + DDG 代理兜底
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -215,9 +215,7 @@ def scrape_link(keyword: str):
                 except Exception:
                     pass
 
-            # 清洗参数尾巴，防止脏数据
             candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
-            
             is_product = any(x in candidate_link for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
             
             if is_product:
@@ -228,35 +226,46 @@ def scrape_link(keyword: str):
     def fetch_url(url):
         try:
             req = urllib.request.Request(url, headers=headers)
-            # 超时设为6秒，兼顾容错与速度
-            html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8', errors='ignore')
+            html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(html)
         except Exception:
             return None
 
-    # 核心重构：绝对优先生存法则 (Strict Priority Evaluation)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        # 3个任务同时下发，底层并发进行网络 I/O，互不阻塞
-        f1 = executor.submit(fetch_url, f"https://shiroutowiki.work/fanza-video/{keyword}/")
-        f2 = executor.submit(fetch_url, f"https://shiroutowiki.work/?s={keyword}")
-        f3 = executor.submit(fetch_url, f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}&kp=-2")
+    # 第一波攻势：Wiki 全频道火力覆盖 (直连极速)
+    # 不管它是素人、MGS、FC2还是正规车牌，全部打出去！只有一个会存活(200 OK)
+    wiki_targets = [
+        f"https://shiroutowiki.work/fanza-video/{keyword}/",
+        f"https://shiroutowiki.work/fanza-amateur/{keyword}/",
+        f"https://shiroutowiki.work/fc2/{keyword}/",
+        f"https://shiroutowiki.work/mgs/{keyword}/",
+        f"https://shiroutowiki.work/{keyword}/"
+    ]
 
-        # 绝对优先级 1：等待 Wiki 详情页的结果。如果它有了，直接斩杀其他两个！
-        res1 = f1.result()
-        if res1: 
-            return {"link": res1}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_url = {executor.submit(fetch_url, url): url for url in wiki_targets}
+        # 既然是精确 URL 探测，不会有脏搜索结果，谁先返回谁就绝对是真理！
+        for future in concurrent.futures.as_completed(future_to_url):
+            result = future.result()
+            if result:
+                return {"link": result}
 
-        # 绝对优先级 2：如果详情页 404 了，再看 Wiki 搜索页的结果
-        res2 = f2.result()
-        if res2: 
-            return {"link": res2}
+    # 第二波攻势：DuckDuckGo 代理兜底 (如果 Wiki 彻底没收录)
+    # 必须套 AllOrigins 代理，防止连刷导致甲骨文 IP 被 DDG 封禁
+    try:
+        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
+        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
+        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(ddg_url)}"
+        
+        req = urllib.request.Request(proxy_url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=6).read().decode('utf-8', errors='ignore')
+        html = json.loads(resp).get("contents", "")
+        link = extract_dmm_link(html)
+        if link: 
+            return {"link": link}
+    except Exception:
+        pass
 
-        # 绝对优先级 3：如果 Wiki 彻底没数据，最后才使用极易被反爬的 DDG 兜底结果
-        res3 = f3.result()
-        if res3: 
-            return {"link": res3}
-
-    return {"error": "全域检索均未能找到商品净链，请使用【🌐 浏览器搜索】"}
+    return {"error": "全域频段并发检索未能命中，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
