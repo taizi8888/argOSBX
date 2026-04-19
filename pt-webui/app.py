@@ -188,29 +188,26 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：防广告位污染的智能白名单漏斗
+# V8.0 终极缝合引擎：代理反射(绕过20秒焦油坑) + 广告屏蔽净链提取
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
-    
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
-        # 全网打捞所有 dmm/fanza 链接
+        # 全网打捞
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
         for raw_link in all_matches:
-            # 1. 过滤图片域名及后缀
+            # 1. 踢掉图片
             if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
                 
+            # 2. 剥离 Affiliate
             candidate_link = raw_link
-            # 2. 如果是 Affiliate 推广链接，强行剥离真实目标 URL
             if "lurl=" in raw_link:
                 try:
                     lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
@@ -220,46 +217,59 @@ def scrape_link(keyword: str):
             else:
                 candidate_link = raw_link.split("&")[0]
 
-            # 3. 核心白名单：只放行真正的“商品详情页”
-            # 特征码：必须包含 detail (详情) 或者 cid= / id= (商品编号)
+            # 3. 白名单漏斗过滤广告
             if "detail" in candidate_link or "id=" in candidate_link or "cid=" in candidate_link:
-                # 黑名单：排除带有 campaign (活动页) 和 /list/ (列表页) 的广告链接
                 if "campaign" not in candidate_link and "/list/" not in candidate_link:
                     return candidate_link
-                    
         return None
 
-    # 引擎 1: 0延迟极限直连 Wiki 详情页
+    # 引擎 1: AllOrigins 代理反射 Wiki 详情页 (约 2-3 秒)
     try:
         direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
-        req = urllib.request.Request(direct_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
+        req = urllib.request.Request(proxy_url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
+        html = json.loads(resp).get("contents", "")
         link = extract_dmm_link(html)
         if link: return {"link": link}
     except Exception:
         pass
 
-    # 引擎 2: 0延迟极限直连 Wiki 搜索页
-    try:
-        search_url = f"https://shiroutowiki.work/?s={keyword}"
-        req = urllib.request.Request(search_url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
-        link = extract_dmm_link(html)
-        if link: return {"link": link}
-    except Exception:
-        pass
-
-    # 引擎 3: 0延迟极限直连 Wiki 备用目录
+    # 引擎 2: AllOrigins 代理反射 Wiki 备用目录
     try:
         direct_url2 = f"https://shiroutowiki.work/{keyword}/"
-        req = urllib.request.Request(direct_url2, headers=headers)
-        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
-        link = extract_dmm_link(html)
-        if link: return {"link": link}
+        proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
+        req2 = urllib.request.Request(proxy_url2, headers=headers)
+        resp2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
+        html2 = json.loads(resp2).get("contents", "")
+        link2 = extract_dmm_link(html2)
+        if link2: return {"link": link2}
     except Exception:
         pass
 
-    return {"error": "直连测试失败，Wiki 防线阻断了甲骨文 IP。请用浏览器或退回代理版本。"}
+    # 引擎 3: CodeTabs 代理反射 Wiki 站内搜索
+    try:
+        search_url = f"https://shiroutowiki.work/?s={keyword}"
+        proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
+        req3 = urllib.request.Request(proxy_url3, headers=headers)
+        html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
+        link3 = extract_dmm_link(html3)
+        if link3: return {"link": link3}
+    except Exception:
+        pass
+
+    # 引擎 4: DuckDuckGo Lite API 兜底搜索
+    try:
+        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
+        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
+        req4 = urllib.request.Request(ddg_url, headers=headers)
+        html4 = urllib.request.urlopen(req4, timeout=8).read().decode('utf-8', errors='ignore')
+        link4 = extract_dmm_link(html4)
+        if link4: return {"link": link4}
+    except Exception:
+        pass
+
+    return {"error": "云端代理反射及全栈防线均被击穿，请使用右侧【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
