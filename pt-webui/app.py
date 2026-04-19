@@ -189,7 +189,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.4 终极地毯式扫描：全频道并发直连 + DDG 代理兜底
+# V8.5 纯代理无死角并发穿透版 (彻底告别直连超时与DDG封禁)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -199,7 +199,9 @@ def scrape_link(keyword: str):
         'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     }
 
+    # 核心商品净链提取漏斗
     def extract_dmm_link(raw_html):
+        if not raw_html: return None
         decoded_html = urllib.parse.unquote(raw_html)
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
@@ -223,49 +225,46 @@ def scrape_link(keyword: str):
                     return candidate_link
         return None
 
-    def fetch_url(url):
+    # CodeTabs 代理请求器 (返回 Raw HTML)
+    def fetch_via_codetabs(target_url):
         try:
-            req = urllib.request.Request(url, headers=headers)
-            html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+            proxy = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(target_url)}"
+            req = urllib.request.Request(proxy, headers=headers)
+            html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(html)
         except Exception:
             return None
 
-    # 第一波攻势：Wiki 全频道火力覆盖 (直连极速)
-    # 不管它是素人、MGS、FC2还是正规车牌，全部打出去！只有一个会存活(200 OK)
-    wiki_targets = [
-        f"https://shiroutowiki.work/fanza-video/{keyword}/",
-        f"https://shiroutowiki.work/fanza-amateur/{keyword}/",
-        f"https://shiroutowiki.work/fc2/{keyword}/",
-        f"https://shiroutowiki.work/mgs/{keyword}/",
-        f"https://shiroutowiki.work/{keyword}/"
-    ]
+    # AllOrigins 代理请求器 (返回 JSON，需提取 contents)
+    def fetch_via_allorigins(target_url):
+        try:
+            proxy = f"https://api.allorigins.win/get?url={urllib.parse.quote(target_url)}"
+            req = urllib.request.Request(proxy, headers=headers)
+            resp = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
+            html = json.loads(resp).get("contents", "")
+            return extract_dmm_link(html)
+        except Exception:
+            return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_url = {executor.submit(fetch_url, url): url for url in wiki_targets}
-        # 既然是精确 URL 探测，不会有脏搜索结果，谁先返回谁就绝对是真理！
-        for future in concurrent.futures.as_completed(future_to_url):
-            result = future.result()
-            if result:
-                return {"link": result}
+    # 构建通吃所有频道的最强靶标：Wiki 全局搜索页 & Javbus 兜底
+    wiki_search_url = f"https://shiroutowiki.work/?s={keyword}"
+    javbus_url = f"https://www.javbus.com/{keyword}"
 
-    # 第二波攻势：DuckDuckGo 代理兜底 (如果 Wiki 彻底没收录)
-    # 必须套 AllOrigins 代理，防止连刷导致甲骨文 IP 被 DDG 封禁
-    try:
-        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
-        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
-        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(ddg_url)}"
-        
-        req = urllib.request.Request(proxy_url, headers=headers)
-        resp = urllib.request.urlopen(req, timeout=6).read().decode('utf-8', errors='ignore')
-        html = json.loads(resp).get("contents", "")
-        link = extract_dmm_link(html)
-        if link: 
-            return {"link": link}
-    except Exception:
-        pass
+    # 4 线程并发：用两条不同的极速代理线，同时猛攻 Wiki 和 Javbus
+    futures = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures.append(executor.submit(fetch_via_codetabs, wiki_search_url))
+        futures.append(executor.submit(fetch_via_allorigins, wiki_search_url))
+        futures.append(executor.submit(fetch_via_codetabs, javbus_url))
+        futures.append(executor.submit(fetch_via_allorigins, javbus_url))
 
-    return {"error": "全域频段并发检索未能命中，请使用【🌐 浏览器搜索】"}
+        # 谁先从泥潭里带回真正的净链，瞬间斩断其他线程返回结果
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res:
+                return {"link": res}
+
+    return {"error": "全域代理并发检索未能命中，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
