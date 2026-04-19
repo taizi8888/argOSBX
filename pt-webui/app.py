@@ -188,94 +188,78 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：V7.9 靶向狙击引擎 (彻底规避广告横幅与列表页陷阱)
+# 核心重构：防广告位污染的智能白名单漏斗
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
     
-    # 将番号拆分为 字母部分 和 数字部分，用于无视 00 补位的靶向验证
-    match_letters = re.search(r'[a-z]+', keyword.replace("-", ""))
-    match_nums = re.search(r'\d+', keyword.replace("-", ""))
-    target_letters = match_letters.group(0) if match_letters else ""
-    target_nums = match_nums.group(0) if match_nums else ""
-
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     }
 
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
+        # 全网打捞所有 dmm/fanza 链接
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
-        potential_links = []
-
         for raw_link in all_matches:
-            # 1. Affiliate 深度剥离
+            # 1. 过滤图片域名及后缀
+            if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                continue
+                
+            candidate_link = raw_link
+            # 2. 如果是 Affiliate 推广链接，强行剥离真实目标 URL
             if "lurl=" in raw_link:
                 try:
                     lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
-                    real_link = urllib.parse.unquote(lurl_encoded).split("&")[0]
+                    candidate_link = urllib.parse.unquote(lurl_encoded).split("&")[0]
                 except Exception:
-                    real_link = raw_link.split("&")[0]
+                    candidate_link = raw_link.split("&")[0]
             else:
-                real_link = raw_link.split("&")[0]
-                
-            # 2. 强力黑名单屏蔽 (杀掉图片、促销、列表页)
-            blacklist = ["pics.dmm", ".jpg", ".png", ".gif", "/list/", "campaign=", "sale=", "/article/", "/author/", "/maker/", "top"]
-            if any(b in real_link.lower() for b in blacklist):
-                continue
-                
-            # 3. 终极靶向交叉验证：链接中必须同时包含番号的"字母"和"数字" (完美免疫 00 填充)
-            if target_letters and target_nums:
-                if target_letters in real_link.lower() and target_nums in real_link.lower():
-                    return real_link # 100% 绝对命中落地页！
-            
-            # 4. 备选方案：如果是标准的详情页结构，放入备用库
-            if "/detail/=/cid=" in real_link or "/content/?id=" in real_link:
-                potential_links.append(real_link)
-                
-        # 如果交叉验证没中，但有备用的详情页，取第一个详情页
-        if potential_links:
-            return potential_links[0]
-            
+                candidate_link = raw_link.split("&")[0]
+
+            # 3. 核心白名单：只放行真正的“商品详情页”
+            # 特征码：必须包含 detail (详情) 或者 cid= / id= (商品编号)
+            if "detail" in candidate_link or "id=" in candidate_link or "cid=" in candidate_link:
+                # 黑名单：排除带有 campaign (活动页) 和 /list/ (列表页) 的广告链接
+                if "campaign" not in candidate_link and "/list/" not in candidate_link:
+                    return candidate_link
+                    
         return None
 
-    # 引擎 1: AllOrigins 反射代理直连 Wiki 频道
+    # 引擎 1: 0延迟极限直连 Wiki 详情页
     try:
         direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
-        proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
-        req = urllib.request.Request(proxy_url, headers=headers)
-        resp = urllib.request.urlopen(req, timeout=8).read().decode('utf-8', errors='ignore')
-        html = json.loads(resp).get("contents", "")
+        req = urllib.request.Request(direct_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
         link = extract_dmm_link(html)
         if link: return {"link": link}
     except Exception:
         pass
 
-    # 引擎 2: AllOrigins 反射代理直连 Wiki 备用频道
-    try:
-        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
-        proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
-        req2 = urllib.request.Request(proxy_url2, headers=headers)
-        resp2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
-        html2 = json.loads(resp2).get("contents", "")
-        link2 = extract_dmm_link(html2)
-        if link2: return {"link": link2}
-    except Exception:
-        pass
-
-    # 引擎 3: CodeTabs 反射代理调用 Wiki 站内搜索
+    # 引擎 2: 0延迟极限直连 Wiki 搜索页
     try:
         search_url = f"https://shiroutowiki.work/?s={keyword}"
-        proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
-        req3 = urllib.request.Request(proxy_url3, headers=headers)
-        html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
-        link3 = extract_dmm_link(html3)
-        if link3: return {"link": link3}
+        req = urllib.request.Request(search_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+        link = extract_dmm_link(html)
+        if link: return {"link": link}
     except Exception:
         pass
 
-    return {"error": "Wiki数据源未命中真实商品链接，请使用右侧【🌐 浏览器搜索】"}
+    # 引擎 3: 0延迟极限直连 Wiki 备用目录
+    try:
+        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
+        req = urllib.request.Request(direct_url2, headers=headers)
+        html = urllib.request.urlopen(req, timeout=4).read().decode('utf-8', errors='ignore')
+        link = extract_dmm_link(html)
+        if link: return {"link": link}
+    except Exception:
+        pass
+
+    return {"error": "直连测试失败，Wiki 防线阻断了甲骨文 IP。请用浏览器或退回代理版本。"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
