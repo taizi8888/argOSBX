@@ -187,21 +187,42 @@ def clear_logs():
         return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
-# 核心新增：云端 Bing 智能提取引擎 (防封杀版)
+
+# 核心重构：双引擎混合智能抓取器 (解除安全过滤版)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
+    search_query = urllib.parse.quote(f"{keyword} site:dmm.co.jp")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cookie': 'SRCHHPGUSR=ADLT=OFF;'  # 强制解除 Bing 成人安全搜索
+    }
+    
+    # 通用无死角正则引擎：扫描 HTML 文本中的所有潜在 DMM 链接
+    regex_pattern = r'(https?://(?:www\.|video\.)?dmm\.co\.jp/[^\s"\'<>]+)'
+
+    # 引擎 1：优先使用 DuckDuckGo HTML 版 (反爬极弱，原生关闭安全搜索)
     try:
-        url = f"https://www.bing.com/search?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}"
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        })
-        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
-        match = re.search(r'href="(https?://(?:www\.|video\.)?dmm\.co\.jp/[^"]*)"', html)
+        ddg_url = f"https://html.duckduckgo.com/html/?q={search_query}&kp=-2"
+        req = urllib.request.Request(ddg_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
+        match = re.search(regex_pattern, html)
         if match: 
             return {"link": match.group(1)}
-        return {"error": "未找到匹配的 DMM 链接"}
-    except Exception as e: 
-        return {"error": "搜索超时或云端IP被拦截"}
+    except Exception:
+        pass # DDG 失败则静默降级，交给 Bing
+        
+    # 引擎 2：降级使用 Bing (挂载 ADLT=OFF 强力 Cookie)
+    try:
+        bing_url = f"https://www.bing.com/search?q={search_query}"
+        req = urllib.request.Request(bing_url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=6).read().decode('utf-8')
+        match = re.search(regex_pattern, html)
+        if match: 
+            return {"link": match.group(1)}
+    except Exception:
+        pass
+
+    return {"error": "未找到匹配链接，搜索引擎未收录该番号"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
