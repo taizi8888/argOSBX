@@ -188,21 +188,42 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# 核心重构：Wiki 垂直定点爆破引擎
+# 核心重构：Fanza / DMM 全域深度解码器
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
-    keyword = keyword.strip().lower() # Wiki 通常用小写 URL
+    keyword = keyword.strip().lower()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     def extract_dmm_link(raw_html):
+        # 1. 第一层解码：解开 HTML 实体与基础 URL 编码
         decoded_html = urllib.parse.unquote(raw_html)
-        # 兼容纯净版、video版、以及推广版(al.dmm.co.jp) 链接，遇到引号或空格截断
-        match = re.search(r'(https?://(?:[a-zA-Z0-9-]+\.)?dmm\.co\.jp/[^\s"\'<>]+)', decoded_html)
-        return match.group(1) if match else None
+        
+        # 2. 匹配可能存在的深层 Affiliate 参数中的 lurl (如 https://al.fanza.co.jp/?lurl=https%3A%2F%2Fvideo.dmm.co.jp...)
+        # 允许匹配 fanza.co.jp 或 dmm.co.jp 开头的各种形态
+        match = re.search(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
+        
+        if not match:
+            return None
+            
+        raw_link = match.group(1)
+        
+        # 3. 如果是包含 lurl= 的推广链接，强行剥离出真实的 DMM 地址
+        if "lurl=" in raw_link:
+            try:
+                # 提取 lurl= 后面的内容，并切掉其他无用参数 (&af_id=...)
+                lurl_encoded = raw_link.split("lurl=")[1].split("&")[0]
+                # 深度执行二次 URL 解码，将 %3A%2F%2F 还原为 ://
+                real_link = urllib.parse.unquote(lurl_encoded)
+                # 确保解出来的链接也是干净的
+                return real_link.split("&")[0]
+            except Exception:
+                return raw_link # 剥离失败则原样返回
+                
+        return raw_link.split("&")[0] # 普通链接也防卫性切除追踪尾巴
 
-    # 引擎 1: 精确制导，直接请求 ShiroutoWiki 的文章页 (通过 AllOrigins 代理)
+    # 引擎 1: 精确制导，请求 Wiki FANZA 频道 (通过 AllOrigins 代理)
     try:
         direct_url = f"https://shiroutowiki.work/fanza-video/{keyword}/"
         proxy_url = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url)}"
@@ -214,29 +235,42 @@ def scrape_link(keyword: str):
     except Exception:
         pass
 
-    # 引擎 2: 降级调用 Wiki 的站内搜索功能 (通过 CodeTabs 代理)
+    # 引擎 2: 精确制导，请求 Wiki FC2/MGS 等其他频道 (备用)
     try:
-        search_url = f"https://shiroutowiki.work/?s={keyword}"
-        proxy_url2 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
+        direct_url2 = f"https://shiroutowiki.work/{keyword}/"
+        proxy_url2 = f"https://api.allorigins.win/get?url={urllib.parse.quote(direct_url2)}"
         req2 = urllib.request.Request(proxy_url2, headers=headers)
-        html2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
+        resp2 = urllib.request.urlopen(req2, timeout=8).read().decode('utf-8', errors='ignore')
+        html2 = json.loads(resp2).get("contents", "")
         link2 = extract_dmm_link(html2)
         if link2: return {"link": link2}
     except Exception:
         pass
 
-    # 引擎 3: 最后降级，使用 DuckDuckGo 站内检索兜底
+    # 引擎 3: 降级调用 Wiki 站内搜索 (通过 CodeTabs 代理)
     try:
-        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
-        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
-        req3 = urllib.request.Request(ddg_url, headers=headers)
+        search_url = f"https://shiroutowiki.work/?s={keyword}"
+        proxy_url3 = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(search_url)}"
+        req3 = urllib.request.Request(proxy_url3, headers=headers)
         html3 = urllib.request.urlopen(req3, timeout=8).read().decode('utf-8', errors='ignore')
         link3 = extract_dmm_link(html3)
         if link3: return {"link": link3}
     except Exception:
         pass
 
+    # 引擎 4: 最后降级，使用 DuckDuckGo 站内检索兜底
+    try:
+        ddg_query = urllib.parse.quote(f"{keyword} site:shiroutowiki.work OR site:dmm.co.jp")
+        ddg_url = f"https://html.duckduckgo.com/html/?q={ddg_query}&kp=-2"
+        req4 = urllib.request.Request(ddg_url, headers=headers)
+        html4 = urllib.request.urlopen(req4, timeout=8).read().decode('utf-8', errors='ignore')
+        link4 = extract_dmm_link(html4)
+        if link4: return {"link": link4}
+    except Exception:
+        pass
+
     return {"error": "Wiki数据源及备用引擎均未命中，请使用右侧【🌐 浏览器搜索】"}
+
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
