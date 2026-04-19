@@ -189,7 +189,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.1 终极版：多线程并发极速抓取引擎 (并发直连)
+# V8.2 终极漏洞修补：严格参数边界匹配 + 跨域业务拉黑
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -197,13 +197,15 @@ def scrape_link(keyword: str):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
-    # 漏斗过滤器：提取并清洗真实的商品落地页
     def extract_dmm_link(raw_html):
         decoded_html = urllib.parse.unquote(raw_html)
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
+        
         for raw_link in all_matches:
-            if "pics.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            # 1. 核心修复 A：直接拉黑图片服务器、电子书(book)、游戏(games) 等非视频子域名
+            if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
+                
             candidate_link = raw_link
             if "lurl=" in raw_link:
                 try:
@@ -213,29 +215,31 @@ def scrape_link(keyword: str):
                     candidate_link = raw_link.split("&")[0]
             else:
                 candidate_link = raw_link.split("&")[0]
-            if "detail" in candidate_link or "id=" in candidate_link or "cid=" in candidate_link:
-                if "campaign" not in candidate_link and "/list/" not in candidate_link:
+
+            # 2. 核心修复 B：严格匹配 ?id= 或 &id= 边界，防止匹配到 aiad_clid= 这种广告参数
+            is_product = any(x in candidate_link for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
+            
+            if is_product:
+                # 3. 拦截促销页、列表页、文章页
+                if "campaign" not in candidate_link and "/list/" not in candidate_link and "article" not in candidate_link:
                     return candidate_link
         return None
 
-    # 核心 Worker 函数：执行单次网络请求
     def fetch_url(url):
         try:
             req = urllib.request.Request(url, headers=headers)
-            # 设置极短的超时，强迫爬虫快速反应
             html = urllib.request.urlopen(req, timeout=5).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(html)
         except Exception:
             return None
 
-    # 构建我们要同时轰炸的 3 个引擎路线
+    # 并发并发，天下武功唯快不破
     targets = [
         f"https://shiroutowiki.work/fanza-video/{keyword}/",
         f"https://shiroutowiki.work/?s={keyword}",
         f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(keyword + ' site:dmm.co.jp')}&kp=-2"
     ]
 
-    # 并发执行：多条狗一起跑出去找骨头，谁先叼回来真的，就立刻结束返回！
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         future_to_url = {executor.submit(fetch_url, url): url for url in targets}
         for future in concurrent.futures.as_completed(future_to_url):
