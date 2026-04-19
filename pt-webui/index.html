@@ -78,7 +78,6 @@
         .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
         .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
         
-        /* 玻璃态弹窗模态框 */
         #detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s ease; }
         #detail-modal-overlay.show { display: flex; opacity: 1; }
         
@@ -91,7 +90,6 @@
         .preview-container { display: flex; gap: 20px; align-items: stretch; flex-grow: 1; }
         .preview-box { flex: 1; background: white; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 400px;}
         
-        /* 代码块复制样式重构 */
         .mediainfo-wrapper { position: relative; flex-grow: 1; height: 0; min-height: 300px; display: flex; flex-direction: column; }
         .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; }
         .btn-copy-code { position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.6); color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px); }
@@ -119,7 +117,6 @@
             .items-container.list-view .item { flex-direction: column; align-items: flex-start; }
             .items-container.list-view .item-actions { margin-top: 10px; width: 100%; justify-content: flex-end; }
             
-            /* 移动端弹窗适配 */
             .detail-modal-container { height: 95vh; width: 98%; border-radius: 16px; }
             .modal-header { padding: 15px; }
             .modal-body { padding: 15px; }
@@ -131,7 +128,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V6.9</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V7.0</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -206,7 +203,7 @@
                 <div class="success-title" style="margin:0; font-size:22px; color:#1e293b;">
                     <span style="color:var(--success); margin-right:8px;">✅</span> 任务审核详情
                 </div>
-                <button class="btn-action" style="background:#f1f5f9; color:#475569; padding:8px 16px; border:1px solid #cbd5e1;" onclick="closeDetailView()">✖ 关闭预览</button>
+                <button class="btn-action" style="background:#f1f5f9; color:#475569; padding:8px 16px; border:1px solid #cbd5e1;" onclick="closeDetailView()">✖ 关闭</button>
             </div>
             
             <div class="modal-body">
@@ -218,10 +215,25 @@
                         <button onclick="downloadFile('image')" style="background:#f59e0b; color:#fff; padding:8px 16px;">⬇️ 4K 海报</button>
                     </div>
                 </div>
+
+                <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; align-items:center; gap:15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                    <div style="font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px; white-space:nowrap;">
+                        <span>🔗 DMM 链接：</span>
+                    </div>
+                    <div style="display:flex; gap:10px; flex:1; min-width:300px; flex-wrap:wrap;">
+                        <input type="text" id="meta-keyword" class="form-input" style="flex:1; min-width:100px;" placeholder="提取番号">
+                        <button class="btn-action" style="background:#8b5cf6;" onclick="fetchDmmLink()">🔍 自动抓取</button>
+                        <input type="text" id="meta-result" class="form-input" style="flex:2; min-width:180px;" placeholder="点击抓取或在此手动粘贴链接">
+                        <button id="btn-copy-dmm" class="btn-action" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" onclick="copyDmmLink()">📋 复制</button>
+                        <button class="btn-action" style="background:#0ea5e9;" onclick="openGoogleSearch()">🌐 浏览器搜索</button>
+                    </div>
+                </div>
                 
                 <div class="preview-container">
                     <div class="preview-box">
-                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b;">📄 MediaInfo 物理探针参数:</div>
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
+                            <span>📄 MediaInfo 物理探针参数:</span>
+                        </div>
                         <div class="mediainfo-wrapper">
                             <button id="btn-copy-mediainfo" class="btn-copy-code" onclick="copyMediaInfo()">📋 复制代码</button>
                             <pre class="mediainfo-content" id="detailMediaInfo">跨机读取中...</pre>
@@ -282,6 +294,12 @@
         }
         async function clearLogs() { if(confirm("确定清空日志？")) { await fetch('/api/logs/clear', { method: 'POST' }); fetchLogs(true); } }
         
+        // 核心正则：提取番号
+        function extractJavCode(folder) {
+            const match = folder.match(/[a-zA-Z]{2,5}-\d{3,4}/);
+            return match ? match[0].toLowerCase() : folder;
+        }
+
         function openDetailView(u, f, n) {
             currentActiveNodeUrl = u; currentActiveFolder = f; 
             
@@ -291,6 +309,10 @@
             
             document.getElementById('detailPath').innerText = `节点：[${n}] /downloads/${f}`; resetImageZoom();
             document.getElementById('detailImage').src = `${u}/api/files/${encodeURIComponent(f)}/image?t=${Date.now()}`;
+            
+            // 自动提取并填充番号，清空历史结果
+            document.getElementById('meta-keyword').value = extractJavCode(f);
+            document.getElementById('meta-result').value = "";
             
             document.getElementById('detailMediaInfo').innerText = "跨机读取中...";
             fetch(`${u}/api/preview/mediainfo/${encodeURIComponent(f)}`).then(r=>r.text()).then(t=>document.getElementById('detailMediaInfo').innerText=t).catch(()=>document.getElementById('detailMediaInfo').innerText="读取失败");
@@ -306,7 +328,51 @@
             if (e.target === this) closeDetailView();
         });
 
-        // 核心修改：基于 textarea 降级的全局兼容剪贴板引擎
+        // ================= DMM 抓取模块 =================
+        async function fetchDmmLink() {
+            const keyword = document.getElementById('meta-keyword').value.trim();
+            if(!keyword) return alert("提取番号不能为空！");
+            
+            const resInput = document.getElementById('meta-result');
+            resInput.value = "⏳ 云端引擎深度检索中...";
+            try {
+                const res = await fetch(`${currentActiveNodeUrl}/api/scraper/${encodeURIComponent(keyword)}`);
+                const data = await res.json();
+                if(data.link) resInput.value = data.link;
+                else resInput.value = data.error || "未找到匹配链接";
+            } catch(e) {
+                resInput.value = "请求超时或拦截，请使用右侧【浏览器搜索】";
+            }
+        }
+
+        function openGoogleSearch() {
+            const keyword = document.getElementById('meta-keyword').value.trim();
+            if(!keyword) return;
+            window.open(`https://www.google.com/search?q=${encodeURIComponent(keyword + ' site:dmm.co.jp')}`, '_blank');
+        }
+
+        async function copyDmmLink() {
+            const text = document.getElementById('meta-result').value.trim();
+            if (!text || text.includes("检索中") || text.includes("未找到") || text.includes("拦截")) return;
+            
+            const btn = document.getElementById('btn-copy-dmm');
+            const originalHTML = btn.innerHTML;
+            const successFeedback = () => {
+                btn.innerHTML = "✅ 已复制";
+                btn.style.background = "#dcfce3"; btn.style.color = "#166534"; btn.style.borderColor = "#86efac";
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.style.background = "#f1f5f9"; btn.style.color = "#475569"; btn.style.borderColor = "#cbd5e1";
+                }, 2000);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                try { await navigator.clipboard.writeText(text); successFeedback(); } 
+                catch (err) { fallbackCopyTextToClipboard(text, successFeedback); }
+            } else { fallbackCopyTextToClipboard(text, successFeedback); }
+        }
+        // ===============================================
+
         async function copyMediaInfo() {
             const text = document.getElementById('detailMediaInfo').innerText;
             if (!text || text.includes("跨机读取中...") || text.includes("读取失败")) return;
@@ -323,7 +389,6 @@
                 }, 2000);
             };
 
-            // 如果处于 HTTPS 或 localhost 环境，优先使用现代 API
             if (navigator.clipboard && window.isSecureContext) {
                 try {
                     await navigator.clipboard.writeText(text);
@@ -332,28 +397,17 @@
                     fallbackCopyTextToClipboard(text, successFeedback);
                 }
             } else {
-                // 如果处于 HTTP 不安全环境，使用降级处理方案
                 fallbackCopyTextToClipboard(text, successFeedback);
             }
         }
 
-        // 降级复制函数
         function fallbackCopyTextToClipboard(text, callback) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.top = "-999999px";
-            textArea.style.left = "-999999px";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) callback();
-                else alert("当前浏览器阻断了复制，请手动选中复制！");
-            } catch (err) {
-                alert("当前浏览器阻断了复制，请手动选中复制！");
-            }
+            textArea.style.position = "fixed"; textArea.style.top = "-999999px"; textArea.style.left = "-999999px";
+            document.body.appendChild(textArea); textArea.focus(); textArea.select();
+            try { const successful = document.execCommand('copy'); if (successful) callback(); else alert("浏览器阻断，请手动复制"); } 
+            catch (err) { alert("浏览器阻断，请手动复制"); }
             document.body.removeChild(textArea);
         }
 
