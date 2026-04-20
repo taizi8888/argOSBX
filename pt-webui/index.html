@@ -129,7 +129,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V7.5</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V8.8</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -141,7 +141,7 @@
         <main id="main-content">
             <header class="top-header">
                 <h2 id="page-title">主页大盘</h2>
-                <button class="btn-update" onclick="hotUpdateAllNodes()">🚀 引擎 OTA 同步</button>
+                <button class="btn-update" onclick="hotUpdateAllNodes()">🚀 全域集群 OTA</button>
             </header>
             <div class="content-body">
                 <div id="tab-dashboard" class="tab-pane active">
@@ -181,7 +181,7 @@
                     <div class="card-body"><div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;"><select id="qb-node-select" class="form-input" style="flex:1" onchange="loadQbConfig()"></select><input type="text" id="qb-url" class="form-input" style="flex:2" placeholder="QB 真实地址"><button class="btn-view" onclick="connectQb()">🔗 连接</button></div><div class="qb-table-wrapper" id="qb-table-container" style="display:none;"><table class="qb-table"><thead><tr><th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th><th onclick="setQbSort('name')">名称</th><th onclick="setQbSort('size')">大小</th><th onclick="setQbSort('progress')">进度</th><th onclick="setQbSort('state')">状态</th><th style="text-align:right;">操作</th></tr></thead><tbody id="qb-table-body"></tbody></table></div></div></div>
                 </div>
                 <div id="tab-factory" class="tab-pane">
-                    <div class="card"><div class="card-header">🏭 极客种子工厂 Pro</div><div class="card-body"><div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div><div class="pro-form-group"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div><div style="display:flex; flex-wrap:wrap; gap:20px;"><div class="pro-form-group" style="flex:1;"><label>🖼️ 排版引擎</label><select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select></div><div class="pro-form-group" style="flex:1;"><label>📦 分块大小</label><select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select></div></div><button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button></div></div>
+                    <div class="card"><div class="card-header">🏭 极客种子工厂 Pro</div><div class="card-body"><div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div><div class="pro-form-group"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div><div style="display:flex; flex-wrap:wrap; gap:20px;"><div class="pro-form-group" style="flex:1;"><label>🖼️ 排版引擎</label><select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select></div><div class="pro-form-group" style="flex:1;"><label>📦 分块大小</label><select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select></div></div><div class="pro-form-group" style="margin-top: 15px; display:flex; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;"><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成 4K 海报</label></div><button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button></div></div>
                 </div>
                 <div id="tab-logs" class="tab-pane">
                     <div class="card" style="height: calc(100vh - 120px); display: flex; flex-direction: column;"><div class="card-header">📝 实时日志审计<div style="display: flex; gap: 15px;"><label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="auto-scroll-cb" checked> 自动追踪</label><button class="btn-action" style="background:var(--danger); padding: 6px 12px;" onclick="clearLogs()">🗑️ 清空</button></div></div>
@@ -330,13 +330,12 @@
             if (e.target === this) closeDetailView();
         });
 
-        // ================= DMM 抓取模块 (核心升级：文案修改) =================
         async function fetchDmmLink() {
             const keyword = document.getElementById('meta-keyword').value.trim();
             if(!keyword) return alert("提取番号不能为空！");
             
             const resInput = document.getElementById('meta-result');
-            resInput.value = "⏳ 云端跨站深度检索中 (Wiki数据源直连)...";
+            resInput.value = "⏳ 云端并发极速检索中...";
             try {
                 const res = await fetch(`/api/scraper/${encodeURIComponent(keyword)}`);
                 const data = await res.json();
@@ -373,7 +372,6 @@
                 catch (err) { fallbackCopyTextToClipboard(text, successFeedback); }
             } else { fallbackCopyTextToClipboard(text, successFeedback); }
         }
-        // =======================================================
 
         async function copyMediaInfo() {
             const text = document.getElementById('detailMediaInfo').innerText;
@@ -598,19 +596,33 @@
             currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`);
             if(cur) s.value = cur;
         }
+        
         function fillProForm(url, folder) { 
-            document.getElementById("pro-folder").value = `${url}|${folder}`; document.getElementById("pro-overwrite-torrent").checked = false; document.getElementById("pro-overwrite-image").checked = false; switchTab('factory');
+            document.getElementById("pro-folder").value = `${url}|${folder}`; 
+            const cbT = document.getElementById("pro-overwrite-torrent");
+            if (cbT) cbT.checked = false;
+            const cbI = document.getElementById("pro-overwrite-image");
+            if (cbI) cbI.checked = false;
+            switchTab('factory');
         }
+
         async function submitProTask() {
             const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
             const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
             const t = document.getElementById("pro-tracker").value.trim(), p = document.getElementById("pro-piece").value, l = document.getElementById("pro-layout").value;
-            const ot = document.getElementById("pro-overwrite-torrent").checked, oi = document.getElementById("pro-overwrite-image").checked;
-            if(document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
+            
+            const cbT = document.getElementById("pro-overwrite-torrent");
+            const ot = cbT ? cbT.checked : false;
+            const cbI = document.getElementById("pro-overwrite-image");
+            const oi = cbI ? cbI.checked : false;
+            
+            if(document.getElementById("pro-save-tracker") && document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
+            
             alert(`任务指令已向 ${folder} 下发！`); switchTab('dashboard'); 
             await fetch(`${url}/api/run/folder`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ folder, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi }) });
             fetchAllNodesFolders();
         }
+        
         function selectAllPending() { document.querySelectorAll('.items-container .folder-check:not(:disabled)').forEach(cb => cb.checked = true); }
         async function triggerBatch() {
             const sel = Array.from(document.querySelectorAll('.folder-check:checked')).map(c=>c.value); if(sel.length===0) return alert("请勾选需要处理的任务");
@@ -641,7 +653,22 @@
             });
         }
 
-        async function hotUpdateAllNodes() { if(confirm("确认 OTA 升级？")) { await fetch('/api/update', { method: 'POST' }); alert("主控重启中，8秒后刷新..."); setTimeout(() => location.reload(true), 8000); } }
+        // 核心修复：全网集群大爆发，一键同步主控与算力节点
+        async function hotUpdateAllNodes() { 
+            if(confirm("确认向全网集群下发 OTA 升级指令？\n(主控机与所有算力节点将同步进化)")) { 
+                fetch('/api/update', { method: 'POST' }).catch(()=>{}); 
+                
+                clusterNodes.forEach(n => {
+                    if(n.url !== window.location.origin && n.status === 'online') {
+                        fetch(`${n.url}/api/update`, { method: 'POST' }).catch(()=>{});
+                    }
+                });
+
+                alert("全网节点重载中，8秒后刷新..."); 
+                setTimeout(() => location.reload(true), 8000); 
+            } 
+        }
+
         let imgScale=1, imgTX=0, imgTY=0;
         function resetImageZoom() { imgScale=1; imgTX=0; imgTY=0; applyTransform(); }
         function applyTransform() { const i=document.getElementById('detailImage'); if(i) i.style.transform=`translate(${imgTX}px, ${imgTY}px) scale(${imgScale})`; }
