@@ -1,11 +1,12 @@
+cat << 'EOF' > /root/pt_make.sh
 #!/bin/bash
 # 路径: /root/pt_make.sh
-# 描述: PT 制种引擎 V4.8 (双擎路径自适应 + 满血自愈版)
+# 描述: PT 制种引擎 V4.9 (物理级路径穿透 + 资产自愈强校验版)
 
 export LANG=zh_CN.UTF-8
 
 # ==========================================
-# 0. 固化与自愈逻辑 (仅限物理机终端交互模式)
+# 0. 固化与自愈逻辑
 # ==========================================
 if [[ "$1" != "--folder" ]] && [[ "$1" != "--auto" ]]; then
     if [ ! -f "/usr/local/bin/p" ] || [ "$(readlink -f "$0")" != "/usr/local/bin/p" ]; then
@@ -19,13 +20,13 @@ if [[ "$1" != "--folder" ]] && [[ "$1" != "--auto" ]]; then
     fi
 fi
 
-# --- 核心配置 (自适应 Docker 与物理机路径) ---
-if [ -z "$BASE_DIR" ]; then
-    if [ -d "/downloads" ]; then
-        BASE_DIR="/downloads"
-    else
-        BASE_DIR="/home/docker/qbittorrent/downloads"
-    fi
+# --- 核心配置：终极容器嗅探 ---
+# 通过鉴别 .dockerenv 文件，彻底粉碎宿主机残留目录的误导
+if [ -f "/.dockerenv" ]; then
+    BASE_DIR="${BASE_DIR:-/downloads}"
+else
+    # 物理机强行锁死真实数据盘路径
+    BASE_DIR="/home/docker/qbittorrent/downloads"
 fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
@@ -36,17 +37,23 @@ FONT_FILE="$FONT_DIR/LXGWWenKaiLite-Regular.ttf"
 trap 'rm -rf "$TMP_ROOT"; exit' INT TERM EXIT
 
 # ==========================================
-# 1. 环境依赖自检 (启用防死锁机制)
+# 1. 资产自检 (体积绝对值强校验，粉碎假代理数据)
 # ==========================================
 check_env() {
-    if [ ! -s "$FONT_FILE" ]; then
-        echo " ⏳ 正在拉取海报渲染专用中文字体 (启用超时保护)..."
-        mkdir -p "$FONT_DIR"
-        curl --connect-timeout 10 -m 120 -L "https://mirror.ghproxy.com/https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf" -o "$FONT_FILE"
-        if [ ! -s "$FONT_FILE" ]; then
-            echo " ❌ 字体下载失败！"
-            rm -f "$FONT_FILE"
+    local VALID_FONT=false
+    if [ -s "$FONT_FILE" ]; then
+        # 校验字体大小，低于 1000KB (约1MB) 绝对是损坏的报错页面
+        local FSIZE=$(du -k "$FONT_FILE" | cut -f1)
+        if [ "$FSIZE" -gt 1000 ]; then
+            VALID_FONT=true
         fi
+    fi
+    
+    if [ "$VALID_FONT" = false ]; then
+        echo " ⏳ 检测到字体缺失或损坏，正在从 GitHub 官方源强拉取..."
+        mkdir -p "$FONT_DIR"
+        rm -f "$FONT_FILE"
+        curl --connect-timeout 10 -m 120 -L "https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf" -o "$FONT_FILE"
     fi
 }
 check_env
@@ -252,7 +259,7 @@ fi
 # ==========================================
 clear
 echo -e "\033[1;36m======================================\033[0m"
-echo -e "\033[1;33m      PT 制种引擎 V4.8 (双擎自适应版)      \033[0m"
+echo -e "\033[1;33m      PT 制种引擎 V4.9 (全链路防崩版)      \033[0m"
 echo -e "\033[1;36m======================================\033[0m"
 echo -e " \033[1;32m[1]\033[0m 自动模式 (全盘深度扫描与制种)"
 echo -e " \033[1;32m[2]\033[0m 手动模式 (输入指定文件夹名称)"
@@ -267,3 +274,6 @@ case $MODE in
     3) echo " ⏳ 同步中..."; curl -Ls --connect-timeout 10 -m 120 https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui/pt_make.sh | tr -d '\r' > "$(readlink -f "$0")" && chmod +x "$(readlink -f "$0")" && exec "$(readlink -f "$0")" ;;
     *) exit 0 ;;
 esac
+EOF
+chmod +x /root/pt_make.sh
+/root/pt_make.sh
