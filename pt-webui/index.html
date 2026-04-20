@@ -50,12 +50,15 @@
         .btn-view { background: #0ea5e9; padding: 8px 16px;}
         .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; border-radius: 12px;}
         
-        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
-        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; margin-bottom: 16px; font-weight: 700; color: #1e293b;}
-        .sys-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px;}
-        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 6px 0 16px 0; overflow: hidden; }
+        /* 核心修复：节点矩阵 CSS Grid 响应式布局 */
+        .node-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
+        .sys-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.05); }
+        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 10px; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: #1e293b;}
+        .sys-stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-muted); margin-bottom: 4px;}
+        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 4px 0 12px 0; overflow: hidden; width: 100%; }
         .sys-bar-fill { height: 100%; transition: width 0.6s ease; border-radius: 10px;}
-        .sys-net { display: flex; justify-content: space-between; font-family: Consolas, monospace; font-size: 13px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 15px;}
+        .sys-net { display: flex; justify-content: space-between; font-family: Consolas, monospace; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 10px;}
         .form-input { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #f8fafc;}
         
         .view-toggle { display: flex; background: #e2e8f0; border-radius: 8px; padding: 4px; }
@@ -78,7 +81,6 @@
         .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
         .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
         
-        /* 玻璃态弹窗模态框 */
         #detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s ease; }
         #detail-modal-overlay.show { display: flex; opacity: 1; }
         
@@ -105,11 +107,13 @@
         .bottom-nav-item.active { color: var(--primary); font-weight: bold; }
         
         .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
-        /* 放宽表格最小宽度，容纳所有极客参数 */
         .qb-table { width: 100%; border-collapse: collapse; min-width: 1300px; }
         .qb-table th { background: #f8fafc; padding: 14px; font-size: 13px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer; white-space: nowrap;}
         .qb-table td { padding: 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; white-space: nowrap;}
 
+        /* 响应式断点：适配节点探针卡片 */
+        @media (max-width: 1400px) { .node-matrix { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 1024px) { .node-matrix { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 768px) { 
             #sidebar { display: none; } 
             #bottom-nav { display: flex; } 
@@ -124,16 +128,24 @@
             .modal-body { padding: 15px; }
             .preview-container { flex-direction: column; } 
             .preview-box { width: 100%; min-height: 50vh; } 
+
+            /* 核心修复：移动端双列紧凑布局 */
+            .node-matrix { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .sys-card { padding: 12px; border-radius: 10px; }
+            .sys-card-header { font-size: 12px; margin-bottom: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 4px; }
+            .sys-stat-row { font-size: 11px; margin-bottom: 2px; }
+            .sys-bar-bg { height: 6px; margin: 4px 0 8px 0; }
+            .sys-net { font-size: 10px; padding: 6px; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
         }
     </style>
 </head>
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V9.0</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V9.1</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
-                <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
+                <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点探针</a>
                 <a class="nav-item" onclick="switchTab('qb')" id="nav-qb"><span>🔵</span> QB 调度</a>
                 <a class="nav-item" onclick="switchTab('factory')" id="nav-factory"><span>🏭</span> 种子工厂</a>
                 <a class="nav-item" onclick="switchTab('logs')" id="nav-logs"><span>📝</span> 日志审计</a>
@@ -174,8 +186,17 @@
                 </div>
                 
                 <div id="tab-fleet" class="tab-pane">
-                    <div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body">
-                    <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div>
+                    <div class="card">
+                        <div class="card-header">⚙️ 算力集群调度</div>
+                        <div class="card-body">
+                            <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;">
+                                <input type="text" id="newNodeIp" class="form-input" style="flex:2; min-width: 150px;" placeholder="节点 API 地址">
+                                <input type="text" id="newNodeName" class="form-input" style="flex:1; min-width: 100px;" placeholder="备注别名">
+                                <button class="btn-action" onclick="addNode()">添加探针</button>
+                            </div>
+                            <div id="active-nodes" class="node-matrix"></div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="tab-qb" class="tab-pane">
@@ -453,7 +474,6 @@
         function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
         function formatBytes(b) { if(b===0||!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i]; }
 
-        // 核心辅助：时间戳格式化
         function formatDate(ts) {
             if(!ts) return '-';
             const d = new Date(ts * 1000);
@@ -483,9 +503,16 @@
             const c = document.getElementById('active-nodes'); c.innerHTML = '';
             clusterNodes.forEach((n, i) => {
                 const s = n.status==='offline';
+                // 核心修复：外层套 sys-card 容器，内层包裹数据使其可以 flex 弹性撑开
                 c.innerHTML += `<div class="sys-card" style="${s?'opacity:0.5':''}">
-                    <div class="sys-card-header"><div onclick="editNodeName('${n.url}')" style="cursor:pointer;"><strong>${s?'🔴':'🟢'} ${n.name}</strong></div>${i!==0?`<span onclick="removeNode('${n.url}')" style="cursor:pointer;color:var(--danger);font-size:12px;">移除</span>`:''}</div>
-                    <div id="sys-data-${i}">${s?'节点已离线或阻断':'建立探针通信...'}</div></div>`;
+                    <div class="sys-card-header">
+                        <div onclick="editNodeName('${n.url}')" style="cursor:pointer; word-break: break-all;"><strong>${s?'🔴':'🟢'} ${n.name}</strong></div>
+                        ${i!==0?`<span onclick="removeNode('${n.url}')" style="cursor:pointer;color:var(--danger);font-size:12px; flex-shrink:0; margin-left:8px;">移除</span>`:''}
+                    </div>
+                    <div id="sys-data-${i}" style="display:flex; flex-direction:column; flex-grow:1;">
+                        <div style="text-align:center; padding: 20px 0; color: #94a3b8; font-size: 13px;">${s?'节点已离线或被阻断':'正在建立探针通信...'}</div>
+                    </div>
+                </div>`;
             });
         }
 
@@ -624,7 +651,6 @@
             if(a) a.checked = qbTorrentsData.length>0 && qbSelectedHashes.size===qbTorrentsData.length;
         }
 
-        // 核心渲染器修复：挂载四大核心业务指标
         function renderQbTable() {
             const b = document.getElementById('qb-table-body'); b.innerHTML = '';
             document.querySelectorAll('.sort-icon').forEach(e=>{e.innerHTML='';e.className='sort-icon';});
@@ -635,7 +661,6 @@
             data.forEach(t => {
                 let s = states[t.state] || [t.state, '#64748b'], p = (t.progress*100).toFixed(1);
                 
-                // 数据反序列化
                 let ratio = t.ratio !== undefined ? t.ratio.toFixed(2) : '0.00';
                 let dlSpeed = formatBytes(t.dlspeed || 0) + '/s';
                 let upSpeed = formatBytes(t.upspeed || 0) + '/s';
@@ -720,7 +745,18 @@
                         let diskTotal = cur.disk_total || 0, diskUsed = cur.disk_used || 0, diskPct = diskTotal > 0 ? (diskUsed/diskTotal)*100 : 0;
                         let diskColor = diskPct > 95 ? '#ef4444' : (diskPct > 80 ? '#f59e0b' : '#8b5cf6');
                         const el = document.getElementById(`sys-data-${i}`);
-                        if(el) el.innerHTML = `<div class="sys-stat-row"><span>💻 CPU</span><span style="font-weight:600">${cpu.toFixed(1)}%</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${cpu}%;background:linear-gradient(90deg, #60a5fa, #3b82f6)"></div></div><div class="sys-stat-row"><span>🧠 RAM</span><span style="font-weight:600">${formatBytes(cur.mem_used)} / ${formatBytes(cur.mem_total)}</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${mem}%;background:linear-gradient(90deg, #34d399, #10b981)"></div></div><div class="sys-stat-row"><span>💾 硬盘</span><span style="font-weight:600">${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}</span></div><div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${diskPct}%;background:${diskColor}"></div></div><div class="sys-stat-row" style="margin-top:12px;"><span>📅 本月流量</span><span style="font-weight:800;color:var(--primary)">${formatBytes(totalMo)}</span></div><div class="sys-net"><span style="color:var(--success)">↓ ${formatBytes(rx)}/s</span><span style="color:var(--primary)">↑ ${formatBytes(tx)}/s</span></div>`;
+                        
+                        // 核心修复：数据注入时完全兼容 Flex 弹性布局
+                        if(el) el.innerHTML = `
+                            <div class="sys-stat-row"><span>💻 CPU</span><span style="font-weight:600">${cpu.toFixed(1)}%</span></div>
+                            <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${cpu}%;background:linear-gradient(90deg, #60a5fa, #3b82f6)"></div></div>
+                            <div class="sys-stat-row"><span>🧠 RAM</span><span style="font-weight:600">${formatBytes(cur.mem_used)} / ${formatBytes(cur.mem_total)}</span></div>
+                            <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${mem}%;background:linear-gradient(90deg, #34d399, #10b981)"></div></div>
+                            <div class="sys-stat-row"><span>💾 硬盘</span><span style="font-weight:600">${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}</span></div>
+                            <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${diskPct}%;background:${diskColor}"></div></div>
+                            <div class="sys-stat-row" style="margin-top:auto; padding-top:8px;"><span>📅 月流量</span><span style="font-weight:800;color:var(--primary)">${formatBytes(totalMo)}</span></div>
+                            <div class="sys-net"><span style="color:var(--success)">↓ ${formatBytes(rx)}/s</span><span style="color:var(--primary)">↑ ${formatBytes(tx)}/s</span></div>
+                        `;
                     }
                     nodeStats[n.url] = cur;
                 } catch(e){}
