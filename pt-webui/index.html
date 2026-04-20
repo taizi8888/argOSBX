@@ -129,7 +129,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V8.8</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V8.9</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -176,10 +176,44 @@
                     <div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body">
                     <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div>
                 </div>
+                
                 <div id="tab-qb" class="tab-pane">
-                    <div class="card"><div class="card-header">🔵 qBittorrent 远程接管<div id="qb-batch-bar" style="display:none; gap:6px;"><button onclick="qbBatchAction('resume')" style="background:var(--success); padding:6px 12px;">▶ 开始</button><button onclick="qbBatchDelete()" style="background:var(--danger); padding:6px 12px;">🗑️ 删除</button></div></div>
-                    <div class="card-body"><div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;"><select id="qb-node-select" class="form-input" style="flex:1" onchange="loadQbConfig()"></select><input type="text" id="qb-url" class="form-input" style="flex:2" placeholder="QB 真实地址"><button class="btn-view" onclick="connectQb()">🔗 连接</button></div><div class="qb-table-wrapper" id="qb-table-container" style="display:none;"><table class="qb-table"><thead><tr><th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th><th onclick="setQbSort('name')">名称</th><th onclick="setQbSort('size')">大小</th><th onclick="setQbSort('progress')">进度</th><th onclick="setQbSort('state')">状态</th><th style="text-align:right;">操作</th></tr></thead><tbody id="qb-table-body"></tbody></table></div></div></div>
+                    <div class="card">
+                        <div class="card-header">
+                            🔵 qBittorrent 远程接管
+                            <div id="qb-batch-bar" style="display:none; gap:6px;">
+                                <button onclick="qbBatchAction('resume')" style="background:var(--success); padding:6px 12px;">▶ 开始</button>
+                                <button onclick="qbBatchDelete()" style="background:var(--danger); padding:6px 12px;">🗑️ 删除</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;">
+                                <select id="qb-node-select" class="form-input" style="flex:1; min-width:150px;" onchange="loadQbConfig()"></select>
+                                <input type="text" id="qb-url" class="form-input" style="flex:2; min-width:200px;" placeholder="QB 地址 (如 http://192.168.1.2:8080)">
+                                <input type="text" id="qb-user" class="form-input" style="flex:1; min-width:120px;" placeholder="用户名 (选填)">
+                                <input type="password" id="qb-pwd" class="form-input" style="flex:1; min-width:120px;" placeholder="密码 (选填)">
+                                <button class="btn-view" onclick="connectQb()" style="min-width:100px;">🔗 连接</button>
+                            </div>
+                            
+                            <div class="qb-table-wrapper" id="qb-table-container" style="display:none;">
+                                <table class="qb-table">
+                                    <thead>
+                                        <tr>
+                                            <th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th>
+                                            <th onclick="setQbSort('name')">名称</th>
+                                            <th onclick="setQbSort('size')">大小</th>
+                                            <th onclick="setQbSort('progress')">进度</th>
+                                            <th onclick="setQbSort('state')">状态</th>
+                                            <th style="text-align:right;">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="qb-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                
                 <div id="tab-factory" class="tab-pane">
                     <div class="card"><div class="card-header">🏭 极客种子工厂 Pro</div><div class="card-body"><div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div><div class="pro-form-group"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div><div style="display:flex; flex-wrap:wrap; gap:20px;"><div class="pro-form-group" style="flex:1;"><label>🖼️ 排版引擎</label><select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select></div><div class="pro-form-group" style="flex:1;"><label>📦 分块大小</label><select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select></div></div><div class="pro-form-group" style="margin-top: 15px; display:flex; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;"><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成 4K 海报</label></div><button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button></div></div>
                 </div>
@@ -535,14 +569,34 @@
         function loadQbConfig() {
             const url = document.getElementById('qb-node-select').value; if(!url) return;
             let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
-            document.getElementById('qb-url').value = cfg.url||''; document.getElementById('qb-user').value = cfg.user||''; document.getElementById('qb-pwd').value = cfg.pwd||'';
+            document.getElementById('qb-url').value = cfg.url||''; 
+            
+            // 安全读取用户名密码输入框（已修复）
+            const u = document.getElementById('qb-user');
+            if(u) u.value = cfg.user||''; 
+            const p = document.getElementById('qb-pwd');
+            if(p) p.value = cfg.pwd||'';
+            
             clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; qbSelectedHashes.clear(); updateQbBatchBar();
         }
         async function connectQb() {
-            const n = document.getElementById('qb-node-select').value, u = document.getElementById('qb-url').value, usr = document.getElementById('qb-user').value, p = document.getElementById('qb-pwd').value;
+            const n = document.getElementById('qb-node-select').value;
+            const u = document.getElementById('qb-url').value;
+            
+            // 安全抓取密码字段
+            const usrInput = document.getElementById('qb-user');
+            const pwdInput = document.getElementById('qb-pwd');
+            const usr = usrInput ? usrInput.value : "";
+            const p = pwdInput ? pwdInput.value : "";
+
             if(!n||!u) return alert("请选择节点并填写地址");
-            let cfgs = JSON.parse(localStorage.getItem('qb_configs'))||{}; cfgs[n] = {url:u, user:usr, pwd:p}; localStorage.setItem('qb_configs', JSON.stringify(cfgs));
-            await fetchQbData(true); if(qbInterval) clearInterval(qbInterval); qbInterval = setInterval(() => fetchQbData(false), 3000);
+            let cfgs = JSON.parse(localStorage.getItem('qb_configs'))||{}; 
+            cfgs[n] = {url:u, user:usr, pwd:p}; 
+            localStorage.setItem('qb_configs', JSON.stringify(cfgs));
+            
+            await fetchQbData(true); 
+            if(qbInterval) clearInterval(qbInterval); 
+            qbInterval = setInterval(() => fetchQbData(false), 3000);
         }
         async function fetchQbData(isManual = false) {
             const n = document.getElementById('qb-node-select').value; if(!n) return;
@@ -653,7 +707,6 @@
             });
         }
 
-        // 核心修复：全网集群大爆发，一键同步主控与算力节点
         async function hotUpdateAllNodes() { 
             if(confirm("确认向全网集群下发 OTA 升级指令？\n(主控机与所有算力节点将同步进化)")) { 
                 fetch('/api/update', { method: 'POST' }).catch(()=>{}); 
