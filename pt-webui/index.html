@@ -105,9 +105,10 @@
         .bottom-nav-item.active { color: var(--primary); font-weight: bold; }
         
         .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
-        .qb-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .qb-table th { background: #f8fafc; padding: 14px; font-size: 13px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer;}
-        .qb-table td { padding: 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+        /* 放宽表格最小宽度，容纳所有极客参数 */
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1300px; }
+        .qb-table th { background: #f8fafc; padding: 14px; font-size: 13px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer; white-space: nowrap;}
+        .qb-table td { padding: 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; white-space: nowrap;}
 
         @media (max-width: 768px) { 
             #sidebar { display: none; } 
@@ -129,7 +130,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V8.9</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V9.0</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点管理</a>
@@ -200,10 +201,14 @@
                                     <thead>
                                         <tr>
                                             <th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th>
-                                            <th onclick="setQbSort('name')">名称</th>
-                                            <th onclick="setQbSort('size')">大小</th>
-                                            <th onclick="setQbSort('progress')">进度</th>
-                                            <th onclick="setQbSort('state')">状态</th>
+                                            <th onclick="setQbSort('name')">名称 <span id="sort-icon-name" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('size')">大小 <span id="sort-icon-size" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('progress')">进度 <span id="sort-icon-progress" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('state')">状态 <span id="sort-icon-state" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('ratio')">分享率 <span id="sort-icon-ratio" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('dlspeed')">下行 <span id="sort-icon-dlspeed" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('upspeed')">上行 <span id="sort-icon-upspeed" class="sort-icon"></span></th>
+                                            <th onclick="setQbSort('added_on')">添加时间 <span id="sort-icon-added_on" class="sort-icon"></span></th>
                                             <th style="text-align:right;">操作</th>
                                         </tr>
                                     </thead>
@@ -448,6 +453,13 @@
         function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
         function formatBytes(b) { if(b===0||!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i]; }
 
+        // 核心辅助：时间戳格式化
+        function formatDate(ts) {
+            if(!ts) return '-';
+            const d = new Date(ts * 1000);
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+
         async function syncNodesToBackend(nodes) { 
             try { await fetch('/api/nodes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(nodes) }); } catch(e){} 
         }
@@ -570,20 +582,15 @@
             const url = document.getElementById('qb-node-select').value; if(!url) return;
             let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {};
             document.getElementById('qb-url').value = cfg.url||''; 
-            
-            // 安全读取用户名密码输入框（已修复）
             const u = document.getElementById('qb-user');
             if(u) u.value = cfg.user||''; 
             const p = document.getElementById('qb-pwd');
             if(p) p.value = cfg.pwd||'';
-            
             clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; qbSelectedHashes.clear(); updateQbBatchBar();
         }
         async function connectQb() {
             const n = document.getElementById('qb-node-select').value;
             const u = document.getElementById('qb-url').value;
-            
-            // 安全抓取密码字段
             const usrInput = document.getElementById('qb-user');
             const pwdInput = document.getElementById('qb-pwd');
             const usr = usrInput ? usrInput.value : "";
@@ -616,6 +623,8 @@
             if(c) c.innerText = qbSelectedHashes.size; if(b) b.style.display = qbSelectedHashes.size>0?'flex':'none';
             if(a) a.checked = qbTorrentsData.length>0 && qbSelectedHashes.size===qbTorrentsData.length;
         }
+
+        // 核心渲染器修复：挂载四大核心业务指标
         function renderQbTable() {
             const b = document.getElementById('qb-table-body'); b.innerHTML = '';
             document.querySelectorAll('.sort-icon').forEach(e=>{e.innerHTML='';e.className='sort-icon';});
@@ -625,12 +634,23 @@
             const states = { 'downloading':['下载中','#3b82f6'], 'uploading':['做种中','#10b981'], 'pausedDL':['已暂停','#f59e0b'], 'pausedUP':['已暂停','#f59e0b'], 'stalledUP':['做种(空)','#10b981'], 'error':['错误','#ef4444']};
             data.forEach(t => {
                 let s = states[t.state] || [t.state, '#64748b'], p = (t.progress*100).toFixed(1);
+                
+                // 数据反序列化
+                let ratio = t.ratio !== undefined ? t.ratio.toFixed(2) : '0.00';
+                let dlSpeed = formatBytes(t.dlspeed || 0) + '/s';
+                let upSpeed = formatBytes(t.upspeed || 0) + '/s';
+                let addedTime = formatDate(t.added_on);
+
                 b.innerHTML += `<tr>
                     <td style="text-align:center"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}',this.checked)" ${qbSelectedHashes.has(t.hash)?'checked':''}></td>
                     <td><div style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.name}"><strong>${t.name}</strong></div></td>
                     <td>${formatBytes(t.size)}</td>
                     <td><div style="font-size:11px">${p}%</div><div style="background:#f1f5f9;height:6px;border-radius:10px;"><div style="height:100%;width:${p}%;background:${s[1]}"></div></div></td>
                     <td style="color:${s[1]};font-weight:bold">${s[0]}</td>
+                    <td style="font-family: Consolas, monospace; font-weight: 600;">${ratio}</td>
+                    <td style="color:var(--success); font-family: Consolas, monospace; font-size: 12px;">↓ ${dlSpeed}</td>
+                    <td style="color:var(--primary); font-family: Consolas, monospace; font-size: 12px;">↑ ${upSpeed}</td>
+                    <td style="font-size:12px; color:var(--text-muted)">${addedTime}</td>
                     <td style="text-align:right">
                         <button onclick="qbAction('${t.hash}','resume')" style="background:var(--success);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">▶</button>
                         <button onclick="qbAction('${t.hash}','pause')" style="background:var(--warning);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">⏸</button>
