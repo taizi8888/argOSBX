@@ -134,6 +134,12 @@ def qbittorrent_proxy(req: dict):
             return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
+def get_script_path():
+    possible_paths = ["/app/pt_make.sh", "/root/pt_make.sh", "./pt_make.sh", "/usr/local/bin/p"]
+    for p in possible_paths:
+        if os.path.exists(p): return p
+    return "pt_make.sh"
+
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
@@ -146,12 +152,18 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
                 for ext in [".torrent", "_mediainfo.txt"]:
                     p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
                     if os.path.exists(p): os.remove(p)
-        cmd = ["/bin/bash", "/app/pt_make.sh", f"--{mode}"]
+        
+        script_path = get_script_path()
+        cmd = ["/bin/bash", script_path, f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
+        
         env = os.environ.copy()
+        # 核心防空修复：强制将工作目录变量透传给子进程，击碎 Docker 物理墙
+        env["BASE_DIR"] = BASE_DIR
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
+        
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
             f.flush(); os.fsync(f.fileno())
@@ -162,11 +174,14 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
 @app.post("/api/run_batch")
 def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     def execute_batch():
+        script_path = get_script_path()
+        env = os.environ.copy()
+        env["BASE_DIR"] = BASE_DIR
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
             f.flush(); os.fsync(f.fileno())
             for folder in req.folders:
-                subprocess.run(["/bin/bash", "/app/pt_make.sh", "--folder", folder], stdout=f, stderr=subprocess.STDOUT)
+                subprocess.run(["/bin/bash", script_path, "--folder", folder], env=env, stdout=f, stderr=subprocess.STDOUT)
                 f.flush()
     background_tasks.add_task(execute_batch)
     return {"message": "Batch Started"}
@@ -189,7 +204,6 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 
-# V8.6 极速幽灵混编引擎：直连刺客(0.5秒) + 代理步兵(兜底100%)
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -198,7 +212,6 @@ def scrape_link(keyword: str):
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
     }
 
-    # 白名单精准漏斗
     def extract_dmm_link(raw_html):
         if not raw_html: return None
         decoded_html = urllib.parse.unquote(raw_html)
@@ -222,7 +235,6 @@ def scrape_link(keyword: str):
                 return candidate_link
         return None
 
-    # 第一梯队：直连刺客 (3秒强行掐断)
     def fetch_direct(target_url):
         try:
             req = urllib.request.Request(target_url, headers=headers)
@@ -231,7 +243,6 @@ def scrape_link(keyword: str):
         except:
             return None
 
-    # 第二梯队：CodeTabs 代理
     def fetch_via_codetabs(target_url):
         try:
             proxy = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(target_url)}"
@@ -241,7 +252,6 @@ def scrape_link(keyword: str):
         except:
             return None
 
-    # 第二梯队：AllOrigins 代理
     def fetch_via_allorigins(target_url):
         try:
             proxy = f"https://api.allorigins.win/get?url={urllib.parse.quote(target_url)}"
@@ -255,19 +265,14 @@ def scrape_link(keyword: str):
     wiki_search_url = f"https://shiroutowiki.work/?s={keyword}"
     javbus_url = f"https://www.javbus.com/{keyword}"
 
-    # 5 条不同维度的战线同时开火！
     futures = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        # 如果甲骨文没被墙，这行代码将在 0.5 秒内命中
         futures.append(executor.submit(fetch_direct, wiki_search_url))
-        
-        # 慢速保底路线：确保即便遭遇 DDoS 封杀或焦油坑，也能 100% 返回结果
         futures.append(executor.submit(fetch_via_codetabs, wiki_search_url))
         futures.append(executor.submit(fetch_via_allorigins, wiki_search_url))
         futures.append(executor.submit(fetch_via_codetabs, javbus_url))
         futures.append(executor.submit(fetch_via_allorigins, javbus_url))
 
-        # 竞速法则：谁先拿到非空链接，谁就赢了！
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res:
