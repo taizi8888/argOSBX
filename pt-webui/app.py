@@ -29,6 +29,10 @@ class RunRequest(BaseModel):
 class BatchRequest(BaseModel):
     folders: List[str]
 
+# 核心降级器：如果是视频单文件，剥离后缀以匹配其海报和种子；如果是文件夹，保持原样
+def _b(name): 
+    return os.path.splitext(name)[0] if name.lower().endswith(('.mp4', '.mkv', '.avi', '.wmv', '.ts')) else name
+
 @app.get("/")
 def index(): return FileResponse("index.html")
 
@@ -52,9 +56,15 @@ def list_folders():
         for item in os.listdir(BASE_DIR):
             if item.startswith("."): continue
             path = os.path.join(BASE_DIR, item)
-            if os.path.isdir(path):
-                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
-                has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
+            
+            # 核心扩容：大盘雷达同时嗅探文件夹与单视频文件
+            is_dir = os.path.isdir(path)
+            is_vid = os.path.isfile(path) and item.lower().endswith(('.mp4', '.mkv', '.avi', '.wmv', '.ts'))
+            
+            if is_dir or is_vid:
+                base = _b(item)
+                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base}.torrent"))
+                has_img = os.path.exists(os.path.join(BASE_DIR, f"{base}_Stitched_4K.jpg"))
                 ready = has_torrent and has_img
                 status = "✅ 已完成" if ready else "⏳ 待处理"
                 folders.append({"name": item, "status": status, "ready": ready, "mtime": os.path.getmtime(path)})
@@ -128,8 +138,9 @@ def qbittorrent_proxy(req: dict):
             urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers), timeout=5)
             if del_files and name:
                 for n in name.split("|"):
+                    base = _b(n.strip())
                     for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                        p = os.path.join(BASE_DIR, f"{n.strip()}{ext}"); 
+                        p = os.path.join(BASE_DIR, f"{base}{ext}"); 
                         if os.path.exists(p): os.remove(p)
             return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
@@ -144,13 +155,14 @@ def get_script_path():
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         if mode == "folder" and req.folder:
+            base = _b(req.folder)
             if req.overwrite_image:
                 for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
+                    p = os.path.join(BASE_DIR, f"{base}{ext}")
                     if os.path.exists(p): os.remove(p)
             if req.overwrite_torrent:
                 for ext in [".torrent", "_mediainfo.txt"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
+                    p = os.path.join(BASE_DIR, f"{base}{ext}")
                     if os.path.exists(p): os.remove(p)
         
         script_path = get_script_path()
@@ -158,7 +170,6 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
         if mode == "folder" and req.folder: cmd.append(req.folder)
         
         env = os.environ.copy()
-        # 核心防空修复：强制将工作目录变量透传给子进程，击碎 Docker 物理墙
         env["BASE_DIR"] = BASE_DIR
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
@@ -202,7 +213,6 @@ def clear_logs():
         open(LOG_FILE, 'w').close()
         return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
-
 
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
@@ -306,13 +316,13 @@ def update_system(background_tasks: BackgroundTasks):
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
     exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg"}
-    p = os.path.join(BASE_DIR, f"{folder}{exts.get(file_type, '')}")
+    p = os.path.join(BASE_DIR, f"{_b(folder)}{exts.get(file_type, '')}")
     if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
     return {"error": "Not Found"}
 
 @app.get("/api/preview/mediainfo/{folder}")
 def preview_mediainfo(folder: str):
-    p = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
+    p = os.path.join(BASE_DIR, f"{_b(folder)}_mediainfo.txt")
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
     return PlainTextResponse("Not Found")
