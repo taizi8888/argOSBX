@@ -1,31 +1,33 @@
-cat << 'EOF' > /root/pt_make.sh
 #!/bin/bash
-# 路径: /root/pt_make.sh
-# 描述: PT 制种引擎 V4.9 (物理级路径穿透 + 资产自愈强校验版)
+# 描述: PT 制种引擎 V8.0 (终极双端自适应 + 满血 GIF 执行器)
 
 export LANG=zh_CN.UTF-8
+CONFIG_FILE="$HOME/.pt_make_config"
 
-# ==========================================
-# 0. 固化与自愈逻辑
-# ==========================================
+if [ -f "$CONFIG_FILE" ]; then source "$CONFIG_FILE"; else ENABLE_GIF="false"; echo "ENABLE_GIF=\"$ENABLE_GIF\"" > "$CONFIG_FILE"; fi
+
+# 【架构指令】接收 Python 透传的环境变量
+[ -n "$CUSTOM_ENABLE_GIF" ] && ENABLE_GIF="$CUSTOM_ENABLE_GIF"
+ENABLE_GIF=$(echo "$ENABLE_GIF" | tr -d ' ' | tr -d '\r' | tr -d '\n')
+
+# 自动绑定全局指令 'p' (针对宿主机)
 if [[ "$1" != "--folder" ]] && [[ "$1" != "--auto" ]]; then
-    if [ ! -f "/usr/local/bin/p" ] || [ "$(readlink -f "$0")" != "/usr/local/bin/p" ]; then
-        if [ -f "/root/pt_make.sh" ]; then
-            echo " ✨ 正在将脚本固化为系统全局指令 'p'..."
-            sed -i '/alias p=/d' "$HOME/.bashrc"
-            cp /root/pt_make.sh /usr/local/bin/p
-            chmod +x /usr/local/bin/p
-            exec /usr/local/bin/p
-        fi
+    SCRIPT_REAL_PATH="$(readlink -f "$0")"
+    if [ "$SCRIPT_REAL_PATH" != "/usr/local/bin/p" ]; then
+        cp "$SCRIPT_REAL_PATH" /usr/local/bin/p 2>/dev/null
+        chmod +x /usr/local/bin/p 2>/dev/null
+        USER_PROFILE="$HOME/.bashrc"
+        sed -i '/alias p=/d' "$USER_PROFILE" 2>/dev/null
+        echo "alias p='/usr/local/bin/p'" >> "$USER_PROFILE"
     fi
 fi
 
-# --- 核心配置：终极容器嗅探 ---
-# 通过鉴别 .dockerenv 文件，彻底粉碎宿主机残留目录的误导
-if [ -f "/.dockerenv" ]; then
+# 物理路径智能嗅探
+if [ -d "/vol3/1000/downloads" ]; then 
+    BASE_DIR="/vol3/1000/downloads"
+elif [ -f "/.dockerenv" ]; then 
     BASE_DIR="${BASE_DIR:-/downloads}"
-else
-    # 物理机强行锁死真实数据盘路径
+else 
     BASE_DIR="/home/docker/qbittorrent/downloads"
 fi
 
@@ -36,246 +38,182 @@ FONT_FILE="$FONT_DIR/LXGWWenKaiLite-Regular.ttf"
 
 trap 'rm -rf "$TMP_ROOT"; exit' INT TERM EXIT
 
-# ==========================================
-# 1. 资产自检 (体积绝对值强校验，粉碎假代理数据)
-# ==========================================
 check_env() {
+    local missing=(); for tool in ffmpeg ffprobe mediainfo mktorrent curl; do command -v "$tool" >/dev/null 2>&1 || missing+=("$tool"); done
+    if [ ${#missing[@]} -gt 0 ]; then sudo apt-get update && sudo apt-get install -y "${missing[@]}"; fi
     local VALID_FONT=false
-    if [ -s "$FONT_FILE" ]; then
-        # 校验字体大小，低于 1000KB (约1MB) 绝对是损坏的报错页面
-        local FSIZE=$(du -k "$FONT_FILE" | cut -f1)
-        if [ "$FSIZE" -gt 1000 ]; then
-            VALID_FONT=true
-        fi
-    fi
-    
+    [ -s "$FONT_FILE" ] && [ "$(du -k "$FONT_FILE" | cut -f1)" -gt 4000 ] && VALID_FONT=true
     if [ "$VALID_FONT" = false ]; then
-        echo " ⏳ 检测到字体缺失或损坏，正在从 GitHub 官方源强拉取..."
         mkdir -p "$FONT_DIR"
-        rm -f "$FONT_FILE"
-        curl --connect-timeout 10 -m 120 -L "https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf" -o "$FONT_FILE"
+        local FONT_URLS=("https://mirror.ghproxy.com/https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf" "https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.330/LXGWWenKaiLite-Regular.ttf")
+        for url in "${FONT_URLS[@]}"; do
+            curl -f --connect-timeout 15 -m 60 -L "$url" -o "${FONT_FILE}.tmp" 2>/dev/null
+            if [ -s "${FONT_FILE}.tmp" ] && [ "$(du -k "${FONT_FILE}.tmp" | cut -f1)" -gt 4000 ]; then mv "${FONT_FILE}.tmp" "$FONT_FILE"; VALID_FONT=true; break; fi
+        done
     fi
 }
 check_env
 
-# ==========================================
-# 2. 核心处理逻辑
-# ==========================================
-process_folder() {
-    local FOLDER_NAME=$1
-    local FOLDER_PATH="$BASE_DIR/$FOLDER_NAME"
-    local TORRENT_FILE="$BASE_DIR/${FOLDER_NAME}.torrent"
-    local INFO_FILE="$BASE_DIR/${FOLDER_NAME}_mediainfo.txt"
-    local STITCHED_IMG="$BASE_DIR/${FOLDER_NAME}_Stitched_4K.jpg"
-    local TMP_IMG_DIR="$TMP_ROOT/$FOLDER_NAME"
+process_target() {
+    local TARGET_NAME="$1"; local TARGET_PATH="$BASE_DIR/$TARGET_NAME"
+    if [[ "$TARGET_NAME" == *.torrent ]] || [[ "$TARGET_NAME" == *_mediainfo.txt ]] || [[ "$TARGET_NAME" == *_Stitched_4K.jpg ]] || [[ "$TARGET_NAME" == *_Preview.gif ]] || [[ "$TARGET_NAME" == *_ffmpeg_debug.log ]] || [[ "$TARGET_NAME" == header* ]]; then return; fi
+    if [[ ! -e "$TARGET_PATH" ]]; then return; fi
 
-    if [[ ! -d "$FOLDER_PATH" ]]; then
-        echo " ❌ 错误：找不到目标目录 => $FOLDER_PATH"
-        return
-    fi
+    local BASE_NAME=""; local IS_FILE=false
+    if [ -f "$TARGET_PATH" ]; then
+        local ext="${TARGET_NAME##*.}"
+        [[ ! "${ext,,}" =~ ^(mp4|mkv|avi|wmv|ts)$ ]] || [[ "$TARGET_NAME" == *".!qB" ]] && return
+        IS_FILE=true; BASE_NAME="${TARGET_NAME%.*}"
+    elif [ -d "$TARGET_PATH" ]; then
+        if find "$TARGET_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
+        BASE_NAME="$TARGET_NAME"
+        find "$TARGET_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
+        for vf in "$TARGET_PATH"/*; do
+            if [[ -f "$vf" ]]; then
+                local vext="${vf##*.}"
+                if [[ "${vext,,}" =~ ^(mp4|mkv|avi|wmv|ts)$ ]]; then
+                    [ "$(du -k "$vf" | cut -f1)" -lt 256000 ] && rm -f "$vf" && continue
+                fi
+                # 斩断广告前缀
+                local fname=$(basename "$vf")
+                [[ "$fname" == *"@"* ]] && mv "$vf" "$TARGET_PATH/${fname#*@}"
+            fi
+        done
+    else return; fi
+
+    local TORRENT_FILE="$BASE_DIR/${BASE_NAME}.torrent"
+    local INFO_FILE="$BASE_DIR/${BASE_NAME}_mediainfo.txt"
+    local STITCHED_IMG="$BASE_DIR/${BASE_NAME}_Stitched_4K.jpg"
+    local PREVIEW_GIF="$BASE_DIR/${BASE_NAME}_Preview.gif"
+    local TMP_IMG_DIR="$TMP_ROOT/$BASE_NAME"
 
     echo "------------------------------------------------"
-    echo "📦 正在处理目录: $FOLDER_NAME"
+    echo "📦 处理任务: $TARGET_NAME"
 
-    if find "$FOLDER_PATH" -type f -name "*.!qB" | grep -q .; then
-        echo " ⏩ 跳过：检测到下载未完成文件 (.!qB)"
-        return
+    local VIDEO_FILES=(); if [ "$IS_FILE" = true ]; then VIDEO_FILES=("$TARGET_PATH"); else mapfile -t VIDEO_FILES < <(find "$TARGET_PATH" -maxdepth 1 -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) | sort); fi
+    [ ${#VIDEO_FILES[@]} -eq 0 ] && return
+    local MAIN_VIDEO="${VIDEO_FILES[0]}"
+    
+    if [ ! -f "$TORRENT_FILE" ] || [ ! -f "$INFO_FILE" ]; then
+        mediainfo "$MAIN_VIDEO" > "$INFO_FILE"; mktorrent -v -p -l 21 -a "${DEFAULT_TRACKER}" -o "$TORRENT_FILE" "$TARGET_PATH" > /dev/null 2>&1
     fi
 
-    find "$FOLDER_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
-    
-    local ad_cleaned=false
-    for vf in "$FOLDER_PATH"/*; do
-        if [[ -f "$vf" ]]; then
-            local ext="${vf##*.}"; ext="${ext,,}"
-            if [[ "$ext" == "mp4" || "$ext" == "mkv" || "$ext" == "avi" || "$ext" == "wmv" || "$ext" == "ts" ]]; then
-                local size_kb=$(du -k "$vf" | cut -f1)
-                if [ "$size_kb" -lt 256000 ]; then
-                    rm -f "$vf"
-                    ad_cleaned=true
-                    echo " 🗑️ [净网查杀] 剔除劣质/广告视频: $(basename "$vf")" >> "$BASE_DIR/${FOLDER_NAME}_ffmpeg_debug.log"
-                fi
-            fi
-        fi
-    done
-    [ "$ad_cleaned" = true ] && echo " 🧹 已完成小体积广告/样片物理清理"
-
-    for file in "$FOLDER_PATH"/*; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            [[ "$filename" == *"@"* ]] && mv "$file" "$FOLDER_PATH/${filename#*@}"
-        fi
-    done
-
-    local NEED_MAKE_TORRENT=true
-    local NEED_FFMPEG=true
-    [[ -f "$TORRENT_FILE" && -f "$INFO_FILE" ]] && NEED_MAKE_TORRENT=false
-    [[ -f "$STITCHED_IMG" ]] && NEED_FFMPEG=false
-    
-    if [ "$NEED_MAKE_TORRENT" = false ] && [ "$NEED_FFMPEG" = false ]; then
-        echo " ✅ 种子、参数与海报均已齐全，直接跳过。"
-        return
-    fi
-
-    mapfile -t VIDEO_FILES < <(find "$FOLDER_PATH" -maxdepth 1 \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) | sort)
-    NUM_FILES=${#VIDEO_FILES[@]}
-    
-    if [ "$NUM_FILES" -gt 0 ]; then
-        MAIN_VIDEO=$(find "$FOLDER_PATH" -maxdepth 1 \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wmv" -o -iname "*.ts" \) -printf "%s\t%p\n" | sort -nr | head -n1 | cut -f2)
-    fi
-    
-    if [ "$NUM_FILES" -gt 0 ] && [ "$NEED_MAKE_TORRENT" = true ]; then
-        echo " ⏳ 正在制作纯净版种子与 Mediainfo 报告..."
-        [ -n "$MAIN_VIDEO" ] && mediainfo "$MAIN_VIDEO" > "$INFO_FILE"
-        SIZE_MB=$(du -sm "$FOLDER_PATH" | cut -f1)
-        
-        if [ -n "$CUSTOM_PIECE_L" ]; then
-            PIECE_L=$CUSTOM_PIECE_L
-        else
-            if [ "$SIZE_MB" -lt 512 ]; then PIECE_L=18; elif [ "$SIZE_MB" -lt 1024 ]; then PIECE_L=19; elif [ "$SIZE_MB" -lt 2048 ]; then PIECE_L=20; elif [ "$SIZE_MB" -lt 4096 ]; then PIECE_L=21; elif [ "$SIZE_MB" -lt 8192 ]; then PIECE_L=22; elif [ "$SIZE_MB" -lt 16384 ]; then PIECE_L=23; else PIECE_L=24; fi
-        fi
-        
-        mktorrent -v -p -l "$PIECE_L" -a "${CUSTOM_TRACKER:-$DEFAULT_TRACKER}" -o "$TORRENT_FILE" "$FOLDER_PATH" > /dev/null 2>&1
-        echo " ✅ 种子制作成功 (Piece: 2^$PIECE_L)"
-    fi
-
-    if [ "$NEED_FFMPEG" = true ] && [ "$NUM_FILES" -gt 0 ] && [ -n "$MAIN_VIDEO" ]; then
-        echo " ⏳ 正在提取画面并渲染海报级图文预览 (真 2K 高速并发引擎)..."
-        mkdir -p "$TMP_IMG_DIR"
-        LOG_FILE="$BASE_DIR/${FOLDER_NAME}_ffmpeg_debug.log"
-        TOTAL_SIZE=0; TOTAL_DUR=0
-        
+    if [ ! -f "$STITCHED_IMG" ] || ([ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]); then
+        mkdir -p "$TMP_IMG_DIR"; LOG_FILE="$BASE_DIR/${BASE_NAME}_ffmpeg_debug.log"
+        TOTAL_DUR=0; TOTAL_SIZE=0
         for vf in "${VIDEO_FILES[@]}"; do
-            fs=$(stat -c%s "$vf"); TOTAL_SIZE=$((TOTAL_SIZE + fs))
-            fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
+            TOTAL_SIZE=$((TOTAL_SIZE + $(stat -c%s "$vf")))
+            local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
             [ -n "$fd" ] && TOTAL_DUR=$((TOTAL_DUR + fd))
         done
         
         FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_SIZE/1073741824}")
-        FORMATTED_DUR=$(date -u -d @"$TOTAL_DUR" +'%H:%M:%S' 2>/dev/null || echo "Unknown")
+        FORMATTED_DUR=$(date -u -d @"$TOTAL_DUR" +'%H:%M:%S' 2>/dev/null)
+        V_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
+        V_RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$MAIN_VIDEO" | head -n1)
+        A_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
         
-        V_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | head -n1 | tr -d '\r')
-        V_RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$MAIN_VIDEO" | head -n1 | tr -d '\r')
-        A_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$MAIN_VIDEO" | head -n1 | tr -d '\r')
-        
-        # 物理级解耦写入文件，防止非法字符炸崩引擎
-        echo "File: $(basename "$FOLDER_PATH") [共 $NUM_FILES 个分卷]" | tr -d '\r' > "$TMP_IMG_DIR/header_1.txt"
-        echo "Size: $TOTAL_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR" | tr -d '\r' > "$TMP_IMG_DIR/header_2.txt"
-        echo "Video: $V_CODEC, $V_RES" | tr -d '\r' > "$TMP_IMG_DIR/header_3.txt"
-        echo "Audio: $A_CODEC" | tr -d '\r' > "$TMP_IMG_DIR/header_4.txt"
-
+        local D_NAME="$TARGET_NAME"; [ "$IS_FILE" = true ] && D_NAME="${TARGET_NAME%.*}"
+        echo "File: $D_NAME [共 ${#VIDEO_FILES[@]} 个分卷]" > "$TMP_IMG_DIR/h1.txt"
+        echo "Size: $TOTAL_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR" > "$TMP_IMG_DIR/h2.txt"
+        echo "Video: $V_CODEC, $V_RES" > "$TMP_IMG_DIR/h3.txt"
+        echo "Audio: $A_CODEC" > "$TMP_IMG_DIR/h4.txt"
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-        
-        ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 \
-        -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/header_1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/header_2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/header_3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/header_4.txt':fontcolor=black:fontsize=38:x=30:y=215" \
-        "$HEADER_IMG" >> "$LOG_FILE" 2>&1
-        
-        # 字体缺失容错兜底
-        if [ ! -f "$HEADER_IMG" ]; then ffmpeg -nostdin -f lavfi -i color=c=black:s=2560x280 -vframes 1 -y "$HEADER_IMG" >/dev/null 2>&1; fi
+        ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
-        extract_screenshots() {
-            local TOTAL_SHOTS=$1; local LAYOUT_TYPE=$2
-            local MAX_CONCURRENT=3
-            local current_jobs=0
-
-            for (( i=0; i<$TOTAL_SHOTS; i++ )); do
-                local PCT=$(( 5 + i * 90 / (TOTAL_SHOTS > 1 ? TOTAL_SHOTS - 1 : 1) ))
-                local TARGET_ABS_TIME=$(( TOTAL_DUR * PCT / 100 ))
+        if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
+            echo " 🎬 [指令下发] 正在串行预压 8 个微型视频切片..."
+            local SLICE_INPUTS=("-nostdin" "-y" "-i" "$HEADER_IMG")
+            local VSTACK_FILTER=""
+            
+            for (( i=0; i<8; i++ )); do
+                local ST=$(( TOTAL_DUR * (5 + i * 90 / 7) / 100 ))
                 local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
-
                 for vf in "${VIDEO_FILES[@]}"; do
                     local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
-                    [ -z "$fd" ] && fd=0
-                    if (( TARGET_ABS_TIME < ACCUMULATED + fd )); then
-                        CUR_FILE="$vf"; REL_TIME=$(( TARGET_ABS_TIME - ACCUMULATED )); break
-                    fi
+                    [ -z "$fd" ] && fd=0; if (( ST < ACCUMULATED + fd )); then CUR_FILE="$vf"; REL_TIME=$(( ST - ACCUMULATED )); break; fi
+                    ACCUMULATED=$(( ACCUMULATED + fd )); PART_NUM=$(( PART_NUM + 1 ))
+                done
+                [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
+                
+                local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
+                echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
+                
+                local SLICE_FILE="$TMP_IMG_DIR/slice_$i.mp4"
+                echo "    -> 提取动态切片 [$((i+1))/8]..."
+                ffmpeg -nostdin -y -ss "$REL_TIME" -t 1.5 -i "$CUR_FILE" -vf "scale=800:-2,setsar=1,fps=10,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=26:x=20:y=h-th-20:box=1:boxcolor=black@0.6:boxborderw=6" -c:v libx264 -preset ultrafast -crf 28 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                
+                SLICE_INPUTS+=("-i" "$SLICE_FILE")
+                VSTACK_FILTER="${VSTACK_FILTER}[$((i+1)):v]"
+            done
+            
+            echo " 🎬 [最终合并] 正在将切片组装为长条极客版 GIF..."
+            local FINAL_GIF_F="[0:v]scale=800:-2,setsar=1[hg];[hg]${VSTACK_FILTER}vstack=inputs=9[v];[v]split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+            ffmpeg "${SLICE_INPUTS[@]}" -filter_complex "$FINAL_GIF_F" "$PREVIEW_GIF" >> "$LOG_FILE" 2>&1
+        fi
+
+        if [ ! -f "$STITCHED_IMG" ]; then
+            echo " 🖼️ 正在生成静态 4K 海报..."
+            VID_W=$(echo $V_RES | cut -d'x' -f1); LAYOUT="standard"; SHOTS=16; [ "${VID_W:-0}" -ge 5000 ] && LAYOUT="vr" && SHOTS=8
+            
+            local current_jobs=0
+            for (( i=0; i<$SHOTS; i++ )); do
+                local ST=$(( TOTAL_DUR * (5 + i * 90 / (SHOTS-1)) / 100 ))
+                local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
+                for vf in "${VIDEO_FILES[@]}"; do
+                    local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
+                    [ -z "$fd" ] && fd=0; if (( ST < ACCUMULATED + fd )); then CUR_FILE="$vf"; REL_TIME=$(( ST - ACCUMULATED )); break; fi
                     ACCUMULATED=$(( ACCUMULATED + fd )); PART_NUM=$(( PART_NUM + 1 ))
                 done
                 [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
 
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
-                local TIME_TXT="$TMP_IMG_DIR/time_$i.txt"
-                
-                echo "[P${PART_NUM}] ${TIME_STR}" | tr -d '\r' > "$TIME_TXT"
+                echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                 (
-                    if [ "$LAYOUT_TYPE" == "vr" ]; then
-                        ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -frames:v 1 -q:v 2 -vf "scale=2560:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=48:x=30:y=h-th-30:box=1:boxcolor=black@0.6:boxborderw=10" "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1
+                    if [ "$LAYOUT" == "vr" ]; then
+                        ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=2560:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=50:x=30:y=h-th-30:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                     else
-                        ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -frames:v 1 -q:v 2 -vf "scale=1280:-2,drawtext=fontfile='$FONT_FILE':textfile='$TIME_TXT':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6:boxborderw=8" "$TMP_IMG_DIR/shot_$i.jpg" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=1280:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=40:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                     fi
                 ) &
+                current_jobs=$((current_jobs + 1)); if (( current_jobs >= 3 )); then wait; current_jobs=0; fi
+            done; wait
 
-                current_jobs=$((current_jobs + 1))
-                if (( current_jobs >= MAX_CONCURRENT )); then wait; current_jobs=0; fi
+            for (( i=0; i<$SHOTS; i++ )); do
+                if [ ! -f "$TMP_IMG_DIR/s$i.jpg" ]; then
+                    [ "$LAYOUT" == "vr" ] && ffmpeg -nostdin -f lavfi -i color=c=black:s=2560x1440 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1 || ffmpeg -nostdin -f lavfi -i color=c=black:s=1280x720 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1
+                fi
             done
-            wait 
 
-            # 残帧黑图占位补全
-            for (( i=0; i<$TOTAL_SHOTS; i++ )); do
-                 if [ ! -f "$TMP_IMG_DIR/shot_$i.jpg" ]; then
-                     if [ "$LAYOUT_TYPE" == "vr" ]; then
-                         ffmpeg -nostdin -f lavfi -i color=c=black:s=2560x1440 -vframes 1 -y "$TMP_IMG_DIR/shot_$i.jpg" >/dev/null 2>&1
-                     else
-                         ffmpeg -nostdin -f lavfi -i color=c=black:s=1280x720 -vframes 1 -y "$TMP_IMG_DIR/shot_$i.jpg" >/dev/null 2>&1
-                     fi
-                 fi
-            done
-        }
-
-        VID_WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1 | tr -d '\r')
-        LAYOUT_PREF="${CUSTOM_LAYOUT:-auto}"
-        
-        if [ "$LAYOUT_PREF" == "vr" ] || ([ "$LAYOUT_PREF" == "auto" ] && [ "${VID_WIDTH:-0}" -ge 5000 ]); then
-            echo " 🌐 启用单列 VR 瀑布流排版 (输出: 2K 真并发模式)..."
-            extract_screenshots 8 "vr"
-            ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
-        else
-            echo " 🎬 启用常规比例合并 2x8 规格图文海报 (输出: 2K 真并发模式)..."
-            extract_screenshots 16 "standard"
-            ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/shot_0.jpg" -i "$TMP_IMG_DIR/shot_1.jpg" -i "$TMP_IMG_DIR/shot_2.jpg" -i "$TMP_IMG_DIR/shot_3.jpg" -i "$TMP_IMG_DIR/shot_4.jpg" -i "$TMP_IMG_DIR/shot_5.jpg" -i "$TMP_IMG_DIR/shot_6.jpg" -i "$TMP_IMG_DIR/shot_7.jpg" -i "$TMP_IMG_DIR/shot_8.jpg" -i "$TMP_IMG_DIR/shot_9.jpg" -i "$TMP_IMG_DIR/shot_10.jpg" -i "$TMP_IMG_DIR/shot_11.jpg" -i "$TMP_IMG_DIR/shot_12.jpg" -i "$TMP_IMG_DIR/shot_13.jpg" -i "$TMP_IMG_DIR/shot_14.jpg" -i "$TMP_IMG_DIR/shot_15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[grid];[0:v][grid]vstack=inputs=2" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            if [ "$LAYOUT" == "vr" ]; then
+                ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            else
+                ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+            fi
         fi
-        
-        [ -f "$STITCHED_IMG" ] && echo " ✅ 恭喜！海报级预览大图渲染完毕" && rm -f "$LOG_FILE"
+        [ -f "$STITCHED_IMG" ] && echo " ✅ 所有动静海报处理完毕！" && rm -f "$LOG_FILE"
         rm -rf "$TMP_IMG_DIR"
     fi
 }
 
-# ==========================================
-# FastAPI 接口拦截与静默执行入口
-# ==========================================
-if [ "$1" == "--folder" ] && [ -n "$2" ]; then
-    process_folder "$2"
-    exit 0
-elif [ "$1" == "--auto" ]; then
-    for dir in "$BASE_DIR"/*; do 
-        [ -d "$dir" ] && [[ "$(basename "$dir")" != .* ]] && process_folder "$(basename "$dir")"
-    done
-    exit 0
-fi
+if [ "$1" == "--folder" ] && [ -n "$2" ]; then process_target "$2"; exit 0
+elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && [[ "$(basename "$item")" != .* ]] && process_target "$(basename "$item")"; done; exit 0; fi
 
-# ==========================================
-# 终端手动执行菜单 (仅在 SSH 下可见)
-# ==========================================
-clear
-echo -e "\033[1;36m======================================\033[0m"
-echo -e "\033[1;33m      PT 制种引擎 V4.9 (全链路防崩版)      \033[0m"
-echo -e "\033[1;36m======================================\033[0m"
-echo -e " \033[1;32m[1]\033[0m 自动模式 (全盘深度扫描与制种)"
-echo -e " \033[1;32m[2]\033[0m 手动模式 (输入指定文件夹名称)"
-echo -e " \033[1;35m[3]\033[0m 云端同步 (强制更新本地引擎)"
-echo -e " \033[1;31m[4]\033[0m 退出程序"
-echo -e "\033[1;36m======================================\033[0m"
-read -p " 请选择要执行的操作 [1-4]: " MODE
-
-case $MODE in
-    1) for dir in "$BASE_DIR"/*; do [ -d "$dir" ] && [[ "$(basename "$dir")" != .* ]] && process_folder "$(basename "$dir")"; done ;;
-    2) read -p " 请输入具体的文件夹名: " NAME; process_folder "$NAME" ;;
-    3) echo " ⏳ 同步中..."; curl -Ls --connect-timeout 10 -m 120 https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui/pt_make.sh | tr -d '\r' > "$(readlink -f "$0")" && chmod +x "$(readlink -f "$0")" && exec "$(readlink -f "$0")" ;;
-    *) exit 0 ;;
-esac
-EOF
-chmod +x /root/pt_make.sh
-/root/pt_make.sh
-
-
+while true; do
+    clear
+    echo -e "\033[1;36m======================================\033[0m"
+    echo -e "\033[1;33m     PT 制种引擎 V8.0 (全站自适应集群版)  \033[0m"
+    echo -e "\033[1;36m======================================\033[0m"
+    echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
+    echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
+    echo -e " \033[1;31m[4]\033[0m 退出程序"
+    read -p " 请选择: " MODE
+    case $MODE in
+        1) for item in "$BASE_DIR"/*; do [ -e "$item" ] && [[ "$(basename "$item")" != .* ]] && process_target "$(basename "$item")"; done; break ;;
+        2) read -p " 输入名称: " NAME; process_target "$NAME"; break ;;
+        3) curl -Ls https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui/pt_make.sh | tr -d '\r' > "$(readlink -f "$0")" && exec "$(readlink -f "$0")" ;;
+        5) [ "$ENABLE_GIF" = "true" ] && ENABLE_GIF="false" || ENABLE_GIF="true"; echo "ENABLE_GIF=\"$ENABLE_GIF\"" > "$CONFIG_FILE" ;;
+        4|"") exit 0 ;;
+    esac
+done

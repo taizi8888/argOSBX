@@ -1,6 +1,7 @@
 import os, time, json, shutil, subprocess, re
 import urllib.request, urllib.parse
 import concurrent.futures
+import html
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,10 @@ from typing import List, Optional, Any
 
 app = FastAPI()
 BASE_DIR = os.getenv("BASE_DIR", "/downloads")
+if not os.path.exists(BASE_DIR):
+    if os.path.exists("/vol3/1000/downloads"): BASE_DIR = "/vol3/1000/downloads"
+    else: BASE_DIR = "/home/docker/qbittorrent/downloads"
+
 CONFIG_DIR = os.path.join(BASE_DIR, ".config")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "nodes.json")
 TRAFFIC_FILE = os.path.join(CONFIG_DIR, "traffic.json")
@@ -25,16 +30,19 @@ class RunRequest(BaseModel):
     layout: Optional[str] = None
     overwrite_torrent: bool = False
     overwrite_image: bool = False
+    enable_gif: bool = True
 
 class BatchRequest(BaseModel):
     folders: List[str]
-
-# 核心降级器：如果是视频单文件，剥离后缀以匹配其海报和种子；如果是文件夹，保持原样
-def _b(name): 
-    return os.path.splitext(name)[0] if name.lower().endswith(('.mp4', '.mkv', '.avi', '.wmv', '.ts')) else name
+    enable_gif: bool = True
+    overwrite_torrent: bool = False
+    overwrite_image: bool = False
 
 @app.get("/")
-def index(): return FileResponse("index.html")
+def index(): 
+    idx_path = "/home/taizi8888/index.html"
+    if os.path.exists(idx_path): return FileResponse(idx_path)
+    return FileResponse("index.html")
 
 @app.get("/api/nodes")
 def get_nodes():
@@ -56,18 +64,13 @@ def list_folders():
         for item in os.listdir(BASE_DIR):
             if item.startswith("."): continue
             path = os.path.join(BASE_DIR, item)
-            
-            # 核心扩容：大盘雷达同时嗅探文件夹与单视频文件
-            is_dir = os.path.isdir(path)
-            is_vid = os.path.isfile(path) and item.lower().endswith(('.mp4', '.mkv', '.avi', '.wmv', '.ts'))
-            
-            if is_dir or is_vid:
-                base = _b(item)
-                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base}.torrent"))
-                has_img = os.path.exists(os.path.join(BASE_DIR, f"{base}_Stitched_4K.jpg"))
+            if os.path.isdir(path):
+                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
+                has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
+                has_gif = os.path.exists(os.path.join(BASE_DIR, f"{item}_Preview.gif"))
                 ready = has_torrent and has_img
                 status = "✅ 已完成" if ready else "⏳ 待处理"
-                folders.append({"name": item, "status": status, "ready": ready, "mtime": os.path.getmtime(path)})
+                folders.append({"name": item, "status": status, "ready": ready, "has_gif": has_gif, "mtime": os.path.getmtime(path)})
     folders.sort(key=lambda x: (x["ready"], -x["mtime"]))
     return {"folders": folders}
 
@@ -138,43 +141,32 @@ def qbittorrent_proxy(req: dict):
             urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers), timeout=5)
             if del_files and name:
                 for n in name.split("|"):
-                    base = _b(n.strip())
-                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                        p = os.path.join(BASE_DIR, f"{base}{ext}"); 
+                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                        p = os.path.join(BASE_DIR, f"{n.strip()}{ext}")
                         if os.path.exists(p): os.remove(p)
             return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
-def get_script_path():
-    possible_paths = ["/app/pt_make.sh", "/root/pt_make.sh", "./pt_make.sh", "/usr/local/bin/p"]
-    for p in possible_paths:
-        if os.path.exists(p): return p
-    return "pt_make.sh"
-
 @app.post("/api/run/{mode}")
 def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
+        script_path = "/home/taizi8888/pt_make.sh" if os.path.exists("/home/taizi8888/pt_make.sh") else ("/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "/root/argosbx-web/pt-webui/pt_make.sh")
         if mode == "folder" and req.folder:
-            base = _b(req.folder)
             if req.overwrite_image:
-                for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log"]:
-                    p = os.path.join(BASE_DIR, f"{base}{ext}")
+                for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
                     if os.path.exists(p): os.remove(p)
             if req.overwrite_torrent:
                 for ext in [".torrent", "_mediainfo.txt"]:
-                    p = os.path.join(BASE_DIR, f"{base}{ext}")
+                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
                     if os.path.exists(p): os.remove(p)
-        
-        script_path = get_script_path()
         cmd = ["/bin/bash", script_path, f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
-        
         env = os.environ.copy()
-        env["BASE_DIR"] = BASE_DIR
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
         if req.layout: env["CUSTOM_LAYOUT"] = req.layout
-        
+        env["CUSTOM_ENABLE_GIF"] = "true" if req.enable_gif else "false"
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING: {' '.join(cmd)}\n")
             f.flush(); os.fsync(f.fileno())
@@ -185,13 +177,21 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
 @app.post("/api/run_batch")
 def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
     def execute_batch():
-        script_path = get_script_path()
+        script_path = "/home/taizi8888/pt_make.sh" if os.path.exists("/home/taizi8888/pt_make.sh") else ("/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "/root/argosbx-web/pt-webui/pt_make.sh")
         env = os.environ.copy()
-        env["BASE_DIR"] = BASE_DIR
+        env["CUSTOM_ENABLE_GIF"] = "true" if req.enable_gif else "false"
         with open(LOG_FILE, "a") as f:
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
             f.flush(); os.fsync(f.fileno())
             for folder in req.folders:
+                if req.overwrite_image:
+                    for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                        p = os.path.join(BASE_DIR, f"{folder}{ext}")
+                        if os.path.exists(p): os.remove(p)
+                if req.overwrite_torrent:
+                    for ext in [".torrent", "_mediainfo.txt"]:
+                        p = os.path.join(BASE_DIR, f"{folder}{ext}")
+                        if os.path.exists(p): os.remove(p)
                 subprocess.run(["/bin/bash", script_path, "--folder", folder], env=env, stdout=f, stderr=subprocess.STDOUT)
                 f.flush()
     background_tasks.add_task(execute_batch)
@@ -214,6 +214,9 @@ def clear_logs():
         return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
+# =========================================================================
+# 🚀 V8.0 极速幽灵混编引擎：直连刺客(0.5秒) + 代理步兵(兜底100%)
+# =========================================================================
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -222,73 +225,87 @@ def scrape_link(keyword: str):
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
     }
 
-    def extract_dmm_link(raw_html):
+    def is_strict_match(link: str, kw: str):
+        m = re.search(r'(?:cid=|id=)([a-z0-9]+)', link.lower())
+        if not m: return False
+        cid = m.group(1)
+        letters = re.sub(r'[^a-z]', '', kw.lower())
+        numbers = re.sub(r'[^0-9]', '', kw)
+        if not numbers: return True
+        if numbers not in cid:
+            num_stripped = numbers.lstrip('0')
+            if not num_stripped or num_stripped not in cid: return False
+        if len(letters) >= 2 and letters[:2] not in cid: return False
+        return True
+
+    def extract_dmm_link(raw_html, kw):
         if not raw_html: return None
+        raw_html = html.unescape(raw_html)
         decoded_html = urllib.parse.unquote(raw_html)
         all_matches = re.findall(r'(https?://(?:[a-zA-Z0-9-]+\.)?(?:dmm|fanza)\.co\.jp/[^\s"\'<>]+)', decoded_html)
         
         for raw_link in all_matches:
-            if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or raw_link.endswith(('.jpg', '.png', '.gif')):
+            if "pics.dmm.co.jp" in raw_link or "book.dmm.co.jp" in raw_link or "games.dmm.co.jp" in raw_link or "article" in raw_link or raw_link.endswith(('.jpg', '.png', '.gif')):
                 continue
                 
             candidate_link = raw_link
             if "lurl=" in raw_link:
-                try:
-                    candidate_link = urllib.parse.unquote(raw_link.split("lurl=")[1].split("&")[0])
-                except:
-                    pass
+                try: candidate_link = urllib.parse.unquote(raw_link.split("lurl=")[1].split("&")[0])
+                except: pass
 
             candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
-            is_product = any(x in candidate_link for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
+            clean = candidate_link.split('?af_id')[0].split('&af_id')[0].split('&ch=')[0]
+            is_product = any(x in clean for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
             
-            if is_product and "campaign" not in candidate_link and "/list/" not in candidate_link and "article" not in candidate_link:
-                return candidate_link
+            if is_product and "campaign" not in clean and "/list/" not in clean:
+                if is_strict_match(clean, kw):
+                    m = re.search(r'(?:cid=|id=)([a-z0-9]+)', clean.lower())
+                    if m: return f"https://www.dmm.co.jp/mono/dvd/-/detail/=/cid={m.group(1)}/"
         return None
 
     def fetch_direct(target_url):
         try:
             req = urllib.request.Request(target_url, headers=headers)
-            html = urllib.request.urlopen(req, timeout=3).read().decode('utf-8', errors='ignore')
-            return extract_dmm_link(html)
-        except:
-            return None
+            res_html = urllib.request.urlopen(req, timeout=3).read().decode('utf-8', errors='ignore')
+            return extract_dmm_link(res_html, keyword)
+        except: return None
 
     def fetch_via_codetabs(target_url):
         try:
             proxy = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(proxy, headers=headers)
-            html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-            return extract_dmm_link(html)
-        except:
-            return None
+            res_html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
+            return extract_dmm_link(res_html, keyword)
+        except: return None
 
     def fetch_via_allorigins(target_url):
         try:
             proxy = f"https://api.allorigins.win/get?url={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(proxy, headers=headers)
             resp = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-            html = json.loads(resp).get("contents", "")
-            return extract_dmm_link(html)
-        except:
-            return None
+            res_html = json.loads(resp).get("contents", "")
+            return extract_dmm_link(res_html, keyword)
+        except: return None
 
-    wiki_search_url = f"https://shiroutowiki.work/?s={keyword}"
-    javbus_url = f"https://www.javbus.com/{keyword}"
+    kw_clean = keyword.replace("-", "").lower()
+    wiki_search_urls = [f"https://shiroutowiki.work/?s={keyword}", f"https://shiroutowiki.work/{kw_clean}/"]
+    javbus_urls = [f"https://www.javbus.com/{keyword}", f"https://www.javbus.com/{kw_clean}"]
 
     futures = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures.append(executor.submit(fetch_direct, wiki_search_url))
-        futures.append(executor.submit(fetch_via_codetabs, wiki_search_url))
-        futures.append(executor.submit(fetch_via_allorigins, wiki_search_url))
-        futures.append(executor.submit(fetch_via_codetabs, javbus_url))
-        futures.append(executor.submit(fetch_via_allorigins, javbus_url))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        for w_url in wiki_search_urls:
+            futures.append(executor.submit(fetch_direct, w_url))
+            futures.append(executor.submit(fetch_via_codetabs, w_url))
+            futures.append(executor.submit(fetch_via_allorigins, w_url))
+        for j_url in javbus_urls:
+            futures.append(executor.submit(fetch_via_codetabs, j_url))
+            futures.append(executor.submit(fetch_via_allorigins, j_url))
 
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
-            if res:
-                return {"link": res}
+            if res: return {"link": res}
 
-    return {"error": "混编集群并发检索未能命中，请使用【🌐 浏览器搜索】"}
+    return {"error": "全路并发检索未命中，该番号可能未被收录或下架，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
@@ -300,9 +317,9 @@ def update_system(background_tasks: BackgroundTasks):
                 url = f"{base_url}/{f_name}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 content = urllib.request.urlopen(req, timeout=15).read().decode('utf-8')
-                write_path = f"/app/{f_name}" if os.path.exists("/app") else f_name
+                write_path = f"/home/taizi8888/{f_name}" if os.path.exists("/home/taizi8888") else (f"/app/{f_name}" if os.path.exists("/app") else f"/root/argosbx-web/pt-webui/{f_name}")
                 with open(write_path, "w", encoding="utf-8") as f: f.write(content)
-            script_path = "/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "pt_make.sh"
+            script_path = "/home/taizi8888/pt_make.sh" if os.path.exists("/home/taizi8888/pt_make.sh") else ("/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "/root/argosbx-web/pt-webui/pt_make.sh")
             if os.path.exists(script_path): os.chmod(script_path, 0o755)
             with open(LOG_FILE, "a") as f:
                 f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA Rebirth Triggered (shdetai)\n")
@@ -315,14 +332,14 @@ def update_system(background_tasks: BackgroundTasks):
 
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
-    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg"}
-    p = os.path.join(BASE_DIR, f"{_b(folder)}{exts.get(file_type, '')}")
+    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg", "gif": "_Preview.gif"}
+    p = os.path.join(BASE_DIR, f"{folder}{exts.get(file_type, '')}")
     if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
     return {"error": "Not Found"}
 
 @app.get("/api/preview/mediainfo/{folder}")
 def preview_mediainfo(folder: str):
-    p = os.path.join(BASE_DIR, f"{_b(folder)}_mediainfo.txt")
+    p = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
     return PlainTextResponse("Not Found")
