@@ -38,6 +38,13 @@ class BatchRequest(BaseModel):
     overwrite_torrent: bool = False
     overwrite_image: bool = False
 
+# 【核心功能】：智能剥离文件后缀，提取纯净基名
+def get_base_name(target_name: str) -> str:
+    p = os.path.join(BASE_DIR, target_name)
+    if os.path.isfile(p):
+        return os.path.splitext(target_name)[0]
+    return target_name
+
 @app.get("/")
 def index(): 
     idx_path = "/home/taizi8888/index.html"
@@ -64,10 +71,19 @@ def list_folders():
         for item in os.listdir(BASE_DIR):
             if item.startswith("."): continue
             path = os.path.join(BASE_DIR, item)
+            
+            # 【升级探测】：同时兼容文件夹与散视频文件
+            is_valid = False
             if os.path.isdir(path):
-                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{item}.torrent"))
-                has_img = os.path.exists(os.path.join(BASE_DIR, f"{item}_Stitched_4K.jpg"))
-                has_gif = os.path.exists(os.path.join(BASE_DIR, f"{item}_Preview.gif"))
+                is_valid = True
+            elif os.path.isfile(path) and item.lower().endswith(('.mp4', '.mkv', '.avi', '.wmv', '.ts')):
+                is_valid = True
+                
+            if is_valid:
+                base_name = get_base_name(item) # 使用基名进行探伤
+                has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base_name}.torrent"))
+                has_img = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Stitched_4K.jpg"))
+                has_gif = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Preview.gif"))
                 ready = has_torrent and has_img
                 status = "✅ 已完成" if ready else "⏳ 待处理"
                 folders.append({"name": item, "status": status, "ready": ready, "has_gif": has_gif, "mtime": os.path.getmtime(path)})
@@ -141,8 +157,9 @@ def qbittorrent_proxy(req: dict):
             urllib.request.urlopen(urllib.request.Request(f"{qb_url}/api/v2/torrents/delete", data=data, headers=headers), timeout=5)
             if del_files and name:
                 for n in name.split("|"):
+                    base_name = get_base_name(n.strip())
                     for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
-                        p = os.path.join(BASE_DIR, f"{n.strip()}{ext}")
+                        p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
             return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
@@ -152,13 +169,14 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
     def execute_script():
         script_path = "/home/taizi8888/pt_make.sh" if os.path.exists("/home/taizi8888/pt_make.sh") else ("/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "/root/argosbx-web/pt-webui/pt_make.sh")
         if mode == "folder" and req.folder:
+            base_name = get_base_name(req.folder)
             if req.overwrite_image:
                 for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
+                    p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                     if os.path.exists(p): os.remove(p)
             if req.overwrite_torrent:
                 for ext in [".torrent", "_mediainfo.txt"]:
-                    p = os.path.join(BASE_DIR, f"{req.folder}{ext}")
+                    p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                     if os.path.exists(p): os.remove(p)
         cmd = ["/bin/bash", script_path, f"--{mode}"]
         if mode == "folder" and req.folder: cmd.append(req.folder)
@@ -184,13 +202,14 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
             f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] RUNNING BATCH TASK\n")
             f.flush(); os.fsync(f.fileno())
             for folder in req.folders:
+                base_name = get_base_name(folder)
                 if req.overwrite_image:
                     for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
-                        p = os.path.join(BASE_DIR, f"{folder}{ext}")
+                        p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
                 if req.overwrite_torrent:
                     for ext in [".torrent", "_mediainfo.txt"]:
-                        p = os.path.join(BASE_DIR, f"{folder}{ext}")
+                        p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
                 subprocess.run(["/bin/bash", script_path, "--folder", folder], env=env, stdout=f, stderr=subprocess.STDOUT)
                 f.flush()
@@ -215,7 +234,7 @@ def clear_logs():
     except Exception as e: return {"error": str(e)}
 
 # =========================================================================
-# 🚀 V8.0 极速幽灵混编引擎：直连刺客(0.5秒) + 代理步兵(兜底100%)
+# 🚀 V8.1 独立隧道混编引擎：提取自定义 PROXY_HOST 突破封锁
 # =========================================================================
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
@@ -224,6 +243,21 @@ def scrape_link(keyword: str):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
     }
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    custom_proxy = os.getenv("PROXY_HOST")
+    proxy_url = custom_proxy or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+    
+    if proxy_url:
+        proxies = {'http': proxy_url, 'https': proxy_url}
+    else:
+        proxies = urllib.request.getproxies()
+
+    opener_direct = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+    opener_proxy = urllib.request.build_opener(urllib.request.ProxyHandler(proxies), urllib.request.HTTPSHandler(context=ctx)) if proxies else opener_direct
 
     def is_strict_match(link: str, kw: str):
         m = re.search(r'(?:cid=|id=)([a-z0-9]+)', link.lower())
@@ -266,7 +300,7 @@ def scrape_link(keyword: str):
     def fetch_direct(target_url):
         try:
             req = urllib.request.Request(target_url, headers=headers)
-            res_html = urllib.request.urlopen(req, timeout=3).read().decode('utf-8', errors='ignore')
+            res_html = opener_proxy.open(req, timeout=3).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(res_html, keyword)
         except: return None
 
@@ -274,7 +308,7 @@ def scrape_link(keyword: str):
         try:
             proxy = f"https://api.codetabs.com/v1/proxy/?quest={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(proxy, headers=headers)
-            res_html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
+            res_html = opener_proxy.open(req, timeout=10).read().decode('utf-8', errors='ignore')
             return extract_dmm_link(res_html, keyword)
         except: return None
 
@@ -282,7 +316,7 @@ def scrape_link(keyword: str):
         try:
             proxy = f"https://api.allorigins.win/get?url={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(proxy, headers=headers)
-            resp = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
+            resp = opener_proxy.open(req, timeout=10).read().decode('utf-8', errors='ignore')
             res_html = json.loads(resp).get("contents", "")
             return extract_dmm_link(res_html, keyword)
         except: return None
@@ -312,15 +346,23 @@ def update_system(background_tasks: BackgroundTasks):
     def execute_ota():
         time.sleep(1)
         try:
+            custom_proxy = os.getenv("PROXY_HOST")
+            if custom_proxy:
+                opener = urllib.request.build_opener(urllib.request.ProxyHandler({'http': custom_proxy, 'https': custom_proxy}))
+            else:
+                opener = urllib.request.build_opener()
+                
             base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui"
             for f_name in ["index.html", "app.py", "pt_make.sh"]:
                 url = f"{base_url}/{f_name}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                content = urllib.request.urlopen(req, timeout=15).read().decode('utf-8')
+                content = opener.open(req, timeout=15).read().decode('utf-8')
                 write_path = f"/home/taizi8888/{f_name}" if os.path.exists("/home/taizi8888") else (f"/app/{f_name}" if os.path.exists("/app") else f"/root/argosbx-web/pt-webui/{f_name}")
                 with open(write_path, "w", encoding="utf-8") as f: f.write(content)
+            
             script_path = "/home/taizi8888/pt_make.sh" if os.path.exists("/home/taizi8888/pt_make.sh") else ("/app/pt_make.sh" if os.path.exists("/app/pt_make.sh") else "/root/argosbx-web/pt-webui/pt_make.sh")
             if os.path.exists(script_path): os.chmod(script_path, 0o755)
+            
             with open(LOG_FILE, "a") as f:
                 f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA Rebirth Triggered (shdetai)\n")
                 f.flush(); os.fsync(f.fileno())
@@ -332,14 +374,16 @@ def update_system(background_tasks: BackgroundTasks):
 
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
+    base_name = get_base_name(folder)
     exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg", "gif": "_Preview.gif"}
-    p = os.path.join(BASE_DIR, f"{folder}{exts.get(file_type, '')}")
+    p = os.path.join(BASE_DIR, f"{base_name}{exts.get(file_type, '')}")
     if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
     return {"error": "Not Found"}
 
 @app.get("/api/preview/mediainfo/{folder}")
 def preview_mediainfo(folder: str):
-    p = os.path.join(BASE_DIR, f"{folder}_mediainfo.txt")
+    base_name = get_base_name(folder)
+    p = os.path.join(BASE_DIR, f"{base_name}_mediainfo.txt")
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8", errors="ignore") as f: return PlainTextResponse(f.read())
     return PlainTextResponse("Not Found")
