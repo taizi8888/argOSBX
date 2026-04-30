@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.1 (终极双端自适应 + 2x8 动态矩阵引擎)
+# 描述: PT 制种引擎 V9.2 (同源 4K.jpg 排版: 终极瀑布流 横2 x 竖8 动态矩阵)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -121,7 +121,7 @@ process_target() {
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
         # =====================================================================
-        # 🎬 V9.1.1 终极动态 GIF 渲染引擎 (瀑布流: 横2列 x 竖8行 + VR左眼物理裁剪)
+        # 🎬 V9.2 终极动态 GIF 渲染引擎 (完全对标 4K.jpg: 横2排 x 竖8排)
         # =====================================================================
         if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
             echo " 🎬 [指令下发] 正在渲染瀑布流 (横2 x 竖8) 动态矩阵预览图 (GIF)..."
@@ -163,14 +163,14 @@ process_target() {
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                 echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                 
-                # 【改动1】：单图放宽至 640px（640*2=1280），并适度放大时间戳水印
+                # 缩放至宽 640px，这样 2 张拼一起正好 1280px，和静态图一模一样
                 FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=640:-2,setsar=1,fps=8,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=22:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4[v$i];"
                 INPUT_INDEX=$((INPUT_INDEX + 1))
             done
 
             echo "    -> 正在进行 2x8 瀑布流矩阵拼装与调色板高压渲染..."
             
-            # 【改动2】：核心路由拼装逻辑 -> 横向两两拼接成 8 行
+            # 【核心拼装逻辑】先横向两两合并，形成 8 个 Row
             FILTER_COMPLEX+="[v1][v2]hstack=inputs=2[r1];"
             FILTER_COMPLEX+="[v3][v4]hstack=inputs=2[r2];"
             FILTER_COMPLEX+="[v5][v6]hstack=inputs=2[r3];"
@@ -180,13 +180,13 @@ process_target() {
             FILTER_COMPLEX+="[v13][v14]hstack=inputs=2[r7];"
             FILTER_COMPLEX+="[v15][v16]hstack=inputs=2[r8];"
             
-            # 将刚才组装好的 8 行垂直叠加 (Vertical Stack)
+            # 将 8 个 Row 上下垂直拼接成大矩阵
             FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6][r7][r8]vstack=inputs=8[matrix];"
             
-            # Header 拉伸至 1280 宽度 (完美对齐 640x2)
+            # Header 拉伸至 1280 宽
             FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
             
-            # 上下拼接 Header 和瀑布流 Matrix，并执行色彩保真压缩
+            # Header 和矩阵合并，执行色彩高压
             FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
 
             FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
@@ -195,6 +195,9 @@ process_target() {
         fi
         # =====================================================================
 
+        # =====================================================================
+        # 🖼️ 静态 4K.jpg 引擎 (保持不变，与 GIF 排版逻辑完全对应)
+        # =====================================================================
         if [ ! -f "$STITCHED_IMG" ]; then
             echo " 🖼️ 正在生成静态 4K 海报..."
             VID_W=$(echo $V_RES | cut -d'x' -f1); LAYOUT="standard"; SHOTS=16; [ "${VID_W:-0}" -ge 5000 ] && LAYOUT="vr" && SHOTS=8
@@ -246,7 +249,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m  PT 制种引擎 V9.1 (全站自适应 + 动态矩阵) \033[0m"
+    echo -e "\033[1;33m  PT 制种引擎 V9.2 (2x8 瀑布流对标版)  \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
