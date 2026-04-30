@@ -121,10 +121,10 @@ process_target() {
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
         # =====================================================================
-        # 🎬 V9.1 终极动态 GIF 渲染引擎 (2x8 矩阵 + VR 智能左眼物理裁剪)
+        # 🎬 V9.1.1 终极动态 GIF 渲染引擎 (瀑布流: 横2列 x 竖8行 + VR左眼物理裁剪)
         # =====================================================================
         if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
-            echo " 🎬 [指令下发] 正在渲染 2x8 高维动态矩阵预览图 (GIF)..."
+            echo " 🎬 [指令下发] 正在渲染瀑布流 (横2 x 竖8) 动态矩阵预览图 (GIF)..."
             
             local IS_VR=0
             if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then
@@ -163,21 +163,31 @@ process_target() {
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                 echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                 
-                # 统一缩放至宽 160，高度自适应偶数，帧率 8fps，并在角落烧录时间戳水印
-                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=160:-2,setsar=1,fps=8,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=12:x=4:y=h-th-4:box=1:boxcolor=black@0.6:boxborderw=2[v$i];"
+                # 【改动1】：单图放宽至 640px（640*2=1280），并适度放大时间戳水印
+                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=640:-2,setsar=1,fps=8,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=22:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4[v$i];"
                 INPUT_INDEX=$((INPUT_INDEX + 1))
             done
 
-            echo "    -> 正在进行 16 宫格流体拼装与调色板高压渲染..."
-            # 矩阵拼装
-            FILTER_COMPLEX+="[v1][v2][v3][v4][v5][v6][v7][v8]hstack=inputs=8[row1];"
-            FILTER_COMPLEX+="[v9][v10][v11][v12][v13][v14][v15][v16]hstack=inputs=8[row2];"
+            echo "    -> 正在进行 2x8 瀑布流矩阵拼装与调色板高压渲染..."
             
-            # Header 拉伸至 1280 宽度 (完美对齐 160x8)
+            # 【改动2】：核心路由拼装逻辑 -> 横向两两拼接成 8 行
+            FILTER_COMPLEX+="[v1][v2]hstack=inputs=2[r1];"
+            FILTER_COMPLEX+="[v3][v4]hstack=inputs=2[r2];"
+            FILTER_COMPLEX+="[v5][v6]hstack=inputs=2[r3];"
+            FILTER_COMPLEX+="[v7][v8]hstack=inputs=2[r4];"
+            FILTER_COMPLEX+="[v9][v10]hstack=inputs=2[r5];"
+            FILTER_COMPLEX+="[v11][v12]hstack=inputs=2[r6];"
+            FILTER_COMPLEX+="[v13][v14]hstack=inputs=2[r7];"
+            FILTER_COMPLEX+="[v15][v16]hstack=inputs=2[r8];"
+            
+            # 将刚才组装好的 8 行垂直叠加 (Vertical Stack)
+            FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6][r7][r8]vstack=inputs=8[matrix];"
+            
+            # Header 拉伸至 1280 宽度 (完美对齐 640x2)
             FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
             
-            # 上下拼接 Header, Row1, Row2 并执行色彩保真压缩
-            FILTER_COMPLEX+="[hg][row1][row2]vstack=inputs=3,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+            # 上下拼接 Header 和瀑布流 Matrix，并执行色彩保真压缩
+            FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
 
             FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
 
