@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.2 (同源 4K.jpg 排版: 终极瀑布流 横2 x 竖8 动态矩阵)
+# 描述: PT 制种引擎 V9.2.1 (终极瀑布流 横2 x 竖8 动态矩阵 - 极限瘦身版)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -121,10 +121,10 @@ process_target() {
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
         # =====================================================================
-        # 🎬 V9.2 终极动态 GIF 渲染引擎 (完全对标 4K.jpg: 横2排 x 竖8排)
+        # 🎬 V9.2.1 动态 GIF 渲染引擎 (极限瘦身版: 横2 x 竖8，大幅降低体积)
         # =====================================================================
         if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
-            echo " 🎬 [指令下发] 正在渲染瀑布流 (横2 x 竖8) 动态矩阵预览图 (GIF)..."
+            echo " 🎬 [指令下发] 正在渲染瀑布流 2x8 动态矩阵 (启动极限高压瘦身)..."
             
             local IS_VR=0
             if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then
@@ -139,7 +139,6 @@ process_target() {
             local FILTER_COMPLEX=""
             local INPUT_INDEX=0
 
-            # 载入 Header (索引 0)
             FFMPEG_CMD+=("-i" "$HEADER_IMG")
             INPUT_INDEX=1
 
@@ -153,7 +152,8 @@ process_target() {
                 done
                 [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
 
-                FFMPEG_CMD+=("-ss" "$REL_TIME" "-t" "1.5" "-i" "$CUR_FILE")
+                # 【瘦身1】：截取时长从 1.5s 缩短至 1.2s，减少总帧数
+                FFMPEG_CMD+=("-ss" "$REL_TIME" "-t" "1.2" "-i" "$CUR_FILE")
                 
                 local CROP_CMD=""
                 if [ "$IS_VR" -eq 1 ]; then
@@ -163,14 +163,13 @@ process_target() {
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                 echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                 
-                # 缩放至宽 640px，这样 2 张拼一起正好 1280px，和静态图一模一样
-                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=640:-2,setsar=1,fps=8,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=22:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4[v$i];"
+                # 【瘦身2】：分辨率单格宽降至 320px，帧率降至 6fps。水印按比例略微缩小。
+                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=320:-2,setsar=1,fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=14:x=6:y=h-th-6:box=1:boxcolor=black@0.6:boxborderw=2[v$i];"
                 INPUT_INDEX=$((INPUT_INDEX + 1))
             done
 
-            echo "    -> 正在进行 2x8 瀑布流矩阵拼装与调色板高压渲染..."
+            echo "    -> 正在进行体积压缩与调色板极限萃取..."
             
-            # 【核心拼装逻辑】先横向两两合并，形成 8 个 Row
             FILTER_COMPLEX+="[v1][v2]hstack=inputs=2[r1];"
             FILTER_COMPLEX+="[v3][v4]hstack=inputs=2[r2];"
             FILTER_COMPLEX+="[v5][v6]hstack=inputs=2[r3];"
@@ -180,14 +179,13 @@ process_target() {
             FILTER_COMPLEX+="[v13][v14]hstack=inputs=2[r7];"
             FILTER_COMPLEX+="[v15][v16]hstack=inputs=2[r8];"
             
-            # 将 8 个 Row 上下垂直拼接成大矩阵
             FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6][r7][r8]vstack=inputs=8[matrix];"
             
-            # Header 拉伸至 1280 宽
-            FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
+            # 【瘦身3】：Header 顶部信息栏同步拉伸至 640px 宽度
+            FILTER_COMPLEX+="[0:v]scale=640:-2,setsar=1[hg];"
             
-            # Header 和矩阵合并，执行色彩高压
-            FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+            # 【瘦身4】：引入 max_colors=128 压缩色带深度，极大缩减单帧体积
+            FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
 
             FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
 
@@ -196,7 +194,7 @@ process_target() {
         # =====================================================================
 
         # =====================================================================
-        # 🖼️ 静态 4K.jpg 引擎 (保持不变，与 GIF 排版逻辑完全对应)
+        # 🖼️ 静态 4K.jpg 引擎 (保持不变)
         # =====================================================================
         if [ ! -f "$STITCHED_IMG" ]; then
             echo " 🖼️ 正在生成静态 4K 海报..."
@@ -249,7 +247,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m  PT 制种引擎 V9.2 (2x8 瀑布流对标版)  \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.2.1 (极限高压瘦身版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
