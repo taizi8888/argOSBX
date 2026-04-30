@@ -38,7 +38,6 @@ class BatchRequest(BaseModel):
     overwrite_torrent: bool = False
     overwrite_image: bool = False
 
-# 【核心功能】：智能剥离文件后缀，提取纯净基名
 def get_base_name(target_name: str) -> str:
     p = os.path.join(BASE_DIR, target_name)
     if os.path.isfile(p):
@@ -72,7 +71,6 @@ def list_folders():
             if item.startswith("."): continue
             path = os.path.join(BASE_DIR, item)
             
-            # 【升级探测】：同时兼容文件夹与散视频文件
             is_valid = False
             if os.path.isdir(path):
                 is_valid = True
@@ -80,7 +78,7 @@ def list_folders():
                 is_valid = True
                 
             if is_valid:
-                base_name = get_base_name(item) # 使用基名进行探伤
+                base_name = get_base_name(item)
                 has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base_name}.torrent"))
                 has_img = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Stitched_4K.jpg"))
                 has_gif = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Preview.gif"))
@@ -233,9 +231,6 @@ def clear_logs():
         return {"status": "ok"}
     except Exception as e: return {"error": str(e)}
 
-# =========================================================================
-# 🚀 V8.1 独立隧道混编引擎：提取自定义 PROXY_HOST 突破封锁
-# =========================================================================
 @app.get("/api/scraper/{keyword}")
 def scrape_link(keyword: str):
     keyword = keyword.strip().lower()
@@ -354,8 +349,9 @@ def update_system(background_tasks: BackgroundTasks):
                 
             base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui"
             for f_name in ["index.html", "app.py", "pt_make.sh"]:
-                url = f"{base_url}/{f_name}"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                # 【核心防御】: 追加时间戳，彻底击穿 GitHub 的 5 分钟 CDN 缓存！
+                url = f"{base_url}/{f_name}?t={int(time.time())}"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Cache-Control': 'no-cache'})
                 content = opener.open(req, timeout=15).read().decode('utf-8')
                 write_path = f"/home/taizi8888/{f_name}" if os.path.exists("/home/taizi8888") else (f"/app/{f_name}" if os.path.exists("/app") else f"/root/argosbx-web/pt-webui/{f_name}")
                 with open(write_path, "w", encoding="utf-8") as f: f.write(content)
@@ -364,7 +360,7 @@ def update_system(background_tasks: BackgroundTasks):
             if os.path.exists(script_path): os.chmod(script_path, 0o755)
             
             with open(LOG_FILE, "a") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA Rebirth Triggered (shdetai)\n")
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTA Rebirth Triggered (shdetai) - Cache Bypassed\n")
                 f.flush(); os.fsync(f.fileno())
             time.sleep(2); os._exit(0) 
         except Exception as e:
