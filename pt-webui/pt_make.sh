@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V8.0 (终极双端自适应 + 满血 GIF 执行器)
+# 描述: PT 制种引擎 V9.1 (终极双端自适应 + 2x8 动态矩阵引擎)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -74,7 +74,6 @@ process_target() {
                 if [[ "${vext,,}" =~ ^(mp4|mkv|avi|wmv|ts)$ ]]; then
                     [ "$(du -k "$vf" | cut -f1)" -lt 256000 ] && rm -f "$vf" && continue
                 fi
-                # 斩断广告前缀
                 local fname=$(basename "$vf")
                 [[ "$fname" == *"@"* ]] && mv "$vf" "$TARGET_PATH/${fname#*@}"
             fi
@@ -121,13 +120,31 @@ process_target() {
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
+        # =====================================================================
+        # 🎬 V9.1 终极动态 GIF 渲染引擎 (2x8 矩阵 + VR 智能左眼物理裁剪)
+        # =====================================================================
         if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
-            echo " 🎬 [指令下发] 正在串行预压 8 个微型视频切片..."
-            local SLICE_INPUTS=("-nostdin" "-y" "-i" "$HEADER_IMG")
-            local VSTACK_FILTER=""
+            echo " 🎬 [指令下发] 正在渲染 2x8 高维动态矩阵预览图 (GIF)..."
             
-            for (( i=0; i<8; i++ )); do
-                local ST=$(( TOTAL_DUR * (5 + i * 90 / 7) / 100 ))
+            local IS_VR=0
+            if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then
+                IS_VR=1
+                echo "    👓 检测到 VR/SBS 格式，引擎启动 [左眼物理剥离] 策略！"
+            fi
+
+            local INTERVAL=$(( TOTAL_DUR / 17 ))
+            [ "$INTERVAL" -le 0 ] && INTERVAL=1
+
+            local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-hide_banner" "-loglevel" "warning")
+            local FILTER_COMPLEX=""
+            local INPUT_INDEX=0
+
+            # 载入 Header (索引 0)
+            FFMPEG_CMD+=("-i" "$HEADER_IMG")
+            INPUT_INDEX=1
+
+            for (( i=1; i<=16; i++ )); do
+                local ST=$(( INTERVAL * i ))
                 local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
                 for vf in "${VIDEO_FILES[@]}"; do
                     local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
@@ -135,22 +152,38 @@ process_target() {
                     ACCUMULATED=$(( ACCUMULATED + fd )); PART_NUM=$(( PART_NUM + 1 ))
                 done
                 [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
+
+                FFMPEG_CMD+=("-ss" "$REL_TIME" "-t" "1.5" "-i" "$CUR_FILE")
+                
+                local CROP_CMD=""
+                if [ "$IS_VR" -eq 1 ]; then
+                    CROP_CMD="crop=iw/2:ih:0:0,"
+                fi
                 
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                 echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                 
-                local SLICE_FILE="$TMP_IMG_DIR/slice_$i.mp4"
-                echo "    -> 提取动态切片 [$((i+1))/8]..."
-                ffmpeg -nostdin -y -ss "$REL_TIME" -t 1.5 -i "$CUR_FILE" -vf "scale=800:-2,setsar=1,fps=10,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=26:x=20:y=h-th-20:box=1:boxcolor=black@0.6:boxborderw=6" -c:v libx264 -preset ultrafast -crf 28 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
-                
-                SLICE_INPUTS+=("-i" "$SLICE_FILE")
-                VSTACK_FILTER="${VSTACK_FILTER}[$((i+1)):v]"
+                # 统一缩放至宽 160，高度自适应偶数，帧率 8fps，并在角落烧录时间戳水印
+                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=160:-2,setsar=1,fps=8,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=12:x=4:y=h-th-4:box=1:boxcolor=black@0.6:boxborderw=2[v$i];"
+                INPUT_INDEX=$((INPUT_INDEX + 1))
             done
+
+            echo "    -> 正在进行 16 宫格流体拼装与调色板高压渲染..."
+            # 矩阵拼装
+            FILTER_COMPLEX+="[v1][v2][v3][v4][v5][v6][v7][v8]hstack=inputs=8[row1];"
+            FILTER_COMPLEX+="[v9][v10][v11][v12][v13][v14][v15][v16]hstack=inputs=8[row2];"
             
-            echo " 🎬 [最终合并] 正在将切片组装为长条极客版 GIF..."
-            local FINAL_GIF_F="[0:v]scale=800:-2,setsar=1[hg];[hg]${VSTACK_FILTER}vstack=inputs=9[v];[v]split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
-            ffmpeg "${SLICE_INPUTS[@]}" -filter_complex "$FINAL_GIF_F" "$PREVIEW_GIF" >> "$LOG_FILE" 2>&1
+            # Header 拉伸至 1280 宽度 (完美对齐 160x8)
+            FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
+            
+            # 上下拼接 Header, Row1, Row2 并执行色彩保真压缩
+            FILTER_COMPLEX+="[hg][row1][row2]vstack=inputs=3,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+
+            FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
+
+            "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
         fi
+        # =====================================================================
 
         if [ ! -f "$STITCHED_IMG" ]; then
             echo " 🖼️ 正在生成静态 4K 海报..."
@@ -203,7 +236,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m     PT 制种引擎 V8.0 (全站自适应集群版)  \033[0m"
+    echo -e "\033[1;33m  PT 制种引擎 V9.1 (全站自适应 + 动态矩阵) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
