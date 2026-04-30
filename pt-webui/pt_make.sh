@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.2.1 (终极瀑布流 横2 x 竖8 动态矩阵 - 极限瘦身版)
+# 描述: PT 制种引擎 V9.3.1 (内存安全串行版 + 原生比例 VR 单眼剥离)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -121,27 +121,24 @@ process_target() {
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
         # =====================================================================
-        # 🎬 V9.2.1 动态 GIF 渲染引擎 (极限瘦身版: 横2 x 竖8，大幅降低体积)
+        # 🎬 V9.3.1 动态 GIF 渲染引擎 (内存安全串行架构 + 原生比例单眼剥离)
         # =====================================================================
         if [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]; then
-            echo " 🎬 [指令下发] 正在渲染瀑布流 2x8 动态矩阵 (启动极限高压瘦身)..."
+            echo " 🎬 [指令下发] 正在启动串行化引擎渲染 2x8 瀑布流 (低内存模式)..."
             
             local IS_VR=0
             if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then
                 IS_VR=1
-                echo "    👓 检测到 VR/SBS 格式，引擎启动 [左眼物理剥离] 策略！"
+                echo "    👓 检测到 VR/SBS 格式，启动 [左眼剥离 + 原生比例缩放] 策略！"
             fi
 
             local INTERVAL=$(( TOTAL_DUR / 17 ))
             [ "$INTERVAL" -le 0 ] && INTERVAL=1
+            
+            # 创建切片临时目录
+            mkdir -p "$TMP_IMG_DIR/slices"
 
-            local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-hide_banner" "-loglevel" "warning")
-            local FILTER_COMPLEX=""
-            local INPUT_INDEX=0
-
-            FFMPEG_CMD+=("-i" "$HEADER_IMG")
-            INPUT_INDEX=1
-
+            # 第一阶段：串行化生成 16 个极小的预处理切片
             for (( i=1; i<=16; i++ )); do
                 local ST=$(( INTERVAL * i ))
                 local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
@@ -152,44 +149,55 @@ process_target() {
                 done
                 [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
 
-                # 【瘦身1】：截取时长从 1.5s 缩短至 1.2s，减少总帧数
-                FFMPEG_CMD+=("-ss" "$REL_TIME" "-t" "1.2" "-i" "$CUR_FILE")
-                
-                local CROP_CMD=""
-                if [ "$IS_VR" -eq 1 ]; then
-                    CROP_CMD="crop=iw/2:ih:0:0,"
-                fi
-                
                 local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                 echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                 
-                # 【瘦身2】：分辨率单格宽降至 320px，帧率降至 6fps。水印按比例略微缩小。
-                FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=320:-2,setsar=1,fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=14:x=6:y=h-th-6:box=1:boxcolor=black@0.6:boxborderw=2[v$i];"
-                INPUT_INDEX=$((INPUT_INDEX + 1))
+                # 核心：原生比例缩放 (scale=640:-2 自动计算高度，不强求 16:9)
+                local CROP_SCALE_FILTER="scale=640:-2,setsar=1"
+                if [ "$IS_VR" -eq 1 ]; then
+                    CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=640:-2,setsar=1"
+                fi
+
+                local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
+                
+                echo "    -> 正在抽取并压缩第 [$i/16] 帧..."
+                ffmpeg -nostdin -y -ss "$REL_TIME" -t 1.0 -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=22:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
             done
 
-            echo "    -> 正在进行体积压缩与调色板极限萃取..."
+            echo "    -> 切片准备完毕，正在组装 2x8 原生比例矩阵..."
+
+            # 第二阶段：轻量级矩阵拼装与调色板生成
+            local FFMPEG_MERGE_CMD=("ffmpeg" "-nostdin" "-y" "-hide_banner" "-loglevel" "warning")
+            local FILTER_COMPLEX=""
+
+            # 载入 Header
+            FFMPEG_MERGE_CMD+=("-i" "$HEADER_IMG")
             
-            FILTER_COMPLEX+="[v1][v2]hstack=inputs=2[r1];"
-            FILTER_COMPLEX+="[v3][v4]hstack=inputs=2[r2];"
-            FILTER_COMPLEX+="[v5][v6]hstack=inputs=2[r3];"
-            FILTER_COMPLEX+="[v7][v8]hstack=inputs=2[r4];"
-            FILTER_COMPLEX+="[v9][v10]hstack=inputs=2[r5];"
-            FILTER_COMPLEX+="[v11][v12]hstack=inputs=2[r6];"
-            FILTER_COMPLEX+="[v13][v14]hstack=inputs=2[r7];"
-            FILTER_COMPLEX+="[v15][v16]hstack=inputs=2[r8];"
+            # 载入 16 个已经处理好的小切片
+            for (( i=1; i<=16; i++ )); do
+                FFMPEG_MERGE_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4")
+            done
             
+            # 横向拼接 8 行
+            FILTER_COMPLEX+="[1:v][2:v]hstack=inputs=2[r1];"
+            FILTER_COMPLEX+="[3:v][4:v]hstack=inputs=2[r2];"
+            FILTER_COMPLEX+="[5:v][6:v]hstack=inputs=2[r3];"
+            FILTER_COMPLEX+="[7:v][8:v]hstack=inputs=2[r4];"
+            FILTER_COMPLEX+="[9:v][10:v]hstack=inputs=2[r5];"
+            FILTER_COMPLEX+="[11:v][12:v]hstack=inputs=2[r6];"
+            FILTER_COMPLEX+="[13:v][14:v]hstack=inputs=2[r7];"
+            FILTER_COMPLEX+="[15:v][16:v]hstack=inputs=2[r8];"
+            
+            # 垂直堆叠矩阵
             FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6][r7][r8]vstack=inputs=8[matrix];"
             
-            # 【瘦身3】：Header 顶部信息栏同步拉伸至 640px 宽度
-            FILTER_COMPLEX+="[0:v]scale=640:-2,setsar=1[hg];"
-            
-            # 【瘦身4】：引入 max_colors=128 压缩色带深度，极大缩减单帧体积
-            FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+            # Header 拉伸对齐并合并，生成高保真 GIF
+            FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
+            FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=max_colors=192:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle"
 
-            FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
+            FFMPEG_MERGE_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
 
-            "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
+            "${FFMPEG_MERGE_CMD[@]}" >> "$LOG_FILE" 2>&1
         fi
         # =====================================================================
 
@@ -247,7 +255,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.2.1 (极限高压瘦身版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.3.1 (原生比例内存安全版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
