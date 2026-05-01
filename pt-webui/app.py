@@ -279,6 +279,7 @@ def scrape_link(keyword: str):
                 continue
                 
             candidate_link = raw_link
+            
             if "lurl=" in raw_link:
                 try: candidate_link = urllib.parse.unquote(raw_link.split("lurl=")[1].split("&")[0])
                 except: pass
@@ -289,8 +290,15 @@ def scrape_link(keyword: str):
             
             if is_product and "campaign" not in clean and "/list/" not in clean:
                 if is_strict_match(clean, kw):
+                    # 🚀 [V9.6.2 强制清洗机制] 绝对不相信 Wiki 原站可能错误的域名（如把 VR 错写成 mono），强制提取 CID 自己组装！
                     m = re.search(r'(?:cid=|id=)([a-z0-9]+)', clean.lower())
-                    if m: return f"https://www.dmm.co.jp/mono/dvd/-/detail/=/cid={m.group(1)}/"
+                    if m:
+                        cid = m.group(1)
+                        if "vr" in cid:
+                            # 只要番号里包含 VR，不废话，强制篡改为数字版流媒体链接
+                            return f"https://video.dmm.co.jp/av/content/?id={cid}"
+                    # 非 VR 资源，尊重原本抓取到的链接
+                    return clean
         return None
 
     def fetch_direct(target_url):
@@ -318,24 +326,31 @@ def scrape_link(keyword: str):
         except: return None
 
     kw_clean = keyword.replace("-", "").lower()
+    
+    # 纯粹的高速抓取池，完全剔除高阻断的 Javbus
     wiki_search_urls = [f"https://shiroutowiki.work/?s={keyword}", f"https://shiroutowiki.work/{kw_clean}/"]
-    javbus_urls = [f"https://www.javbus.com/{keyword}", f"https://www.javbus.com/{kw_clean}"]
 
     futures = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         for w_url in wiki_search_urls:
             futures.append(executor.submit(fetch_direct, w_url))
             futures.append(executor.submit(fetch_via_codetabs, w_url))
             futures.append(executor.submit(fetch_via_allorigins, w_url))
-        for j_url in javbus_urls:
-            futures.append(executor.submit(fetch_via_codetabs, j_url))
-            futures.append(executor.submit(fetch_via_allorigins, j_url))
 
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: return {"link": res}
 
-    return {"error": "全路并发检索未命中，该番号可能未被收录或下架，请使用【🌐 浏览器搜索】"}
+    # 如果网络全断，保留兜底推算
+    match = re.match(r'([a-z]+)-?(\d+)', kw_clean)
+    if match:
+        letters = match.group(1)
+        numbers = match.group(2)
+        cid = f"{letters}{numbers.zfill(5)}"
+        if "vr" in cid: return {"link": f"https://video.dmm.co.jp/av/content/?id={cid}"}
+        else: return {"link": f"https://www.dmm.co.jp/mono/dvd/-/detail/=/cid={cid}/"}
+
+    return {"error": "全路并发检索未命中，请使用【🌐 浏览器搜索】"}
 
 @app.post("/api/update")
 def update_system(background_tasks: BackgroundTasks):
@@ -350,7 +365,6 @@ def update_system(background_tasks: BackgroundTasks):
                 
             base_url = "https://raw.githubusercontent.com/taizi8888/argOSBX/shdetai/pt-webui"
             for f_name in ["index.html", "app.py", "pt_make.sh"]:
-                # 【核心防御】: 追加时间戳，彻底击穿 GitHub 的 5 分钟 CDN 缓存！
                 url = f"{base_url}/{f_name}?t={int(time.time())}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Cache-Control': 'no-cache'})
                 content = opener.open(req, timeout=15).read().decode('utf-8')
