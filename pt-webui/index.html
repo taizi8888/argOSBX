@@ -231,16 +231,18 @@
         document.getElementById('detail-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeDetailView(); });
 
         /* =========================================================================
-           🚀 核心修复：前端双重抗封锁抓取引擎 (边缘路由下发 + 本地正则兜底)
+           🚀 核心修复：绝对锁定主控机 (Master Node) 抓取 + 本地正则兜底
            ========================================================================= */
         async function fetchDmmLink() {
             const keyword = document.getElementById('meta-keyword').value.trim();
             if(!keyword) return alert("提取番号不能为空！");
             const resInput = document.getElementById('meta-result');
-            resInput.value = "📡 极速检索与推算中...";
+            resInput.value = "📡 主控机(Master)穿透检索中...";
 
-            // 1. API 智能请求（动态利用当前选中的探针节点，防止主控机被封）
-            const targetApiUrl = currentActiveNodeUrl ? `${currentActiveNodeUrl}/api/scraper/${encodeURIComponent(keyword)}` : `/api/scraper/${encodeURIComponent(keyword)}`;
+            // 1. API 智能请求（⚠️ 核心修正：绝对锁定使用相对路径！）
+            // 无论当前你在看哪个算力节点的资源，抓取网络请求必须、只能发送给主控机。
+            // 因为只有主控机的 app.py 配置了 PROXY_HOST 并且负责网络穿透。
+            const targetApiUrl = `/api/scraper/${encodeURIComponent(keyword)}`;
 
             try {
                 const res = await fetch(targetApiUrl);
@@ -250,10 +252,10 @@
                     return; // 命中则直接结束
                 }
             } catch(e) {
-                console.warn("API 抓取超时或拦截，触发本地智能推算...", e);
+                console.warn("主控机 API 抓取超时或拦截，触发本地智能推算...", e);
             }
 
-            // 2. 离线/防封兜底：纯前端正则暴力拼接，识别 VR 专属前缀
+            // 2. 离线/防封兜底：如果主控机真的被 Cloudflare 彻底封死，前端 JS 暴力推算
             let kw_clean = keyword.replace(/-/g, "").toLowerCase();
             let match = kw_clean.match(/([a-z]+)(\d+)/);
             if (match) {
