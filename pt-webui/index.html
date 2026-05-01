@@ -111,7 +111,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V9.7</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V9.8</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点探针</a>
@@ -159,23 +159,22 @@
                                     <label>📦 分块大小</label>
                                     <select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select>
                                 </div>
-                                <!-- 🚀 V9.7 终极融合：微操指挥舱回归 -->
                                 <div class="pro-form-group" style="flex:1;">
                                     <label>🎯 执行模式 (微操)</label>
                                     <select id="pro-action" class="form-input" style="color: var(--primary); font-weight: bold;">
                                         <option value="">⚙️ 完整全自动流水线</option>
                                         <option value="--only-torrent">📦 仅制作种子 (.torrent)</option>
                                         <option value="--only-info">📄 仅提取 MediaInfo</option>
-                                        <option value="--only-img">🖼️ 仅生成 4K 静态海报</option>
-                                        <option value="--only-gif">🎬 仅渲染动态 GIF</option>
+                                        <option value="--only-img">🖼️ 仅生成 4K WebP 静态海报</option>
+                                        <option value="--only-gif">🎬 仅渲染动态 WebP 矩阵</option>
                                     </select>
                                 </div>
                             </div>
                             
                             <div class="pro-form-group" style="margin-top: 15px; display:flex; flex-wrap:wrap; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
-                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; color:#ec4899; font-weight:bold;"><input type="checkbox" id="pro-enable-gif" checked style="accent-color:#ec4899; transform:scale(1.2);"> 🎬 自动生成 2x8 动态 GIF</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; color:#ec4899; font-weight:bold;"><input type="checkbox" id="pro-enable-gif" checked style="accent-color:#ec4899; transform:scale(1.2);"> 🎬 自动生成 3x6 动态 WebP</label>
                                 <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label>
-                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成静态海报</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成静态 WebP 海报</label>
                             </div>
                             <button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button>
                         </div>
@@ -193,7 +192,7 @@
             <div class="modal-body">
                 <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
                     <div style="color: #64748b; font-size: 14px; font-weight:600;" id="detailPath"></div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;"><button onclick="downloadFile('torrent')" style="background:#15803d; padding:8px 16px;">⬇️ 种子</button><button onclick="downloadFile('mediainfo')" style="background:#0ea5e9; padding:8px 16px;">⬇️ Info</button><button onclick="downloadFile('image')" style="background:#f59e0b; color:#fff; padding:8px 16px;">⬇️ 4K 海报</button><button id="btn-dl-gif" onclick="downloadFile('gif')" style="background:#ec4899; color:#fff; padding:8px 16px; display:none;">⬇️ 动态 GIF</button></div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;"><button onclick="downloadFile('torrent')" style="background:#15803d; padding:8px 16px;">⬇️ 种子</button><button onclick="downloadFile('mediainfo')" style="background:#0ea5e9; padding:8px 16px;">⬇️ Info</button><button onclick="downloadFile('image')" style="background:#f59e0b; color:#fff; padding:8px 16px;">⬇️ 4K WebP</button><button id="btn-dl-gif" onclick="downloadFile('gif')" style="background:#ec4899; color:#fff; padding:8px 16px; display:none;">⬇️ 动态 WebP</button></div>
                 </div>
                 <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; align-items:center; gap:15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
                     <div style="font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px; white-space:nowrap;"><span>🔗 DMM 链接：</span></div>
@@ -212,7 +211,7 @@
                     </div>
                     <div class="preview-box">
                         <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
-                            <span>🖼️ 4K 压榨图文沙盒:</span>
+                            <span>🖼️ 4K WebP 压榨沙盒:</span>
                             <div style="font-size:12px; font-weight:normal; color:#94a3b8; display:flex; align-items:center; gap:10px;"><button id="btn-preview-gif" onclick="loadGifPreview()" style="background:#ec4899; color:white; border:none; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; display:none;">🎞️ 载入动态预览</button><span>🖱️ 滚轮缩放 / 拖拽平移</span><button onclick="resetImageZoom()" style="background:#f1f5f9; color:#475569; padding:4px 10px; font-size:12px; border:1px solid #e2e8f0;">重置视角</button></div>
                         </div>
                         <div class="image-zoom-container" id="imageZoomContainer"><img class="preview-image" id="detailImage" src="" alt="4K Preview"></div>
@@ -353,7 +352,6 @@
             const cbI = document.getElementById("pro-overwrite-image"); const oi = cbI ? cbI.checked : false;
             const cbG = document.getElementById("pro-enable-gif"); const eg = cbG ? cbG.checked : true;
             
-            // 获取微操模式的值
             const actionType = document.getElementById("pro-action") ? document.getElementById("pro-action").value : "";
 
             if(document.getElementById("pro-save-tracker") && document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
