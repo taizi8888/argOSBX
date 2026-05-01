@@ -26,7 +26,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 class RunRequest(BaseModel):
     folder: str = ""
-    action: str = ""  # 🚀 [接收微操参数]
+    action: str = ""  
     tracker: Optional[str] = None
     piece_size: Optional[str] = None
     layout: Optional[str] = None
@@ -82,8 +82,9 @@ def list_folders():
             if is_valid:
                 base_name = get_base_name(item)
                 has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base_name}.torrent"))
-                has_img = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Stitched_4K.jpg"))
-                has_gif = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Preview.gif"))
+                # 🚀 状态识别完美进化为 WebP 格式
+                has_img = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Stitched_4K.webp"))
+                has_gif = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Preview.webp"))
                 ready = has_torrent and has_img
                 status = "✅ 已完成" if ready else "⏳ 待处理"
                 folders.append({"name": item, "status": status, "ready": ready, "has_gif": has_gif, "mtime": os.path.getmtime(path)})
@@ -158,7 +159,8 @@ def qbittorrent_proxy(req: dict):
             if del_files and name:
                 for n in name.split("|"):
                     base_name = get_base_name(n.strip())
-                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                    # 🚀 文件粉碎同步清理 WebP 格式
+                    for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.webp", "_ffmpeg_debug.log", "_Preview.webp"]:
                         p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
             return {"status": "ok"}
@@ -171,7 +173,7 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
         if mode == "folder" and req.folder:
             base_name = get_base_name(req.folder)
             if req.overwrite_image:
-                for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                for ext in ["_Stitched_4K.webp", "_ffmpeg_debug.log", "_Preview.webp"]:
                     p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                     if os.path.exists(p): os.remove(p)
             if req.overwrite_torrent:
@@ -182,7 +184,6 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
         
         if mode == "folder" and req.folder: 
             cmd.append(req.folder)
-            # 🚀 [注入微操动作参数]
             if req.action:
                 cmd.append(req.action)
                 
@@ -210,7 +211,7 @@ def run_batch(req: BatchRequest, background_tasks: BackgroundTasks):
             for folder in req.folders:
                 base_name = get_base_name(folder)
                 if req.overwrite_image:
-                    for ext in ["_Stitched_4K.jpg", "_ffmpeg_debug.log", "_Preview.gif"]:
+                    for ext in ["_Stitched_4K.webp", "_ffmpeg_debug.log", "_Preview.webp"]:
                         p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
                 if req.overwrite_torrent:
@@ -388,7 +389,8 @@ def update_system(background_tasks: BackgroundTasks):
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
     base_name = get_base_name(folder)
-    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.jpg", "gif": "_Preview.gif"}
+    # 🚀 API 映射全部更新为 WebP 扩展名
+    exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.webp", "gif": "_Preview.webp"}
     p = os.path.join(BASE_DIR, f"{base_name}{exts.get(file_type, '')}")
     if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
     return {"error": "Not Found"}
