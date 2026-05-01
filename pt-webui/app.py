@@ -26,6 +26,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 class RunRequest(BaseModel):
     folder: str = ""
+    action: str = ""  # 🚀 [接收微操参数]
     tracker: Optional[str] = None
     piece_size: Optional[str] = None
     layout: Optional[str] = None
@@ -178,7 +179,13 @@ def run_task(mode: str, req: RunRequest, background_tasks: BackgroundTasks):
                     p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                     if os.path.exists(p): os.remove(p)
         cmd = ["/bin/bash", script_path, f"--{mode}"]
-        if mode == "folder" and req.folder: cmd.append(req.folder)
+        
+        if mode == "folder" and req.folder: 
+            cmd.append(req.folder)
+            # 🚀 [注入微操动作参数]
+            if req.action:
+                cmd.append(req.action)
+                
         env = os.environ.copy()
         if req.tracker: env["CUSTOM_TRACKER"] = req.tracker
         if req.piece_size: env["CUSTOM_PIECE_L"] = str(req.piece_size)
@@ -290,14 +297,11 @@ def scrape_link(keyword: str):
             
             if is_product and "campaign" not in clean and "/list/" not in clean:
                 if is_strict_match(clean, kw):
-                    # 🚀 [V9.6.2 强制清洗机制] 绝对不相信 Wiki 原站可能错误的域名（如把 VR 错写成 mono），强制提取 CID 自己组装！
                     m = re.search(r'(?:cid=|id=)([a-z0-9]+)', clean.lower())
                     if m:
                         cid = m.group(1)
                         if "vr" in cid:
-                            # 只要番号里包含 VR，不废话，强制篡改为数字版流媒体链接
                             return f"https://video.dmm.co.jp/av/content/?id={cid}"
-                    # 非 VR 资源，尊重原本抓取到的链接
                     return clean
         return None
 
@@ -327,7 +331,6 @@ def scrape_link(keyword: str):
 
     kw_clean = keyword.replace("-", "").lower()
     
-    # 纯粹的高速抓取池，完全剔除高阻断的 Javbus
     wiki_search_urls = [f"https://shiroutowiki.work/?s={keyword}", f"https://shiroutowiki.work/{kw_clean}/"]
 
     futures = []
@@ -341,7 +344,6 @@ def scrape_link(keyword: str):
             res = future.result()
             if res: return {"link": res}
 
-    # 如果网络全断，保留兜底推算
     match = re.match(r'([a-z]+)-?(\d+)', kw_clean)
     if match:
         letters = match.group(1)
