@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8 (WebP 全面进化版: 4K 静态海报 + 2.5K 动图矩阵极限降维打击)
+# 描述: PT 制种引擎 V9.8.2 (动静统一 真·4K WebP 全面解禁版)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -56,7 +56,6 @@ process_target() {
     local ACTION_TYPE="$2"
     local TARGET_PATH="$BASE_DIR/$TARGET_NAME"
     
-    # 🚀 过滤时将匹配规则升级为 WebP
     if [[ "$TARGET_NAME" == *.torrent ]] || [[ "$TARGET_NAME" == *_mediainfo.txt ]] || [[ "$TARGET_NAME" == *_Stitched_4K.webp ]] || [[ "$TARGET_NAME" == *_Preview.webp ]] || [[ "$TARGET_NAME" == *_ffmpeg_debug.log ]] || [[ "$TARGET_NAME" == header* ]]; then return; fi
     if [[ ! -e "$TARGET_PATH" ]]; then return; fi
 
@@ -88,7 +87,6 @@ process_target() {
 
     local TORRENT_FILE="$BASE_DIR/${BASE_NAME}.torrent"
     local INFO_FILE="$BASE_DIR/${BASE_NAME}_mediainfo.txt"
-    # 🚀 目标文件格式全面升级为 WebP
     local STITCHED_IMG="$BASE_DIR/${BASE_NAME}_Stitched_4K.webp"
     local PREVIEW_WEBP="$BASE_DIR/${BASE_NAME}_Preview.webp"
     local TMP_IMG_DIR="$TMP_ROOT/$BASE_NAME"
@@ -136,15 +134,16 @@ process_target() {
             echo "Video: $V_CODEC, $V_RES" > "$TMP_IMG_DIR/h3.txt"
             echo "Audio: $A_CODEC" > "$TMP_IMG_DIR/h4.txt"
             
+            # 🚀 统一共用真·4K Header (3840px宽)，不再区分动图和静图
             HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
+            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=3840x350 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=50:x=40:y=30,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=50:x=40:y=110,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=50:x=40:y=190,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=50:x=40:y=270" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 V9.8 (无调色板占用、100%真彩色、体积暴降)
+            # 🎬 动态 WebP 引擎 (3840px 真·4K 动图降维打击)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在串行切分 18 格素材并进行 24-bit 编码..."
+                    echo " 🎬 [WebP引擎] 正在串行切分素材 (1280px 单图宽，拼合 3840px 真·4K 动图)..."
                     
                     local IS_VR=0
                     if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; fi
@@ -168,16 +167,17 @@ process_target() {
                         local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
 
-                        local CROP_SCALE_FILTER="scale=854:-2,setsar=1"
-                        if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=854:-2,setsar=1"; fi
+                        # 🚀 宽度设定为 1280px，完美三等分 3840px！
+                        local CROP_SCALE_FILTER="scale=1280:-2,setsar=1"
+                        if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=1280:-2,setsar=1"; fi
                         
                         local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                         
-                        # 单路安全提取 4 帧
-                        ffmpeg -nostdin -y -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=30:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                        # 水印字体放大至 45px 适配 1280 宽带
+                        ffmpeg -nostdin -y -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=45:x=20:y=h-th-20:box=1:boxcolor=black@0.6:boxborderw=6" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 6 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                     done
 
-                    echo "    -> 切片组装：3x6 WebP 高清无损编码，彻底释放内存..."
+                    echo "    -> 切片组装：进行 24-bit 4K级动图编码 (-q:v 80)..."
                     
                     local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "2" "-hide_banner" "-loglevel" "warning")
                     local FILTER_COMPLEX=""
@@ -194,23 +194,22 @@ process_target() {
                     FILTER_COMPLEX+="[13:v][14:v][15:v]hstack=inputs=3:shortest=1[r5];"
                     FILTER_COMPLEX+="[16:v][17:v][18:v]hstack=inputs=3:shortest=1[r6];"
                     
-                    # 🚀 移除废柴的 palettegen！拼接完成后直接映射为 out 并启动 libwebp 编码
-                    FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6]vstack=inputs=6:shortest=1,crop=2560:ih:0:0[matrix];"
+                    # 1280 x 3 = 3840，严丝合缝无需裁剪！
+                    FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6]vstack=inputs=6:shortest=1[matrix];"
                     FILTER_COMPLEX+="[0:v][matrix]vstack=inputs=2[out]"
                     
-                    # 采用 libwebp 高质量动图编码引擎，-q:v 60 是体积与画质的黄金平衡点
-                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "60" "$PREVIEW_WEBP")
+                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "80" "$PREVIEW_WEBP")
 
                     "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
                 fi
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 V9.8 (告别古老 JPG，全面拥抱 WebP)
+            # 🖼️ 静态真·4K WebP 引擎 (3840px 超宽极限画质)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ 正在生成静态 4K WebP 海报..."
+                    echo " 🖼️ 正在生成真·4K (3840px) 静态海报..."
                     VID_W=$(echo $V_RES | cut -d'x' -f1); LAYOUT="standard"; SHOTS=16; [ "${VID_W:-0}" -ge 5000 ] && LAYOUT="vr" && SHOTS=8
                     
                     local current_jobs=0
@@ -227,12 +226,11 @@ process_target() {
                         local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
-                        # 中间缓存件依然使用 JPG（提取快，不用频繁重编码），最后的矩阵合成再输出为 WebP
                         (
                             if [ "$LAYOUT" == "vr" ]; then
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=2560:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=50:x=30:y=h-th-30:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=3840:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=60:x=40:y=h-th-40:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                             else
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=1280:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=40:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=1920:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=50:x=30:y=h-th-30:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                             fi
                         ) &
                         current_jobs=$((current_jobs + 1)); if (( current_jobs >= 3 )); then wait; current_jobs=0; fi
@@ -240,15 +238,14 @@ process_target() {
 
                     for (( i=0; i<$SHOTS; i++ )); do
                         if [ ! -f "$TMP_IMG_DIR/s$i.jpg" ]; then
-                            [ "$LAYOUT" == "vr" ] && ffmpeg -nostdin -f lavfi -i color=c=black:s=2560x1440 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1 || ffmpeg -nostdin -f lavfi -i color=c=black:s=1280x720 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1
+                            [ "$LAYOUT" == "vr" ] && ffmpeg -nostdin -f lavfi -i color=c=black:s=3840x2160 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1 || ffmpeg -nostdin -f lavfi -i color=c=black:s=1920x1080 -vframes 1 -y "$TMP_IMG_DIR/s$i.jpg" >/dev/null 2>&1
                         fi
                     done
 
-                    # 🚀 将静态矩阵的合成结果直接指定编码为 libwebp，以获得极小体积的 4K 巨图！
                     if [ "$LAYOUT" == "vr" ]; then
-                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -c:v libwebp -q:v 85 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -c:v libwebp -q:v 95 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     else
-                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -c:v libwebp -q:v 85 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -c:v libwebp -q:v 95 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     fi
                 fi
             fi
@@ -264,7 +261,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8 (WebP全面进化版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.2 (动静统一4K 解禁版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
