@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.7 (终极融合版: 经典内存安全 + 手术刀微操下发防误删)
+# 描述: PT 制种引擎 V9.7.1 (终极动图优化: 3x6 黄金矩阵 + 全局限宽瘦身)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -56,7 +56,7 @@ check_env
 
 process_target() {
     local TARGET_NAME="$1"
-    local ACTION_TYPE="$2"  # 🚀 [微操参数传入]
+    local ACTION_TYPE="$2"
     local TARGET_PATH="$BASE_DIR/$TARGET_NAME"
     
     if [[ "$TARGET_NAME" == *.torrent ]] || [[ "$TARGET_NAME" == *_mediainfo.txt ]] || [[ "$TARGET_NAME" == *_Stitched_4K.jpg ]] || [[ "$TARGET_NAME" == *_Preview.gif ]] || [[ "$TARGET_NAME" == *_ffmpeg_debug.log ]] || [[ "$TARGET_NAME" == header* ]]; then return; fi
@@ -71,7 +71,7 @@ process_target() {
         if find "$TARGET_PATH" -type f -name "*.!qB" | grep -q .; then return; fi
         BASE_NAME="$TARGET_NAME"
         
-        # 🛡️ [安全锁激活]: 仅在“完整流水线”下才清理和重命名文件，一旦开启微操下发，绝对不碰文件结构以保 Hash！
+        # 安全锁
         if [ -z "$ACTION_TYPE" ]; then
             find "$TARGET_PATH" -type f \( -iname "*.url" -o -iname "*.txt" -o -iname "*.nfo" -o -iname "*.log" \) -delete > /dev/null 2>&1
             for vf in "$TARGET_PATH"/*; do
@@ -85,7 +85,7 @@ process_target() {
                 fi
             done
         else
-            echo "🛡️ [安全锁激活] 探测到单项微操指令 ($ACTION_TYPE)，文件清理机制已强制跳过，确保做种 Hash 100% 安全。"
+            echo "🛡️ [安全锁激活] 单项微操指令 ($ACTION_TYPE)，跳过清理确保 Hash 安全。"
         fi
     else return; fi
 
@@ -102,7 +102,6 @@ process_target() {
     [ ${#VIDEO_FILES[@]} -eq 0 ] && return
     local MAIN_VIDEO="${VIDEO_FILES[0]}"
     
-    # ⚙️ 模块 1：单独制作种子与 Info
     if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-torrent" ]; then
         if [ ! -f "$TORRENT_FILE" ]; then
             echo " 📦 正在打包 .torrent 种子文件..."
@@ -117,7 +116,6 @@ process_target() {
         fi
     fi
 
-    # ⚙️ 模块 2：图片生成前置判断
     if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
         if [ ! -f "$STITCHED_IMG" ] || ([ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_GIF" ]) || [ -n "$ACTION_TYPE" ]; then
             mkdir -p "$TMP_IMG_DIR"; LOG_FILE="$BASE_DIR/${BASE_NAME}_ffmpeg_debug.log"
@@ -139,27 +137,41 @@ process_target() {
             echo "Size: $TOTAL_SIZE bytes ($FILE_SIZE_GB GiB), duration: $FORMATTED_DUR" > "$TMP_IMG_DIR/h2.txt"
             echo "Video: $V_CODEC, $V_RES" > "$TMP_IMG_DIR/h3.txt"
             echo "Audio: $A_CODEC" > "$TMP_IMG_DIR/h4.txt"
-            HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
+            
+            # GIF 专用的窄版 Header (960px 宽)
+            HEADER_IMG_GIF="$TMP_IMG_DIR/header_gif.jpg"
+            # 静态图专用的宽版 Header (2560px 宽)
+            HEADER_IMG_STATIC="$TMP_IMG_DIR/header_static.jpg"
+            
+            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=960x160 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=20:x=15:y=15,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=20:x=15:y=50,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=20:x=15:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=20:x=15:y=120" "$HEADER_IMG_GIF" >> "$LOG_FILE" 2>&1
+            
+            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG_STATIC" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 GIF 渲染引擎 (内存安全串行架构 + 原生比例单眼剥离)
+            # 🎬 动态 GIF 引擎 V9.7.1 (3x6 黄金矩阵 + 全局限宽瘦身)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_GIF" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [动图微操] 正在启动串行化引擎渲染 2x8 瀑布流 (低内存模式)..."
+                    echo " 🎬 [动图引擎] 正在渲染 3x6 (18格) 黄金矩阵动图..."
                     
                     local IS_VR=0
-                    if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then
-                        IS_VR=1
-                    fi
+                    if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; fi
 
-                    local INTERVAL=$(( TOTAL_DUR / 17 ))
+                    # 截取 18 帧
+                    local SHOTS=18
+                    local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
                     
                     mkdir -p "$TMP_IMG_DIR/slices"
 
-                    for (( i=1; i<=16; i++ )); do
+                    local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-hide_banner" "-loglevel" "warning")
+                    local FILTER_COMPLEX=""
+                    local INPUT_INDEX=0
+
+                    FFMPEG_CMD+=("-i" "$HEADER_IMG_GIF")
+                    INPUT_INDEX=1
+
+                    for (( i=1; i<=SHOTS; i++ )); do
                         local ST=$(( INTERVAL * i ))
                         local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
                         for vf in "${VIDEO_FILES[@]}"; do
@@ -169,41 +181,51 @@ process_target() {
                         done
                         [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
 
+                        # 取 1.2 秒的高亮镜头，减轻体积
+                        FFMPEG_CMD+=("-ss" "$REL_TIME" "-t" "1.2" "-i" "$CUR_FILE")
+                        
+                        local CROP_CMD=""
+                        if [ "$IS_VR" -eq 1 ]; then CROP_CMD="crop=iw/2:ih:0:0,"; fi
+                        
                         local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
                         
-                        local CROP_SCALE_FILTER="scale=640:-2,setsar=1"
-                        if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=640:-2,setsar=1"; fi
-
-                        local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
-                        
-                        ffmpeg -nostdin -y -ss "$REL_TIME" -t 1.0 -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=22:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                        # 🚀 核心瘦身点：单图宽度强制设定为 320px
+                        FILTER_COMPLEX+="[$INPUT_INDEX:v]${CROP_CMD}scale=320:-2,setsar=1,fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=12:x=5:y=h-th-5:box=1:boxcolor=black@0.6:boxborderw=2[v$i];"
+                        INPUT_INDEX=$((INPUT_INDEX + 1))
                     done
 
-                    local FFMPEG_MERGE_CMD=("ffmpeg" "-nostdin" "-y" "-hide_banner" "-loglevel" "warning")
-                    local FILTER_COMPLEX=""
-
-                    FFMPEG_MERGE_CMD+=("-i" "$HEADER_IMG")
-                    for (( i=1; i<=16; i++ )); do FFMPEG_MERGE_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4"); done
+                    echo "    -> 正在进行 3x6 矩阵拼装与体积压缩..."
                     
-                    FILTER_COMPLEX+="[1:v][2:v]hstack=inputs=2[r1];[3:v][4:v]hstack=inputs=2[r2];[5:v][6:v]hstack=inputs=2[r3];[7:v][8:v]hstack=inputs=2[r4];[9:v][10:v]hstack=inputs=2[r5];[11:v][12:v]hstack=inputs=2[r6];[13:v][14:v]hstack=inputs=2[r7];[15:v][16:v]hstack=inputs=2[r8];"
-                    FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6][r7][r8]vstack=inputs=8[matrix];"
-                    FILTER_COMPLEX+="[0:v]scale=1280:-2,setsar=1[hg];"
-                    FILTER_COMPLEX+="[hg][matrix]vstack=inputs=2,split[s0][s1];[s0]palettegen=max_colors=192:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle"
+                    # 组装 3 列，共 6 行
+                    FILTER_COMPLEX+="[v1][v2][v3]hstack=inputs=3[r1];"
+                    FILTER_COMPLEX+="[v4][v5][v6]hstack=inputs=3[r2];"
+                    FILTER_COMPLEX+="[v7][v8][v9]hstack=inputs=3[r3];"
+                    FILTER_COMPLEX+="[v10][v11][v12]hstack=inputs=3[r4];"
+                    FILTER_COMPLEX+="[v13][v14][v15]hstack=inputs=3[r5];"
+                    FILTER_COMPLEX+="[v16][v17][v18]hstack=inputs=3[r6];"
+                    
+                    # 垂直堆叠 6 行
+                    FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6]vstack=inputs=6[matrix];"
+                    
+                    # 拼上 Header (960px)
+                    FILTER_COMPLEX+="[0:v][matrix]vstack=inputs=2,split[s0][s1];"
+                    
+                    # 压缩色深至 128 以极大地减少 GIF 体积
+                    FILTER_COMPLEX+="[s0]palettegen=max_colors=128:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
 
-                    FFMPEG_MERGE_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
+                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-loop" "0" "$PREVIEW_GIF")
 
-                    "${FFMPEG_MERGE_CMD[@]}" >> "$LOG_FILE" 2>&1
+                    "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
                 fi
             fi
-            # =====================================================================
 
             # =====================================================================
-            # 🖼️ 静态 4K.jpg 引擎 (保持不变)
+            # 🖼️ 静态 4K.jpg 引擎 (保持不变，依旧使用 2560px 原生 4K 画质)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ [截图微操] 正在生成静态 4K 海报..."
+                    echo " 🖼️ 正在生成静态 4K 海报..."
                     VID_W=$(echo $V_RES | cut -d'x' -f1); LAYOUT="standard"; SHOTS=16; [ "${VID_W:-0}" -ge 5000 ] && LAYOUT="vr" && SHOTS=8
                     
                     local current_jobs=0
@@ -237,9 +259,9 @@ process_target() {
                     done
 
                     if [ "$LAYOUT" == "vr" ]; then
-                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -i "$HEADER_IMG_STATIC" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     else
-                        ffmpeg -nostdin -y -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -i "$HEADER_IMG_STATIC" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -q:v 3 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     fi
                 fi
             fi
@@ -255,7 +277,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.7 (原生比例防删微操版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.7.1 (3x6黄金矩阵防删微操版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 GIF 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
