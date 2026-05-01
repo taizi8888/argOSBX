@@ -230,20 +230,49 @@
         function closeDetailView() { document.getElementById('detail-modal-overlay').classList.remove('show'); document.getElementById('app-layout').style.filter = 'none'; document.getElementById('detailImage').src = ""; }
         document.getElementById('detail-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeDetailView(); });
 
+        /* =========================================================================
+           🚀 核心修复：前端双重抗封锁抓取引擎 (边缘路由下发 + 本地正则兜底)
+           ========================================================================= */
         async function fetchDmmLink() {
             const keyword = document.getElementById('meta-keyword').value.trim();
             if(!keyword) return alert("提取番号不能为空！");
             const resInput = document.getElementById('meta-result');
-            resInput.value = "⏳ 云端混编并发极速检索中...";
+            resInput.value = "📡 极速检索与推算中...";
+
+            // 1. API 智能请求（动态利用当前选中的探针节点，防止主控机被封）
+            const targetApiUrl = currentActiveNodeUrl ? `${currentActiveNodeUrl}/api/scraper/${encodeURIComponent(keyword)}` : `/api/scraper/${encodeURIComponent(keyword)}`;
+
             try {
-                const res = await fetch(`/api/scraper/${encodeURIComponent(keyword)}`);
+                const res = await fetch(targetApiUrl);
                 const data = await res.json();
-                if(data.link) resInput.value = data.link; else resInput.value = data.error || "未找到匹配链接";
-            } catch(e) { resInput.value = "请求超时或拦截，请使用右侧【浏览器搜索】"; }
+                if(data.link) {
+                    resInput.value = data.link;
+                    return; // 命中则直接结束
+                }
+            } catch(e) {
+                console.warn("API 抓取超时或拦截，触发本地智能推算...", e);
+            }
+
+            // 2. 离线/防封兜底：纯前端正则暴力拼接，识别 VR 专属前缀
+            let kw_clean = keyword.replace(/-/g, "").toLowerCase();
+            let match = kw_clean.match(/([a-z]+)(\d+)/);
+            if (match) {
+                let letters = match[1];
+                let numbers = match[2];
+                let cid = letters + numbers.padStart(5, '0');
+                if (cid.includes('vr')) {
+                    resInput.value = `https://video.dmm.co.jp/av/content/?id=${cid}`;
+                } else {
+                    resInput.value = `https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=${cid}/`;
+                }
+            } else {
+                resInput.value = "检索失败且无法推算，请点击【浏览器搜索】";
+            }
         }
+        /* ========================================================================= */
 
         function openGoogleSearch() { const keyword = document.getElementById('meta-keyword').value.trim(); if(!keyword) return; window.open(`https://www.google.com/search?q=${encodeURIComponent(keyword + ' site:dmm.co.jp')}`, '_blank'); }
-        async function copyDmmLink() { const text = document.getElementById('meta-result').value.trim(); if (!text || text.includes("检索中") || text.includes("未找到") || text.includes("拦截") || text.includes("阻断") || text.includes("未能命中")) return; const btn = document.getElementById('btn-copy-dmm'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.style.background = "#dcfce3"; btn.style.color = "#166534"; btn.style.borderColor = "#86efac"; setTimeout(() => { btn.innerHTML = originalHTML; btn.style.background = "#f1f5f9"; btn.style.color = "#475569"; btn.style.borderColor = "#cbd5e1"; }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
+        async function copyDmmLink() { const text = document.getElementById('meta-result').value.trim(); if (!text || text.includes("检索中") || text.includes("失败") || text.includes("拦截") || text.includes("阻断") || text.includes("指令")) return; const btn = document.getElementById('btn-copy-dmm'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.style.background = "#dcfce3"; btn.style.color = "#166534"; btn.style.borderColor = "#86efac"; setTimeout(() => { btn.innerHTML = originalHTML; btn.style.background = "#f1f5f9"; btn.style.color = "#475569"; btn.style.borderColor = "#cbd5e1"; }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
         async function copyMediaInfo() { const text = document.getElementById('detailMediaInfo').innerText; if (!text || text.includes("跨机读取中...") || text.includes("读取失败")) return; const btn = document.getElementById('btn-copy-mediainfo'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = originalHTML; btn.classList.remove('copied'); }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
         function fallbackCopyTextToClipboard(text, callback) { const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.top = "-999999px"; textArea.style.left = "-999999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { const successful = document.execCommand('copy'); if (successful) callback(); else alert("浏览器阻断，请手动复制"); } catch (err) { alert("浏览器阻断，请手动复制"); } document.body.removeChild(textArea); }
         function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
