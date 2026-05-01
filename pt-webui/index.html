@@ -111,7 +111,7 @@
 <body>
     <div id="app-layout">
         <aside id="sidebar">
-            <div class="sidebar-logo">ArgOSBX <span>V9.2</span></div>
+            <div class="sidebar-logo">ArgOSBX <span>V9.7</span></div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
                 <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点探针</a>
@@ -143,7 +143,44 @@
                 </div>
                 <div id="tab-fleet" class="tab-pane"><div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body"><div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2; min-width: 150px;" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1; min-width: 100px;" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div></div>
                 <div id="tab-qb" class="tab-pane"><div class="card"><div class="card-header">🔵 qBittorrent 远程接管<div id="qb-batch-bar" style="display:none; gap:6px;"><button onclick="qbBatchAction('resume')" style="background:var(--success); padding:6px 12px;">▶ 开始</button><button onclick="qbBatchDelete()" style="background:var(--danger); padding:6px 12px;">🗑️ 删除</button></div></div><div class="card-body"><div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;"><select id="qb-node-select" class="form-input" style="flex:1; min-width:150px;" onchange="loadQbConfig()"></select><input type="text" id="qb-url" class="form-input" style="flex:2; min-width:200px;" placeholder="QB 地址 (如 http://192.168.1.2:8080)"><input type="text" id="qb-user" class="form-input" style="flex:1; min-width:120px;" placeholder="用户名 (选填)"><input type="password" id="qb-pwd" class="form-input" style="flex:1; min-width:120px;" placeholder="密码 (选填)"><button class="btn-view" onclick="connectQb()" style="min-width:100px;">🔗 连接</button></div><div class="qb-table-wrapper" id="qb-table-container" style="display:none;"><table class="qb-table"><thead><tr><th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th><th onclick="setQbSort('name')">名称 <span id="sort-icon-name" class="sort-icon"></span></th><th onclick="setQbSort('size')">大小 <span id="sort-icon-size" class="sort-icon"></span></th><th onclick="setQbSort('progress')">进度 <span id="sort-icon-progress" class="sort-icon"></span></th><th onclick="setQbSort('state')">状态 <span id="sort-icon-state" class="sort-icon"></span></th><th onclick="setQbSort('ratio')">分享率 <span id="sort-icon-ratio" class="sort-icon"></span></th><th onclick="setQbSort('dlspeed')">下行 <span id="sort-icon-dlspeed" class="sort-icon"></span></th><th onclick="setQbSort('upspeed')">上行 <span id="sort-icon-upspeed" class="sort-icon"></span></th><th onclick="setQbSort('added_on')">添加时间 <span id="sort-icon-added_on" class="sort-icon"></span></th><th style="text-align:right;">操作</th></tr></thead><tbody id="qb-table-body"></tbody></table></div></div></div></div>
-                <div id="tab-factory" class="tab-pane"><div class="card"><div class="card-header">🏭 极客种子工厂 Pro</div><div class="card-body"><div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div><div class="pro-form-group"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div><div style="display:flex; flex-wrap:wrap; gap:20px;"><div class="pro-form-group" style="flex:1;"><label>🖼️ 排版引擎</label><select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select></div><div class="pro-form-group" style="flex:1;"><label>📦 分块大小</label><select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select></div></div><div class="pro-form-group" style="margin-top: 15px; display:flex; flex-wrap:wrap; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;"><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; color:#ec4899; font-weight:bold;"><input type="checkbox" id="pro-enable-gif" checked style="accent-color:#ec4899; transform:scale(1.2);"> 🎬 自动生成 2x8 动态 GIF</label><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label><label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成静态海报</label></div><button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button></div></div></div>
+                <div id="tab-factory" class="tab-pane">
+                    <div class="card">
+                        <div class="card-header">🏭 极客种子工厂 Pro</div>
+                        <div class="card-body">
+                            <div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div>
+                            <div class="pro-form-group" style="margin-top: 15px;"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div>
+                            
+                            <div style="display:flex; flex-wrap:wrap; gap:20px; margin-top: 15px;">
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>🖼️ 排版引擎</label>
+                                    <select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select>
+                                </div>
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>📦 分块大小</label>
+                                    <select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select>
+                                </div>
+                                <!-- 🚀 V9.7 终极融合：微操指挥舱回归 -->
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>🎯 执行模式 (微操)</label>
+                                    <select id="pro-action" class="form-input" style="color: var(--primary); font-weight: bold;">
+                                        <option value="">⚙️ 完整全自动流水线</option>
+                                        <option value="--only-torrent">📦 仅制作种子 (.torrent)</option>
+                                        <option value="--only-info">📄 仅提取 MediaInfo</option>
+                                        <option value="--only-img">🖼️ 仅生成 4K 静态海报</option>
+                                        <option value="--only-gif">🎬 仅渲染动态 GIF</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="pro-form-group" style="margin-top: 15px; display:flex; flex-wrap:wrap; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; color:#ec4899; font-weight:bold;"><input type="checkbox" id="pro-enable-gif" checked style="accent-color:#ec4899; transform:scale(1.2);"> 🎬 自动生成 2x8 动态 GIF</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成静态海报</label>
+                            </div>
+                            <button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button>
+                        </div>
+                    </div>
+                </div>
                 <div id="tab-logs" class="tab-pane"><div class="card" style="height: calc(100vh - 120px); display: flex; flex-direction: column;"><div class="card-header">📝 实时日志审计<div style="display: flex; gap: 15px;"><label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="auto-scroll-cb" checked> 自动追踪</label><button class="btn-action" style="background:var(--danger); padding: 6px 12px;" onclick="clearLogs()">🗑️ 清空</button></div></div><div class="card-body" style="flex: 1; padding: 0; background: #0f172a; overflow: hidden;"><pre id="log-container" style="margin: 0; padding: 20px; color: #a5b4fc; font-family: Consolas, monospace; font-size: 13px; height: 100%; overflow-y: auto; white-space: pre-wrap;"></pre></div></div></div>
             </div>
         </main>
@@ -240,8 +277,6 @@
             resInput.value = "📡 主控机(Master)穿透检索中...";
 
             // 1. API 智能请求（⚠️ 核心修正：绝对锁定使用相对路径！）
-            // 无论当前你在看哪个算力节点的资源，抓取网络请求必须、只能发送给主控机。
-            // 因为只有主控机的 app.py 配置了 PROXY_HOST 并且负责网络穿透。
             const targetApiUrl = `/api/scraper/${encodeURIComponent(keyword)}`;
 
             try {
@@ -309,6 +344,7 @@
         function updateProDropdown() { const s = document.getElementById("pro-folder"), cur = s.value; s.innerHTML = '<option value="">-- 选择目标目录 --</option>'; currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`); if(cur) s.value = cur; }
         function fillProForm(url, folder) { document.getElementById("pro-folder").value = `${url}|${folder}`; const cbT = document.getElementById("pro-overwrite-torrent"); if (cbT) cbT.checked = false; const cbI = document.getElementById("pro-overwrite-image"); if (cbI) cbI.checked = false; switchTab('factory'); }
 
+        /* 🚀 核心修复：注入 action 微操参数并下发给后端 */
         async function submitProTask() {
             const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
             const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
@@ -316,9 +352,20 @@
             const cbT = document.getElementById("pro-overwrite-torrent"); const ot = cbT ? cbT.checked : false;
             const cbI = document.getElementById("pro-overwrite-image"); const oi = cbI ? cbI.checked : false;
             const cbG = document.getElementById("pro-enable-gif"); const eg = cbG ? cbG.checked : true;
+            
+            // 获取微操模式的值
+            const actionType = document.getElementById("pro-action") ? document.getElementById("pro-action").value : "";
+
             if(document.getElementById("pro-save-tracker") && document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
-            alert(`任务指令已下发！`); switchTab('dashboard'); 
-            await fetch(`${url}/api/run/folder`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ folder, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi, enable_gif: eg }) });
+            
+            alert(`任务指令已下发！模式: ${actionType ? actionType : "完整流水线"}`); 
+            switchTab('dashboard'); 
+            
+            await fetch(`${url}/api/run/folder`, { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({ folder, action: actionType, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi, enable_gif: eg }) 
+            });
             fetchAllNodesFolders();
         }
         
