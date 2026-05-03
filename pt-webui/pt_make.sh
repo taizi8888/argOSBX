@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.4 (终极极速版: 受控并发提速 + WebP 超强瘦身)
+# 描述: PT 制种引擎 V9.8.5 (极限狂飙版: WebP行级多线程 + 极限降算力参数)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -139,11 +139,11 @@ process_target() {
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (受控并发提速 + 2K 画质)
+            # 🎬 动态 WebP 引擎 (引入行级多线程 -row-mt 1 暴力提速)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在受控并发切分素材 (降压提速模式: 2560px 宽度)..."
+                    echo " 🎬 [WebP引擎] 正在受控并发切分素材 (极速狂飙模式)..."
                     
                     local IS_VR=0
                     if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; fi
@@ -154,7 +154,6 @@ process_target() {
                     
                     mkdir -p "$TMP_IMG_DIR/slices"
 
-                    # 🚀 提速核心：动图切片并发提取！每次 3 个线程同时切，既不爆内存，又快了 3 倍！
                     local current_jobs_gif=0
                     for (( i=1; i<=SHOTS; i++ )); do
                         local ST=$(( INTERVAL * i ))
@@ -175,18 +174,16 @@ process_target() {
                             
                             local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                             
-                            ffmpeg -nostdin -y -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=30:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 6 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=30:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 6 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
-                        # 动图并发池控制：限制为 3
                         if (( current_jobs_gif >= 3 )); then wait; current_jobs_gif=0; fi
                     done
                     wait
 
-                    echo "    -> 切片组装：进行多核全速 WebP 编码 (-threads 0 -compression_level 3)..."
+                    echo "    -> 切片组装：应用行级多线程 (-row-mt 1) 与极限压缩配置..."
                     
-                    # 🚀 提速核心：解除合并时的线程限制 (-threads 0)，让系统自动分配核心
                     local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning")
                     local FILTER_COMPLEX=""
 
@@ -202,19 +199,18 @@ process_target() {
                     FILTER_COMPLEX+="[13:v][14:v][15:v]hstack=inputs=3:shortest=1[r5];"
                     FILTER_COMPLEX+="[16:v][17:v][18:v]hstack=inputs=3:shortest=1[r6];"
                     
-                    # 裁切多余的 2px 以对齐 2560px 的 Header
                     FILTER_COMPLEX+="[r1][r2][r3][r4][r5][r6]vstack=inputs=6:shortest=1,crop=2560:ih:0:0[matrix];"
                     FILTER_COMPLEX+="[0:v][matrix]vstack=inputs=2[out]"
                     
-                    # 使用 compression_level 3 平衡极速与体积，让动图生成时间重回巅峰
-                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "80" "-compression_level" "3" "-preset" "default" "$PREVIEW_WEBP")
+                    # 🚀 极限提速核心：-q:v 75 保持画质，-compression_level 1 最低计算量，-row-mt 1 开启 WebP 特有行级并发
+                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "1" "-row-mt" "1" "$PREVIEW_WEBP")
 
                     "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
                 fi
             fi
 
             # =====================================================================
-            # 🖼️ 静态 2K WebP 引擎 (并发恢复至 3 防降速)
+            # 🖼️ 静态 2K WebP 引擎 (同样引入 -row-mt 1 极速合成)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
@@ -237,13 +233,12 @@ process_target() {
 
                         (
                             if [ "$LAYOUT" == "vr" ]; then
-                                ffmpeg -nostdin -y -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=2560:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=50:x=30:y=h-th-30:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=2560:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=50:x=30:y=h-th-30:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                             else
-                                ffmpeg -nostdin -y -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=1280:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=40:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=1280:-2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=40:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s$i.jpg" >> "$LOG_FILE" 2>&1
                             fi
                         ) &
                         
-                        # 🚀 恢复静态图并发数为 3，夺回失去的 33% 性能！(静态图提取极其省内存)
                         current_jobs=$((current_jobs + 1)); if (( current_jobs >= 3 )); then wait; current_jobs=0; fi
                     done; wait
 
@@ -253,11 +248,11 @@ process_target() {
                         fi
                     done
 
-                    # 静态 WebP 合成同样加入提速指令，-threads 0 解除核心封印
+                    # 🚀 同步加入 -row-mt 1 与 -compression_level 1，静态图生成也将快如闪电
                     if [ "$LAYOUT" == "vr" ]; then
-                        ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -c:v libwebp -q:v 95 -compression_level 3 -preset default "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -filter_complex "vstack=inputs=9" -c:v libwebp -q:v 90 -compression_level 1 -row-mt 1 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     else
-                        ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -c:v libwebp -q:v 95 -compression_level 3 -preset default "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                        ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" -i "$TMP_IMG_DIR/s0.jpg" -i "$TMP_IMG_DIR/s1.jpg" -i "$TMP_IMG_DIR/s2.jpg" -i "$TMP_IMG_DIR/s3.jpg" -i "$TMP_IMG_DIR/s4.jpg" -i "$TMP_IMG_DIR/s5.jpg" -i "$TMP_IMG_DIR/s6.jpg" -i "$TMP_IMG_DIR/s7.jpg" -i "$TMP_IMG_DIR/s8.jpg" -i "$TMP_IMG_DIR/s9.jpg" -i "$TMP_IMG_DIR/s10.jpg" -i "$TMP_IMG_DIR/s11.jpg" -i "$TMP_IMG_DIR/s12.jpg" -i "$TMP_IMG_DIR/s13.jpg" -i "$TMP_IMG_DIR/s14.jpg" -i "$TMP_IMG_DIR/s15.jpg" -filter_complex "[1:v][2:v]hstack=inputs=2[r0];[3:v][4:v]hstack=inputs=2[r1];[5:v][6:v]hstack=inputs=2[r2];[7:v][8:v]hstack=inputs=2[r3];[9:v][10:v]hstack=inputs=2[r4];[11:v][12:v]hstack=inputs=2[r5];[13:v][14:v]hstack=inputs=2[r6];[15:v][16:v]hstack=inputs=2[r7];[r0][r1][r2][r3][r4][r5][r6][r7]vstack=inputs=8[g];[0:v][g]vstack=inputs=2" -c:v libwebp -q:v 90 -compression_level 1 -row-mt 1 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                     fi
                 fi
             fi
@@ -273,7 +268,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.4 (2K低压极速版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.5 (多核狂飙版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
