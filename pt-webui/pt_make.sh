@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.9 (全动态矩阵版: VR智能 4x3 提速 + 普通 5x3)
+# 描述: PT 制种引擎 V9.8.10 (全动态矩阵 + 单行极简修复版)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -133,9 +133,6 @@ process_target() {
             local V_W=$(echo $V_RES | cut -d'x' -f1)
             local V_H=$(echo $V_RES | cut -d'x' -f2)
             
-            # =====================================================================
-            # 🤖 全动态矩阵配置器 (Dynamic Matrix Generator)
-            # =====================================================================
             local IS_VR=0
             local COLS=5
             local ROWS=3
@@ -143,7 +140,6 @@ process_target() {
             if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
                 IS_VR=1
                 V_W=$((V_W / 2))
-                # 🚀 VR 专属阵列：4列 x 3行 (12格) 提速保画质！
                 COLS=4
             fi
 
@@ -151,18 +147,19 @@ process_target() {
             local TOTAL_W=3840
             local TILE_W=$(( TOTAL_W / COLS ))
             local TILE_H=$(( V_H * TILE_W / V_W ))
-            TILE_H=$(( TILE_H / 2 * 2 )) # FFmpeg 偶数防呆
+            TILE_H=$(( TILE_H / 2 * 2 )) 
 
             local HEADER_H=100 
             local VOL_INFO=""; [ ${#VIDEO_FILES[@]} -gt 1 ] && VOL_INFO=" [共${#VIDEO_FILES[@]}卷]"
             
-            echo "📄 $D_NAME$VOL_INFO   |   💾 $FILE_SIZE_GB GiB   |   ⏱ $FORMATTED_DUR   |   🎬 $V_CODEC ($V_RES)   |   🎵 $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
+            # 🚀 核心修复点：去掉了 Emoji，使用纯文字，字体 100% 支持无乱码！
+            echo "文件名: $D_NAME$VOL_INFO   |   体积: $FILE_SIZE_GB GiB   |   时长: $FORMATTED_DUR   |   影像: $V_CODEC ($V_RES)   |   音频: $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
             
             HEADER_IMG="$TMP_IMG_DIR/header.jpg"
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (智能矩阵版)
+            # 🎬 动态 WebP 引擎 
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
@@ -208,7 +205,6 @@ process_target() {
                     
                     local FILTER_COMPLEX=""
                     local row_idx=1
-                    # 🚀 算法升级：循环动态生成 hstack (横向拼接)
                     for (( r=0; r<ROWS; r++ )); do
                         local row_inputs=""
                         for (( c=1; c<=COLS; c++ )); do
@@ -219,7 +215,6 @@ process_target() {
                         row_idx=$((row_idx + 1))
                     done
                     
-                    # 🚀 算法升级：循环动态生成 vstack (纵向拼接)
                     local vstack_inputs=""
                     for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
                     FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
@@ -231,7 +226,7 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (智能矩阵版)
+            # 🖼️ 静态 4K WebP 引擎
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
@@ -304,7 +299,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.9 (全动态智能矩阵版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.10 (全动态矩阵 + 单行极简修复版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
