@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.7 (终极修复: VR静图强制16:9对齐 + 动图2K/静图4K 黄金5x3阵列)
+# 描述: PT 制种引擎 V9.8.7 (无极自适应版: 5x3 黄金阵列 + 0黑边完美适配)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -134,24 +134,41 @@ process_target() {
             echo "Video: $V_CODEC, $V_RES" > "$TMP_IMG_DIR/h3.txt"
             echo "Audio: $A_CODEC" > "$TMP_IMG_DIR/h4.txt"
             
-            # 分别生成 2K (动图用) 和 4K (静图用) Header
-            HEADER_IMG_WEBP="$TMP_IMG_DIR/header_webp.jpg"
-            HEADER_IMG_STATIC="$TMP_IMG_DIR/header_static.jpg"
+            # =====================================================================
+            # 🤖 核心逻辑：读取视频真实比例，全量自适应计算宽高，彻底消灭黑边！
+            # =====================================================================
+            local V_W=$(echo $V_RES | cut -d'x' -f1)
+            local V_H=$(echo $V_RES | cut -d'x' -f2)
+            local IS_VR=0
+            if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
+                IS_VR=1
+                V_W=$((V_W / 2)) # VR 视频取单眼宽度计算比例
+            fi
+
+            # 设定单格宽度为 768px (横向5格 = 3840px)
+            local TILE_W=768
+            # 智能等比例推算单格高度
+            local TILE_H=$(( V_H * TILE_W / V_W ))
+            # 确保高度为偶数（FFmpeg 的强迫症要求）
+            TILE_H=$(( TILE_H / 2 * 2 ))
             
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=2560x280 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=38:x=30:y=20,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=38:x=30:y=85,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=38:x=30:y=150,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=38:x=30:y=215" "$HEADER_IMG_WEBP" >> "$LOG_FILE" 2>&1
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=3840x350 -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=50:x=40:y=30,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=50:x=40:y=110,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=50:x=40:y=190,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=50:x=40:y=270" "$HEADER_IMG_STATIC" >> "$LOG_FILE" 2>&1
+            local TOTAL_W=$(( TILE_W * 5 ))
+            local HEADER_H=320 # 适配头图高度
+            
+            # 根据计算出的完美总宽度，动态生成 Header (绝不差1像素)
+            HEADER_IMG="$TMP_IMG_DIR/header.jpg"
+            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h1.txt':fontcolor=black:fontsize=50:x=40:y=30,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h2.txt':fontcolor=black:fontsize=50:x=40:y=100,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h3.txt':fontcolor=black:fontsize=50:x=40:y=170,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h4.txt':fontcolor=black:fontsize=50:x=40:y=240" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
+
+            # 统一采用 5x3 阵列 (15格)
+            local SHOTS=15
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (2K - 2560px，5x3 矩阵，极速 Level 0)
+            # 🎬 动态 WebP 引擎 (自适应 5x3 无黑边)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在生成 2K 动态图 (5x3阵列, 极速编码)..."
+                    echo " 🎬 [WebP引擎] 正在受控并发提取动图帧 (自适应无黑边 5x3矩阵)..."
                     
-                    local IS_VR=0
-                    if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; fi
-
-                    local SHOTS=15
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
                     
@@ -172,24 +189,27 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
 
                         (
-                            # 🚀 宽度设定为 512px，高度严格锁定为 288px (16:9)，完美填满 2560px 宽度
-                            local CROP_SCALE_FILTER="scale=512:288:force_original_aspect_ratio=decrease,pad=512:288:(ow-iw)/2:(oh-ih)/2"
-                            if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=512:288:force_original_aspect_ratio=decrease,pad=512:288:(ow-iw)/2:(oh-ih)/2"; fi
+                            # 自适应缩放，彻底抛弃死板的 crop
+                            local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H},setsar=1"
+                            if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H},setsar=1"; fi
                             
                             local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                             
-                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=24:x=10:y=h-th-10:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 6 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=6,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 6 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
+                        # 动图并发池控制 (维持3核心平稳)
                         if (( current_jobs_gif >= 3 )); then wait; current_jobs_gif=0; fi
                     done
                     wait
+
+                    echo "    -> 切片组装：执行 Level 0 极速合并..."
                     
                     local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning")
                     local FILTER_COMPLEX=""
 
-                    FFMPEG_CMD+=("-i" "$HEADER_IMG_WEBP")
+                    FFMPEG_CMD+=("-i" "$HEADER_IMG")
                     for (( i=1; i<=SHOTS; i++ )); do
                         FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4")
                     done
@@ -198,10 +218,12 @@ process_target() {
                     FILTER_COMPLEX+="[1:v][2:v][3:v][4:v][5:v]hstack=inputs=5:shortest=1[r1];"
                     FILTER_COMPLEX+="[6:v][7:v][8:v][9:v][10:v]hstack=inputs=5:shortest=1[r2];"
                     FILTER_COMPLEX+="[11:v][12:v][13:v][14:v][15:v]hstack=inputs=5:shortest=1[r3];"
-                    FILTER_COMPLEX+="[r1][r2][r3]vstack=inputs=3:shortest=1,crop=2560:ih:0:0[matrix];"
+                    
+                    # 去除 crop 强切逻辑，让其自然垂直拼接，彻底消除黑边
+                    FILTER_COMPLEX+="[r1][r2][r3]vstack=inputs=3:shortest=1[matrix];"
                     FILTER_COMPLEX+="[0:v][matrix]vstack=inputs=2[out]"
                     
-                    # 使用 -compression_level 0 极速编码
+                    # -compression_level 0 最速出图
                     FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
 
                     "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
@@ -209,18 +231,13 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (完美解决 VR/异常比例报错，统一 5x3 矩阵)
+            # 🖼️ 静态 4K WebP 引擎 (自适应 5x3 无黑边)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ 正在生成静态 4K (3840px) WebP 海报..."
+                    echo " 🖼️ 正在生成自适应 4K WebP 静态海报..."
                     
-                    local IS_VR=0
-                    if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; fi
-
-                    local SHOTS=15
                     local current_jobs=0
-                    
                     for (( i=1; i<=SHOTS; i++ )); do
                         local ST=$(( TOTAL_DUR * (5 + (i-1) * 90 / (SHOTS-1)) / 100 ))
                         local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
@@ -235,29 +252,30 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                         (
-                            # 🚀 绝杀报错！强制使用 pad 滤镜，让所有提取的静态图片严格保持 768x432，彻底消除 VR 和异形比例导致的 hstack 高度不匹配崩溃！
-                            local CROP_SCALE_FILTER="scale=768:432:force_original_aspect_ratio=decrease,pad=768:432:(ow-iw)/2:(oh-ih)/2"
-                            if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=768:432:force_original_aspect_ratio=decrease,pad=768:432:(ow-iw)/2:(oh-ih)/2"; fi
-                            
-                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "$CROP_SCALE_FILTER,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                            # 自适应宽高等比缩放
+                            if [ "$IS_VR" -eq 1 ]; then
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                            else
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                            fi
                         ) &
                         
                         current_jobs=$((current_jobs + 1)); if (( current_jobs >= 3 )); then wait; current_jobs=0; fi
                     done; wait
 
-                    # 万一某张图提取失败，使用绝对 768x432 尺寸的黑屏占位
+                    # 智能填补失败帧，严格匹配动态计算出的 TILE_W 和 TILE_H，绝不产生偏差
                     for (( i=1; i<=SHOTS; i++ )); do
                         if [ ! -f "$TMP_IMG_DIR/s_$i.jpg" ]; then
-                            ffmpeg -nostdin -f lavfi -i color=c=black:s=768x432 -vframes 1 -y "$TMP_IMG_DIR/s_$i.jpg" >/dev/null 2>&1
+                            ffmpeg -nostdin -f lavfi -i color=c=black:s=${TILE_W}x${TILE_H} -vframes 1 -y "$TMP_IMG_DIR/s_$i.jpg" >/dev/null 2>&1
                         fi
                     done
 
-                    # 🚀 同步采用 5x3 的 15格矩阵拼装 4K 海报，极速且永不崩溃
-                    ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG_STATIC" \
+                    # 所有模式统一采用 5x3 的 15格无损矩阵拼装
+                    ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" \
                     -i "$TMP_IMG_DIR/s_1.jpg" -i "$TMP_IMG_DIR/s_2.jpg" -i "$TMP_IMG_DIR/s_3.jpg" -i "$TMP_IMG_DIR/s_4.jpg" -i "$TMP_IMG_DIR/s_5.jpg" \
                     -i "$TMP_IMG_DIR/s_6.jpg" -i "$TMP_IMG_DIR/s_7.jpg" -i "$TMP_IMG_DIR/s_8.jpg" -i "$TMP_IMG_DIR/s_9.jpg" -i "$TMP_IMG_DIR/s_10.jpg" \
                     -i "$TMP_IMG_DIR/s_11.jpg" -i "$TMP_IMG_DIR/s_12.jpg" -i "$TMP_IMG_DIR/s_13.jpg" -i "$TMP_IMG_DIR/s_14.jpg" -i "$TMP_IMG_DIR/s_15.jpg" \
-                    -filter_complex "[1:v][2:v][3:v][4:v][5:v]hstack=inputs=5[r1];[6:v][7:v][8:v][9:v][10:v]hstack=inputs=5[r2];[11:v][12:v][13:v][14:v][15:v]hstack=inputs=5[r3];[r1][r2][r3]vstack=inputs=3,crop=3840:ih:0:0[matrix];[0:v][matrix]vstack=inputs=2" \
+                    -filter_complex "[1:v][2:v][3:v][4:v][5:v]hstack=inputs=5[r1];[6:v][7:v][8:v][9:v][10:v]hstack=inputs=5[r2];[11:v][12:v][13:v][14:v][15:v]hstack=inputs=5[r3];[r1][r2][r3]vstack=inputs=3[matrix];[0:v][matrix]vstack=inputs=2" \
                     -c:v libwebp -q:v 90 -compression_level 0 -row-mt 1 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
                 fi
             fi
@@ -273,7 +291,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.7 (极限防崩+动2K/静4K版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.7 (无极自适应阵列版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
