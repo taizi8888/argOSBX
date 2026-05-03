@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.8 (单行极简美学版: 5x3 自适应 + 顶部信息横幅化)
+# 描述: PT 制种引擎 V9.8.9 (全动态矩阵版: VR智能 4x3 提速 + 普通 5x3)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -132,36 +132,41 @@ process_target() {
             
             local V_W=$(echo $V_RES | cut -d'x' -f1)
             local V_H=$(echo $V_RES | cut -d'x' -f2)
+            
+            # =====================================================================
+            # 🤖 全动态矩阵配置器 (Dynamic Matrix Generator)
+            # =====================================================================
             local IS_VR=0
+            local COLS=5
+            local ROWS=3
+            
             if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
                 IS_VR=1
-                V_W=$((V_W / 2)) 
+                V_W=$((V_W / 2))
+                # 🚀 VR 专属阵列：4列 x 3行 (12格) 提速保画质！
+                COLS=4
             fi
 
-            local TILE_W=768
+            local SHOTS=$(( COLS * ROWS ))
+            local TOTAL_W=3840
+            local TILE_W=$(( TOTAL_W / COLS ))
             local TILE_H=$(( V_H * TILE_W / V_W ))
-            TILE_H=$(( TILE_H / 2 * 2 ))
-            
-            local TOTAL_W=$(( TILE_W * 5 ))
-            
-            # 🚀 视觉冲击重构：将 4 行文字合并为 1 行极简横幅，高度降至 100px！
+            TILE_H=$(( TILE_H / 2 * 2 )) # FFmpeg 偶数防呆
+
             local HEADER_H=100 
             local VOL_INFO=""; [ ${#VIDEO_FILES[@]} -gt 1 ] && VOL_INFO=" [共${#VIDEO_FILES[@]}卷]"
             
             echo "📄 $D_NAME$VOL_INFO   |   💾 $FILE_SIZE_GB GiB   |   ⏱ $FORMATTED_DUR   |   🎬 $V_CODEC ($V_RES)   |   🎵 $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
             
             HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-            # 垂直居中对齐参数：y=(h-text_h)/2
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
-            local SHOTS=15
-
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (自适应 5x3 无黑边)
+            # 🎬 动态 WebP 引擎 (智能矩阵版)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在受控并发提取动图帧 (自适应无黑边 5x3矩阵)..."
+                    echo " 🎬 [WebP引擎] 正在受控并发提取动图帧 (${COLS}x${ROWS}智能阵列)..."
                     
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
@@ -196,22 +201,28 @@ process_target() {
                     done
                     wait
 
-                    echo "    -> 切片组装：执行 Level 0 极速合并..."
+                    echo "    -> 切片组装：动态合成全矩阵..."
                     
-                    local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning")
+                    local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning" "-i" "$HEADER_IMG")
+                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4"); done
+                    
                     local FILTER_COMPLEX=""
-
-                    FFMPEG_CMD+=("-i" "$HEADER_IMG")
-                    for (( i=1; i<=SHOTS; i++ )); do
-                        FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4")
+                    local row_idx=1
+                    # 🚀 算法升级：循环动态生成 hstack (横向拼接)
+                    for (( r=0; r<ROWS; r++ )); do
+                        local row_inputs=""
+                        for (( c=1; c<=COLS; c++ )); do
+                            local idx=$(( r * COLS + c ))
+                            row_inputs+="[${idx}:v]"
+                        done
+                        FILTER_COMPLEX+="${row_inputs}hstack=inputs=${COLS}:shortest=1[r${row_idx}];"
+                        row_idx=$((row_idx + 1))
                     done
                     
-                    FILTER_COMPLEX+="[1:v][2:v][3:v][4:v][5:v]hstack=inputs=5:shortest=1[r1];"
-                    FILTER_COMPLEX+="[6:v][7:v][8:v][9:v][10:v]hstack=inputs=5:shortest=1[r2];"
-                    FILTER_COMPLEX+="[11:v][12:v][13:v][14:v][15:v]hstack=inputs=5:shortest=1[r3];"
-                    
-                    FILTER_COMPLEX+="[r1][r2][r3]vstack=inputs=3:shortest=1[matrix];"
-                    FILTER_COMPLEX+="[0:v][matrix]vstack=inputs=2[out]"
+                    # 🚀 算法升级：循环动态生成 vstack (纵向拼接)
+                    local vstack_inputs=""
+                    for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
+                    FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
                     
                     FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
 
@@ -220,11 +231,11 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (自适应 5x3 无黑边)
+            # 🖼️ 静态 4K WebP 引擎 (智能矩阵版)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ 正在生成自适应 4K WebP 静态海报..."
+                    echo " 🖼️ 正在生成自适应 4K WebP 静态海报 (${COLS}x${ROWS}阵列)..."
                     
                     local current_jobs=0
                     for (( i=1; i<=SHOTS; i++ )); do
@@ -257,12 +268,28 @@ process_target() {
                         fi
                     done
 
-                    ffmpeg -nostdin -y -threads 0 -i "$HEADER_IMG" \
-                    -i "$TMP_IMG_DIR/s_1.jpg" -i "$TMP_IMG_DIR/s_2.jpg" -i "$TMP_IMG_DIR/s_3.jpg" -i "$TMP_IMG_DIR/s_4.jpg" -i "$TMP_IMG_DIR/s_5.jpg" \
-                    -i "$TMP_IMG_DIR/s_6.jpg" -i "$TMP_IMG_DIR/s_7.jpg" -i "$TMP_IMG_DIR/s_8.jpg" -i "$TMP_IMG_DIR/s_9.jpg" -i "$TMP_IMG_DIR/s_10.jpg" \
-                    -i "$TMP_IMG_DIR/s_11.jpg" -i "$TMP_IMG_DIR/s_12.jpg" -i "$TMP_IMG_DIR/s_13.jpg" -i "$TMP_IMG_DIR/s_14.jpg" -i "$TMP_IMG_DIR/s_15.jpg" \
-                    -filter_complex "[1:v][2:v][3:v][4:v][5:v]hstack=inputs=5[r1];[6:v][7:v][8:v][9:v][10:v]hstack=inputs=5[r2];[11:v][12:v][13:v][14:v][15:v]hstack=inputs=5[r3];[r1][r2][r3]vstack=inputs=3[matrix];[0:v][matrix]vstack=inputs=2" \
-                    -c:v libwebp -q:v 90 -compression_level 0 -row-mt 1 "$STITCHED_IMG" >> "$LOG_FILE" 2>&1
+                    local FFMPEG_CMD_IMG=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-i" "$HEADER_IMG")
+                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD_IMG+=("-i" "$TMP_IMG_DIR/s_$i.jpg"); done
+                    
+                    local FILTER_COMPLEX_IMG=""
+                    local row_idx=1
+                    for (( r=0; r<ROWS; r++ )); do
+                        local row_inputs=""
+                        for (( c=1; c<=COLS; c++ )); do
+                            local idx=$(( r * COLS + c ))
+                            row_inputs+="[${idx}:v]"
+                        done
+                        FILTER_COMPLEX_IMG+="${row_inputs}hstack=inputs=${COLS}[r${row_idx}];"
+                        row_idx=$((row_idx + 1))
+                    done
+                    
+                    local vstack_inputs=""
+                    for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
+                    FILTER_COMPLEX_IMG+="${vstack_inputs}vstack=inputs=${ROWS}[matrix];[0:v][matrix]vstack=inputs=2"
+
+                    FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-q:v" "90" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
+                    
+                    "${FFMPEG_CMD_IMG[@]}" >> "$LOG_FILE" 2>&1
                 fi
             fi
             echo " ✅ 指令微操已执行完毕！" && rm -f "$LOG_FILE"
@@ -277,7 +304,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.8 (单行极简美学版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.9 (全动态智能矩阵版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
