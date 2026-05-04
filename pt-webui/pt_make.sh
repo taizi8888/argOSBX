@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.15 (极速回调版: 斩断深度压缩 + 解锁最高并发)
+# 描述: PT 制种引擎 V9.8.16 (8K巨兽斩杀版: 软解黑魔法 + 集中并发)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,7 +30,6 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
-# 极限优化 1：使用内存盘 (/dev/shm) 零等待 IO
 if [ -d "/dev/shm" ]; then
     TMP_ROOT="/dev/shm/pt_make_$(date +%s)"
 else
@@ -165,11 +164,11 @@ process_target() {
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (移除重度压榨，回归极速合并)
+            # 🎬 动态 WebP 引擎 (8K软解抗压版)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在受控并发提取动图 (启用物理 2 秒大跨度延时)..."
+                    echo " 🎬 [WebP引擎] 正在受控并发提取动图 (启用 -skip_loop_filter all 解码黑魔法)..."
                     
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
@@ -191,18 +190,19 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
 
                         (
-                            # 🚀 降压提速核心 1：升级至 fast_bilinear
                             local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"
                             if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"; fi
                             
                             local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                             
-                            # 🚀 降压提速核心 2：严苛锁定 0:V:0 排除一切无用杂质轨
-                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                            # 🚀 降压提速核心 1：加入 -skip_loop_filter all，直接抛弃 HEVC 软解最耗时的计算！
+                            # 🚀 降压提速核心 2：删除了 -threads 1，允许软解充分利用多核心。
+                            ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
-                        if (( current_jobs_gif >= 3 )); then wait; current_jobs_gif=0; fi
+                        # 🚀 针对 8K 软解回调并发数：3核机器跑 2 个不限线程的解码任务最有效率，超了反而变慢
+                        if (( current_jobs_gif >= 2 )); then wait; current_jobs_gif=0; fi
                     done
                     wait
 
@@ -227,7 +227,6 @@ process_target() {
                     for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
                     FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
                     
-                    # 🚀 斩断拖慢速度的 -preset picture，回归快糙猛合并！
                     FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
 
                     "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
@@ -235,7 +234,7 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (极大提升并发效率)
+            # 🖼️ 静态 4K WebP 引擎 (8K软解抗压版)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
@@ -256,16 +255,15 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                         (
-                            # 🚀 降压提速核心：同样锁定 0:V:0，采用 fast_bilinear
+                            # 🚀 同步添加 -skip_loop_filter all 和解除线程束缚
                             if [ "$IS_VR" -eq 1 ]; then
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                             else
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                             fi
                         ) &
                         
-                        # 🚀 性能解放锁：由于纯截图极其省资源且为纯磁盘IO，将并发数强拉至 5！消除长尾等待
-                        current_jobs=$((current_jobs + 1)); if (( current_jobs >= 5 )); then wait; current_jobs=0; fi
+                        current_jobs=$((current_jobs + 1)); if (( current_jobs >= 2 )); then wait; current_jobs=0; fi
                     done; wait
 
                     for (( i=1; i<=SHOTS; i++ )); do
@@ -293,7 +291,6 @@ process_target() {
                     for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
                     FILTER_COMPLEX_IMG+="${vstack_inputs}vstack=inputs=${ROWS}[matrix];[0:v][matrix]vstack=inputs=2"
 
-                    # 🚀 斩断重度分析，恢复默认速度参数
                     FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-q:v" "85" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
                     
                     "${FFMPEG_CMD_IMG[@]}" >> "$LOG_FILE" 2>&1
@@ -311,7 +308,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.15 (极速回调防卡版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.16 (8K巨兽斩杀版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
