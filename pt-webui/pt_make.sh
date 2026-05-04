@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.17 (8K终极克星: 算力聚拢全核单推版)
+# 描述: PT 制种引擎 V9.8.18 (终极空间换时间: 零CPU压缩 + RawVideo全开)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,6 +30,7 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
+# 继续坚守内存盘，这是“空间换时间”的物理基础
 if [ -d "/dev/shm" ]; then
     TMP_ROOT="/dev/shm/pt_make_$(date +%s)"
 else
@@ -160,15 +161,16 @@ process_target() {
             
             echo "文件名: $D_NAME$VOL_INFO   |   体积: $FILE_SIZE_GB GiB   |   时长: $FORMATTED_DUR   |   影像: $V_CODEC ($V_RES)   |   音频: $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
             
-            HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
+            # 🚀 降维打击 1：头部海报改为直接输出 BMP 无损位图，0% CPU 压缩消耗
+            HEADER_IMG="$TMP_IMG_DIR/header.bmp"
+            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" -c:v bmp "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (8K算力聚拢单推版)
+            # 🎬 动态 WebP 引擎 (RawVideo 零压缩全速版)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在聚拢全核算力提取动图 (解除并发，集中应对8K巨兽)..."
+                    echo " 🎬 [WebP引擎] 正在用【空间换时间】策略暴降 CPU 负担 (直通 RawVideo)..."
                     
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
@@ -193,22 +195,23 @@ process_target() {
                             local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"
                             if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"; fi
                             
-                            local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
+                            # 🚀 降维打击 2：舍弃 mp4，改存为 avi
+                            local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.avi"
                             
-                            # 🚀 去除并发抢夺，让 3 核心全职服务于当前这一个切片！
-                            ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                            # 🚀 核心逆转：-c:v rawvideo 彻底消除 H264 编码耗时，CPU 只用来解 8K！
+                            ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v rawvideo -pix_fmt yuv420p -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
-                        # 🚀 降维打击核心：彻底干掉并发！强制为 1，逐个处决 8K 软解，杜绝缓存灾难。
                         if (( current_jobs_gif >= 1 )); then wait; current_jobs_gif=0; fi
                     done
                     wait
 
-                    echo "    -> 切片组装：执行多核全速 WebP 编码..."
+                    echo "    -> 切片组装：通过内存盘无损高速合并..."
                     
                     local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning" "-i" "$HEADER_IMG")
-                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.mp4"); done
+                    # 组装时读取庞大但免解压的 AVI
+                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.avi"); done
                     
                     local FILTER_COMPLEX=""
                     local row_idx=1
@@ -233,11 +236,11 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (8K算力聚拢单推版)
+            # 🖼️ 静态 4K WebP 引擎 (BMP无损极速提取)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ 正在聚拢全核算力提取静态海报 (${COLS}x${ROWS}阵列)..."
+                    echo " 🖼️ 正在聚拢全核算力提取静态海报 (BMP直通不压缩)..."
                     
                     local current_jobs=0
                     for (( i=1; i<=SHOTS; i++ )); do
@@ -254,25 +257,26 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                         (
+                            # 🚀 降维打击 3：不再编码 jpg，全部输出为 0 压缩开销的 .bmp 位图！
                             if [ "$IS_VR" -eq 1 ]; then
-                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" -c:v bmp "$TMP_IMG_DIR/s_$i.bmp" >> "$LOG_FILE" 2>&1
                             else
-                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -vf "scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" -c:v bmp "$TMP_IMG_DIR/s_$i.bmp" >> "$LOG_FILE" 2>&1
                             fi
                         ) &
                         
-                        # 🚀 降维打击核心：同样强制为 1！专心办事，严禁一心多用！
                         current_jobs=$((current_jobs + 1)); if (( current_jobs >= 1 )); then wait; current_jobs=0; fi
                     done; wait
 
+                    # 容错：遇到缺帧自动补足黑屏 BMP
                     for (( i=1; i<=SHOTS; i++ )); do
-                        if [ ! -f "$TMP_IMG_DIR/s_$i.jpg" ]; then
-                            ffmpeg -nostdin -f lavfi -i color=c=black:s=${TILE_W}x${TILE_H} -vframes 1 -y "$TMP_IMG_DIR/s_$i.jpg" >/dev/null 2>&1
+                        if [ ! -f "$TMP_IMG_DIR/s_$i.bmp" ]; then
+                            ffmpeg -nostdin -f lavfi -i color=c=black:s=${TILE_W}x${TILE_H} -vframes 1 -c:v bmp -y "$TMP_IMG_DIR/s_$i.bmp" >/dev/null 2>&1
                         fi
                     done
 
                     local FFMPEG_CMD_IMG=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-i" "$HEADER_IMG")
-                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD_IMG+=("-i" "$TMP_IMG_DIR/s_$i.jpg"); done
+                    for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD_IMG+=("-i" "$TMP_IMG_DIR/s_$i.bmp"); done
                     
                     local FILTER_COMPLEX_IMG=""
                     local row_idx=1
@@ -307,7 +311,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.17 (8K终极克星版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.18 (终极空间换时间版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
