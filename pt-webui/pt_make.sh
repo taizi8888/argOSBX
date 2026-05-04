@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.13 (终极形态: 5x3自适应 + 2秒物理跨度4帧延时摄影)
+# 描述: PT 制种引擎 V9.8.14 (内存闪拼版: /dev/shm 内存盘加速 + 零冗余解码)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -29,7 +29,14 @@ else
 fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
-TMP_ROOT="/tmp/pt_make_$(date +%s)"
+
+# 🚀 极限优化 1：强制使用 Linux 内存盘 (/dev/shm) 代替物理硬盘 (/tmp)，IO 速度暴增百倍！
+if [ -d "/dev/shm" ]; then
+    TMP_ROOT="/dev/shm/pt_make_$(date +%s)"
+else
+    TMP_ROOT="/tmp/pt_make_$(date +%s)"
+fi
+
 FONT_DIR="$BASE_DIR/.config"
 FONT_FILE="$FONT_DIR/LXGWWenKaiLite-Regular.ttf"
 
@@ -158,11 +165,11 @@ process_target() {
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (完美 2 秒物理跨度延时摄影)
+            # 🎬 动态 WebP 引擎 (内存盘全速运转)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在受控并发提取动图 (启用物理 2 秒大跨度 4 帧采样)..."
+                    echo " 🎬 [WebP引擎] 正在受控并发提取动图 (启用物理 2 秒大跨度延时)..."
                     
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
@@ -184,14 +191,14 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_gif_$i.txt"
 
                         (
-                            local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H},setsar=1"
-                            if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H},setsar=1"; fi
+                            # 🚀 优化 3：缩放引入 flags=bilinear 降低计算量
+                            local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H}:flags=bilinear,setsar=1"
+                            if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=bilinear,setsar=1"; fi
                             
                             local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                             
-                            # 🚀 终极杀招：fps=2 且提取 4 帧。
-                            # 物理效果：每秒提取 2 张，总共提取 4 张。跨度长达 2 秒！CPU 计算量依然只有最小的 4 张图！
-                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -an -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
+                            # 🚀 优化 2：强制剥离音频字幕 -map 0:v:0 -an -sn，专心搞视频！
+                            ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:v:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
@@ -220,14 +227,15 @@ process_target() {
                     for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
                     FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
                     
-                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
+                    # 🚀 添加 WebP 静态图片预设优化 (-preset picture)
+                    FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-preset" "picture" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
 
                     "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
                 fi
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 
+            # 🖼️ 静态 4K WebP 引擎 (极致优化解码版)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
@@ -248,10 +256,11 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                         (
+                            # 🚀 优化 2：强制剥离音频字幕 -map 0:v:0 -an -sn，极大降低单帧提取时间！
                             if [ "$IS_VR" -eq 1 ]; then
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:v:0 -an -sn -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                             else
-                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                                ffmpeg -nostdin -y -threads 1 -ss "$REL_TIME" -i "$CUR_FILE" -map 0:v:0 -an -sn -vframes 1 -q:v 2 -vf "scale=${TILE_W}:${TILE_H}:flags=bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                             fi
                         ) &
                         
@@ -283,7 +292,8 @@ process_target() {
                     for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
                     FILTER_COMPLEX_IMG+="${vstack_inputs}vstack=inputs=${ROWS}[matrix];[0:v][matrix]vstack=inputs=2"
 
-                    FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-q:v" "90" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
+                    # 🚀 优化 3：使用甜点画质 -q:v 85 (替代极度拖慢速度的90) 并加入 -preset picture
+                    FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-preset" "picture" "-q:v" "85" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
                     
                     "${FFMPEG_CMD_IMG[@]}" >> "$LOG_FILE" 2>&1
                 fi
@@ -300,7 +310,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.13 (2秒微距延时摄影版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.14 (内存盘榨干极限版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
