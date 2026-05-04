@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.21 (神级统合版: 一次全息扫描，动静双维同出)
+# 描述: PT 制种引擎 V9.8.23 (黄金比例排版: 智适应 VR 5x3 / 普通 3x5)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -29,6 +29,18 @@ else
 fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
+
+# 🤖 核心侦测雷达：自动适配 甲骨文(ARM小鸡) vs 飞牛NAS(Xeon洋垃圾)
+TOTAL_CORES=$(nproc 2>/dev/null || echo 1)
+if [ "$TOTAL_CORES" -ge 8 ]; then
+    SYS_ENV="高性能实体机"
+    GIF_CONCURRENCY=5   # Xeon 饱和轰炸
+    IMG_CONCURRENCY=10
+else
+    SYS_ENV="基础云主机"
+    GIF_CONCURRENCY=1   # ARM 小鸡聚拢单推
+    IMG_CONCURRENCY=3
+fi
 
 TMP_ROOT="/tmp/pt_make_$(date +%s)"
 if [ -d "/dev/shm" ]; then
@@ -120,172 +132,145 @@ process_target() {
         fi
     fi
 
-    if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-        # 智能判定：是否需要生成动图和静图
-        local DO_GIF=false; [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_WEBP" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-gif" ]] && DO_GIF=true
-        local DO_IMG=false; [ ! -f "$STITCHED_IMG" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-img" ]] && DO_IMG=true
+    local DO_GIF=false; [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_WEBP" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-gif" ]] && DO_GIF=true
+    local DO_IMG=false; [ ! -f "$STITCHED_IMG" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-img" ]] && DO_IMG=true
 
-        if [ "$DO_GIF" == "true" ] || [ "$DO_IMG" == "true" ]; then
-            mkdir -p "$TMP_IMG_DIR"; LOG_FILE="$BASE_DIR/${BASE_NAME}_ffmpeg_debug.log"
-            TOTAL_DUR=0; TOTAL_SIZE=0
-            for vf in "${VIDEO_FILES[@]}"; do
-                TOTAL_SIZE=$((TOTAL_SIZE + $(stat -c%s "$vf")))
-                local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
-                [ -n "$fd" ] && TOTAL_DUR=$((TOTAL_DUR + fd))
-            done
-            
-            FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_SIZE/1073741824}")
-            FORMATTED_DUR=$(date -u -d @"$TOTAL_DUR" +'%H:%M:%S' 2>/dev/null)
-            V_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
-            V_RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$MAIN_VIDEO" | head -n1)
-            A_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
-            
-            local D_NAME="$TARGET_NAME"; [ "$IS_FILE" = true ] && D_NAME="${TARGET_NAME%.*}"
-            
-            local V_W=$(echo $V_RES | cut -d'x' -f1)
-            local V_H=$(echo $V_RES | cut -d'x' -f2)
-            
-            local IS_VR=0
-            local COLS=5
-            local ROWS=3
-            
-            if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
-                IS_VR=1
-                V_W=$((V_W / 2))
-                COLS=4
-            fi
-
-            local SHOTS=$(( COLS * ROWS ))
-            local TOTAL_W=3840
-            local TILE_W=$(( TOTAL_W / COLS ))
-            local TILE_H=$(( V_H * TILE_W / V_W ))
-            TILE_H=$(( TILE_H / 2 * 2 )) 
-
-            local HEADER_H=100 
-            local VOL_INFO=""; [ ${#VIDEO_FILES[@]} -gt 1 ] && VOL_INFO=" [共${#VIDEO_FILES[@]}卷]"
-            
-            echo "文件名: $D_NAME$VOL_INFO   |   体积: $FILE_SIZE_GB GiB   |   时长: $FORMATTED_DUR   |   影像: $V_CODEC ($V_RES)   |   音频: $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
-            
-            HEADER_IMG="$TMP_IMG_DIR/header.jpg"
-            ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$HEADER_IMG" >> "$LOG_FILE" 2>&1
-
-            # =====================================================================
-            # 🚀 降维同出提取引擎 (一次寻址，动静齐出)
-            # =====================================================================
-            echo " ⏳ [统合扫描引擎] 正在全核对巨兽进行一次性空间寻址提取..."
-            mkdir -p "$TMP_IMG_DIR/slices"
-            
-            local current_jobs=0
-            for (( i=1; i<=SHOTS; i++ )); do
-                # 统一使用 5% 到 95% 的完美等距时间戳算法
-                local ST=$(( TOTAL_DUR * (5 + (i-1) * 90 / (SHOTS-1)) / 100 ))
-                local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
-                for vf in "${VIDEO_FILES[@]}"; do
-                    local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
-                    [ -z "$fd" ] && fd=0; if (( ST < ACCUMULATED + fd )); then CUR_FILE="$vf"; REL_TIME=$(( ST - ACCUMULATED )); break; fi
-                    ACCUMULATED=$(( ACCUMULATED + fd )); PART_NUM=$(( PART_NUM + 1 ))
-                done
-                [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
-
-                local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
-                echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_$i.txt"
-
-                (
-                    local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"
-                    if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"; fi
-                    
-                    if [ "$DO_GIF" == "true" ]; then
-                        # 1. 软解 8K，极速输出无压缩动图 AVI 序列
-                        ffmpeg -nostdin -y -skip_loop_filter all -skip_frame noref -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_$i.txt':fontcolor=white:fontsize=36:x=16:y=h-th-16:box=1:boxcolor=black@0.6:boxborderw=4" -c:v rawvideo -pix_fmt yuv420p -frames:v 4 "$TMP_IMG_DIR/slices/s_${i}.avi" >> "$LOG_FILE" 2>&1
-                        
-                        if [ "$DO_IMG" == "true" ]; then
-                            # 2. 借鸡生蛋：从内存盘的无压缩 AVI 中瞬间抽 1 帧做静图！0软解消耗！
-                            ffmpeg -nostdin -y -i "$TMP_IMG_DIR/slices/s_${i}.avi" -vframes 1 -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
-                        fi
-                    elif [ "$DO_IMG" == "true" ]; then
-                        # 只有静图时，直接软解抽取 1 帧
-                        ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -vf "${CROP_SCALE_FILTER},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_$i.txt':fontcolor=white:fontsize=36:x=16:y=h-th-16:box=1:boxcolor=black@0.6" -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
-                    fi
-                ) &
-                
-                # 并发控制：保持 3 核甜点满载并行
-                current_jobs=$((current_jobs + 1))
-                if (( current_jobs >= 3 )); then wait; current_jobs=0; fi
-            done
-            wait
-
-            # =====================================================================
-            # 🎬 动图拼装与垃圾回收
-            # =====================================================================
-            if [ "$DO_GIF" == "true" ]; then
-                echo "    -> [拼接矩阵] 正在高速组装动态预览图..."
-                local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning" "-i" "$HEADER_IMG")
-                for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.avi"); done
-                
-                local FILTER_COMPLEX=""
-                local row_idx=1
-                for (( r=0; r<ROWS; r++ )); do
-                    local row_inputs=""
-                    for (( c=1; c<=COLS; c++ )); do
-                        local idx=$(( r * COLS + c ))
-                        row_inputs+="[${idx}:v]"
-                    done
-                    FILTER_COMPLEX+="${row_inputs}hstack=inputs=${COLS}:shortest=1[r${row_idx}];"
-                    row_idx=$((row_idx + 1))
-                done
-                
-                local vstack_inputs=""
-                for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
-                FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
-                
-                FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
-
-                "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
-                
-                # 🚀 极其关键的 GC 回收：动图拼完立刻销毁内存中庞大的 AVI，安全释放 60M 空间让给后续操作！
-                rm -rf "$TMP_IMG_DIR/slices"
-            fi
-
-            # =====================================================================
-            # 🖼️ 静图拼装
-            # =====================================================================
-            if [ "$DO_IMG" == "true" ]; then
-                echo "    -> [拼接矩阵] 正在色彩安全合并 4K 静态海报..."
-                
-                # 容错：遇到缺帧缺损，用极其干净的黑屏补齐
-                for (( i=1; i<=SHOTS; i++ )); do
-                    if [ ! -f "$TMP_IMG_DIR/s_$i.jpg" ]; then
-                        ffmpeg -nostdin -f lavfi -i color=c=black:s=${TILE_W}x${TILE_H} -vframes 1 -c:v mjpeg -q:v 2 -pix_fmt yuvj420p -y "$TMP_IMG_DIR/s_$i.jpg" >/dev/null 2>&1
-                    fi
-                done
-
-                local FFMPEG_CMD_IMG=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-i" "$HEADER_IMG")
-                for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD_IMG+=("-i" "$TMP_IMG_DIR/s_$i.jpg"); done
-                
-                local FILTER_COMPLEX_IMG=""
-                local row_idx=1
-                for (( r=0; r<ROWS; r++ )); do
-                    local row_inputs=""
-                    for (( c=1; c<=COLS; c++ )); do
-                        local idx=$(( r * COLS + c ))
-                        row_inputs+="[${idx}:v]"
-                    done
-                    FILTER_COMPLEX_IMG+="${row_inputs}hstack=inputs=${COLS}[r${row_idx}];"
-                    row_idx=$((row_idx + 1))
-                done
-                
-                local vstack_inputs=""
-                for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
-                FILTER_COMPLEX_IMG+="${vstack_inputs}vstack=inputs=${ROWS}[matrix];[0:v][matrix]vstack=inputs=2"
-
-                FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-q:v" "85" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
-                
-                "${FFMPEG_CMD_IMG[@]}" >> "$LOG_FILE" 2>&1
-            fi
-            
-            echo " ✅ 指令微操已执行完毕！" && rm -f "$LOG_FILE"
-            rm -rf "$TMP_IMG_DIR"
+    if [ "$DO_GIF" == "true" ] || [ "$DO_IMG" == "true" ]; then
+        mkdir -p "$TMP_IMG_DIR/slices"; LOG_FILE="$BASE_DIR/${BASE_NAME}_ffmpeg_debug.log"
+        TOTAL_DUR=0; TOTAL_SIZE=0
+        for vf in "${VIDEO_FILES[@]}"; do
+            TOTAL_SIZE=$((TOTAL_SIZE + $(stat -c%s "$vf")))
+            local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
+            [ -n "$fd" ] && TOTAL_DUR=$((TOTAL_DUR + fd))
+        done
+        
+        FILE_SIZE_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_SIZE/1073741824}")
+        FORMATTED_DUR=$(date -u -d @"$TOTAL_DUR" +'%H:%M:%S' 2>/dev/null)
+        V_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
+        V_RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$MAIN_VIDEO" | head -n1)
+        A_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MAIN_VIDEO" | head -n1)
+        
+        local D_NAME="$TARGET_NAME"; [ "$IS_FILE" = true ] && D_NAME="${TARGET_NAME%.*}"
+        
+        local V_W=$(echo $V_RES | cut -d'x' -f1)
+        local V_H=$(echo $V_RES | cut -d'x' -f2)
+        
+        # =====================================================================
+        # 🎨 神级排版逻辑：智适应阵列比例
+        # =====================================================================
+        local IS_VR=0
+        # 默认普通视频：3列 x 5行 (组合成近似正方形的黄金比例海报)
+        local COLS=3
+        local ROWS=5
+        
+        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
+            IS_VR=1
+            V_W=$((V_W / 2))
+            # VR单眼裁切后：5列 x 3行 (硬生生拼出宽屏电影比例)
+            COLS=5
+            ROWS=3
         fi
+
+        local SHOTS=$(( COLS * ROWS ))
+        local TOTAL_W=3840
+        local TILE_W=$(( TOTAL_W / COLS ))
+        local TILE_H=$(( V_H * TILE_W / V_W ))
+        TILE_H=$(( TILE_H / 2 * 2 )) 
+
+        local HEADER_H=100 
+        local VOL_INFO=""; [ ${#VIDEO_FILES[@]} -gt 1 ] && VOL_INFO=" [共${#VIDEO_FILES[@]}卷]"
+        
+        echo "文件名: $D_NAME$VOL_INFO   |   体积: $FILE_SIZE_GB GiB   |   时长: $FORMATTED_DUR   |   影像: $V_CODEC ($V_RES)   |   音频: $A_CODEC" > "$TMP_IMG_DIR/h_all.txt"
+        
+        HEADER_IMG="$TMP_IMG_DIR/header.jpg"
+        ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$HEADER_IMG" >> "$LOG_FILE" 2>&1
+
+        echo " ⏳ [自适应引擎] 当前环境: $SYS_ENV ($TOTAL_CORES核) | 正在全息扫描提取 (${COLS}x${ROWS}阵列)..."
+        
+        local current_jobs=0
+        for (( i=1; i<=SHOTS; i++ )); do
+            local ST=$(( TOTAL_DUR * (5 + (i-1) * 90 / (SHOTS-1)) / 100 ))
+            local ACCUMULATED=0; local CUR_FILE=""; local REL_TIME=0; local PART_NUM=1
+            for vf in "${VIDEO_FILES[@]}"; do
+                local fd=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$vf" | cut -d. -f1 | tr -d '\r')
+                [ -z "$fd" ] && fd=0; if (( ST < ACCUMULATED + fd )); then CUR_FILE="$vf"; REL_TIME=$(( ST - ACCUMULATED )); break; fi
+                ACCUMULATED=$(( ACCUMULATED + fd )); PART_NUM=$(( PART_NUM + 1 ))
+            done
+            [ -z "$CUR_FILE" ] && CUR_FILE="${VIDEO_FILES[-1]}" && REL_TIME=$((fd > 5 ? fd - 5 : 0))
+
+            local TIME_STR=$(printf "%02d:%02d:%02d" $((REL_TIME / 3600)) $(( (REL_TIME % 3600) / 60 )) $((REL_TIME % 60)))
+            echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t_$i.txt"
+
+            (
+                local CROP_SCALE_FILTER="scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"
+                if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"; fi
+                
+                if [ "$DO_GIF" == "true" ]; then
+                    # 动静合一：先切出原生无损 AVI，CPU不参与压缩
+                    ffmpeg -nostdin -y -skip_loop_filter all -skip_frame noref -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_$i.txt':fontcolor=white:fontsize=36:x=16:y=h-th-16:box=1:boxcolor=black@0.6:boxborderw=4" -c:v rawvideo -pix_fmt yuv420p -frames:v 4 "$TMP_IMG_DIR/slices/s_${i}.avi" >> "$LOG_FILE" 2>&1
+                    
+                    if [ "$DO_IMG" == "true" ]; then
+                        # 直接从内存里无损极速抽图
+                        ffmpeg -nostdin -y -i "$TMP_IMG_DIR/slices/s_${i}.avi" -vframes 1 -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                    fi
+                elif [ "$DO_IMG" == "true" ]; then
+                    ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -vf "${CROP_SCALE_FILTER},drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_$i.txt':fontcolor=white:fontsize=36:x=16:y=h-th-16:box=1:boxcolor=black@0.6" -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
+                fi
+            ) &
+            
+            current_jobs=$((current_jobs + 1))
+            if [ "$DO_GIF" == "true" ]; then
+                if (( current_jobs >= GIF_CONCURRENCY )); then wait; current_jobs=0; fi
+            else
+                if (( current_jobs >= IMG_CONCURRENCY )); then wait; current_jobs=0; fi
+            fi
+        done
+        wait
+
+        if [ "$DO_GIF" == "true" ]; then
+            echo "    -> [合成矩阵] 正在执行无损级 WebP 动图封测..."
+            local FFMPEG_CMD=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-hide_banner" "-loglevel" "warning" "-i" "$HEADER_IMG")
+            for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD+=("-i" "$TMP_IMG_DIR/slices/s_${i}.avi"); done
+            
+            local FILTER_COMPLEX=""; local row_idx=1
+            for (( r=0; r<ROWS; r++ )); do
+                local row_inputs=""; for (( c=1; c<=COLS; c++ )); do idx=$(( r * COLS + c )); row_inputs+="[${idx}:v]"; done
+                FILTER_COMPLEX+="${row_inputs}hstack=inputs=${COLS}:shortest=1[r${row_idx}];"; row_idx=$((row_idx + 1))
+            done
+            local vstack_inputs=""; for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
+            FILTER_COMPLEX+="${vstack_inputs}vstack=inputs=${ROWS}:shortest=1[matrix];[0:v][matrix]vstack=inputs=2[out]"
+            
+            FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
+            "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
+            
+            rm -rf "$TMP_IMG_DIR/slices" # 销毁巨量 AVI 防止系统空间爆炸
+        fi
+
+        if [ "$DO_IMG" == "true" ]; then
+            echo "    -> [合成矩阵] 正在封装 4K 高清静态海报..."
+            for (( i=1; i<=SHOTS; i++ )); do
+                if [ ! -f "$TMP_IMG_DIR/s_$i.jpg" ]; then
+                    ffmpeg -nostdin -f lavfi -i color=c=black:s=${TILE_W}x${TILE_H} -vframes 1 -c:v mjpeg -q:v 2 -pix_fmt yuvj420p -y "$TMP_IMG_DIR/s_$i.jpg" >/dev/null 2>&1
+                fi
+            done
+
+            local FFMPEG_CMD_IMG=("ffmpeg" "-nostdin" "-y" "-threads" "0" "-i" "$HEADER_IMG")
+            for (( i=1; i<=SHOTS; i++ )); do FFMPEG_CMD_IMG+=("-i" "$TMP_IMG_DIR/s_$i.jpg"); done
+            
+            local FILTER_COMPLEX_IMG=""; local row_idx=1
+            for (( r=0; r<ROWS; r++ )); do
+                local row_inputs=""; for (( c=1; c<=COLS; c++ )); do idx=$(( r * COLS + c )); row_inputs+="[${idx}:v]"; done
+                FILTER_COMPLEX_IMG+="${row_inputs}hstack=inputs=${COLS}[r${row_idx}];"; row_idx=$((row_idx + 1))
+            done
+            local vstack_inputs=""; for (( r=1; r<=ROWS; r++ )); do vstack_inputs+="[r${r}]"; done
+            FILTER_COMPLEX_IMG+="${vstack_inputs}vstack=inputs=${ROWS}[matrix];[0:v][matrix]vstack=inputs=2"
+
+            FFMPEG_CMD_IMG+=("-filter_complex" "$FILTER_COMPLEX_IMG" "-c:v" "libwebp" "-q:v" "85" "-compression_level" "0" "-row-mt" "1" "$STITCHED_IMG")
+            "${FFMPEG_CMD_IMG[@]}" >> "$LOG_FILE" 2>&1
+        fi
+        
+        echo " ✅ 封测执行完毕！" && rm -f "$LOG_FILE"
+        rm -rf "$TMP_IMG_DIR"
     fi
 }
 
@@ -294,9 +279,13 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 
 while true; do
     clear
-    echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.21 (神级单遍同出版) \033[0m"
-    echo -e "\033[1;36m======================================\033[0m"
+    SYS_CORES=$(nproc 2>/dev/null || echo 1)
+    if [ "$SYS_CORES" -ge 8 ]; then SYS_BANNER="\033[1;32m[NAS模式 火力全开]\033[0m"
+    else SYS_BANNER="\033[1;36m[VPS模式 聚拢单推]\033[0m"; fi
+    
+    echo -e "\033[1;36m=====================================================\033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.23 (智适应排版: VR 5x3 | 普通 3x5) \033[0m $SYS_BANNER"
+    echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
     echo -e " \033[1;31m[4]\033[0m 退出程序"
