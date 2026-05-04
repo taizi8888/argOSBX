@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.25 (黄金矩阵版: 智适应 VR 4x4 | 普通 3x5)
+# 描述: PT 制种引擎 V9.8.26 (指令霸权版: 强制单项执行，无视文件存在)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,17 +30,14 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
-# =====================================================================
-# 🤖 核心侦测雷达：自动适配 甲骨文(ARM小鸡) vs 飞牛NAS(Xeon洋垃圾)
-# =====================================================================
 TOTAL_CORES=$(nproc 2>/dev/null || echo 1)
 if [ "$TOTAL_CORES" -ge 8 ]; then
     SYS_ENV="高性能实体机"
-    GIF_CONCURRENCY=5   # Xeon 饱和轰炸
+    GIF_CONCURRENCY=5
     IMG_CONCURRENCY=10
 else
     SYS_ENV="基础云主机"
-    GIF_CONCURRENCY=3   # ARM 满血并发
+    GIF_CONCURRENCY=3
     IMG_CONCURRENCY=3
 fi
 
@@ -134,8 +131,23 @@ process_target() {
         fi
     fi
 
-    local DO_GIF=false; [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_WEBP" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-gif" ]] && DO_GIF=true
-    local DO_IMG=false; [ ! -f "$STITCHED_IMG" ] && [[ -z "$ACTION_TYPE" || "$ACTION_TYPE" == "--only-img" ]] && DO_IMG=true
+    # =====================================================================
+    # 👑 核心修复：指令绝对霸权！
+    # 如果指定了 --only-gif，无视 WebP 是否存在，强行将 DO_GIF 置为 true
+    # =====================================================================
+    local DO_GIF=false
+    if [ "$ACTION_TYPE" == "--only-gif" ]; then
+        DO_GIF=true
+    elif [ "$ENABLE_GIF" == "true" ] && [ ! -f "$PREVIEW_WEBP" ] && [ -z "$ACTION_TYPE" ]; then
+        DO_GIF=true
+    fi
+
+    local DO_IMG=false
+    if [ "$ACTION_TYPE" == "--only-img" ]; then
+        DO_IMG=true
+    elif [ ! -f "$STITCHED_IMG" ] && [ -z "$ACTION_TYPE" ]; then
+        DO_IMG=true
+    fi
 
     if [ "$DO_GIF" == "true" ] || [ "$DO_IMG" == "true" ]; then
         mkdir -p "$TMP_IMG_DIR/slices"; LOG_FILE="$BASE_DIR/${BASE_NAME}_ffmpeg_debug.log"
@@ -157,15 +169,8 @@ process_target() {
         local V_W=$(echo $V_RES | cut -d'x' -f1)
         local V_H=$(echo $V_RES | cut -d'x' -f2)
         
-        # 🎨 神级智适应排版：普通视频 3x5，VR视频 4x4
         local IS_VR=0; local COLS=3; local ROWS=5
-        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
-            IS_VR=1; 
-            V_W=$((V_W / 2)); 
-            # 🚀 替换为绝对正方形对称矩阵 4x4
-            COLS=4; 
-            ROWS=4; 
-        fi
+        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; V_W=$((V_W / 2)); COLS=4; ROWS=4; fi
 
         local SHOTS=$(( COLS * ROWS ))
         local TOTAL_W=3840; local TILE_W=$(( TOTAL_W / COLS ))
@@ -275,7 +280,7 @@ while true; do
     else SYS_BANNER="\033[1;36m[VPS模式 强袭满血版]\033[0m"; fi
     
     echo -e "\033[1;36m=====================================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.25 (黄金排版: VR 4x4 | 普通 3x5) \033[0m $SYS_BANNER"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.26 (指令霸权修正版) \033[0m $SYS_BANNER"
     echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
