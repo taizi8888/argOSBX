@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.23 (黄金比例排版: 智适应 VR 5x3 / 普通 3x5)
+# 描述: PT 制种引擎 V9.8.24 (终极自适应修复版: 恢复甲骨文满血 3 并发)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,7 +30,9 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
+# =====================================================================
 # 🤖 核心侦测雷达：自动适配 甲骨文(ARM小鸡) vs 飞牛NAS(Xeon洋垃圾)
+# =====================================================================
 TOTAL_CORES=$(nproc 2>/dev/null || echo 1)
 if [ "$TOTAL_CORES" -ge 8 ]; then
     SYS_ENV="高性能实体机"
@@ -38,7 +40,8 @@ if [ "$TOTAL_CORES" -ge 8 ]; then
     IMG_CONCURRENCY=10
 else
     SYS_ENV="基础云主机"
-    GIF_CONCURRENCY=1   # ARM 小鸡聚拢单推
+    # 🚀 修复核心：解开保守封印，恢复甲骨文 3 核满血并发！
+    GIF_CONCURRENCY=3   
     IMG_CONCURRENCY=3
 fi
 
@@ -155,28 +158,13 @@ process_target() {
         local V_W=$(echo $V_RES | cut -d'x' -f1)
         local V_H=$(echo $V_RES | cut -d'x' -f2)
         
-        # =====================================================================
-        # 🎨 神级排版逻辑：智适应阵列比例
-        # =====================================================================
-        local IS_VR=0
-        # 默认普通视频：3列 x 5行 (组合成近似正方形的黄金比例海报)
-        local COLS=3
-        local ROWS=5
-        
-        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
-            IS_VR=1
-            V_W=$((V_W / 2))
-            # VR单眼裁切后：5列 x 3行 (硬生生拼出宽屏电影比例)
-            COLS=5
-            ROWS=3
-        fi
+        # 🎨 智适应排版：普通视频 3x5，VR视频 5x3
+        local IS_VR=0; local COLS=3; local ROWS=5
+        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; V_W=$((V_W / 2)); COLS=5; ROWS=3; fi
 
         local SHOTS=$(( COLS * ROWS ))
-        local TOTAL_W=3840
-        local TILE_W=$(( TOTAL_W / COLS ))
-        local TILE_H=$(( V_H * TILE_W / V_W ))
-        TILE_H=$(( TILE_H / 2 * 2 )) 
-
+        local TOTAL_W=3840; local TILE_W=$(( TOTAL_W / COLS ))
+        local TILE_H=$(( V_H * TILE_W / V_W )); TILE_H=$(( TILE_H / 2 * 2 )) 
         local HEADER_H=100 
         local VOL_INFO=""; [ ${#VIDEO_FILES[@]} -gt 1 ] && VOL_INFO=" [共${#VIDEO_FILES[@]}卷]"
         
@@ -185,7 +173,7 @@ process_target() {
         HEADER_IMG="$TMP_IMG_DIR/header.jpg"
         ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
-        echo " ⏳ [自适应引擎] 当前环境: $SYS_ENV ($TOTAL_CORES核) | 正在全息扫描提取 (${COLS}x${ROWS}阵列)..."
+        echo " ⏳ [自适应引擎] 当前环境: $SYS_ENV ($TOTAL_CORES核) | 正在满血扫描提取 (${COLS}x${ROWS}阵列)..."
         
         local current_jobs=0
         for (( i=1; i<=SHOTS; i++ )); do
@@ -206,11 +194,9 @@ process_target() {
                 if [ "$IS_VR" -eq 1 ]; then CROP_SCALE_FILTER="crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,setsar=1"; fi
                 
                 if [ "$DO_GIF" == "true" ]; then
-                    # 动静合一：先切出原生无损 AVI，CPU不参与压缩
                     ffmpeg -nostdin -y -skip_loop_filter all -skip_frame noref -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_$i.txt':fontcolor=white:fontsize=36:x=16:y=h-th-16:box=1:boxcolor=black@0.6:boxborderw=4" -c:v rawvideo -pix_fmt yuv420p -frames:v 4 "$TMP_IMG_DIR/slices/s_${i}.avi" >> "$LOG_FILE" 2>&1
                     
                     if [ "$DO_IMG" == "true" ]; then
-                        # 直接从内存里无损极速抽图
                         ffmpeg -nostdin -y -i "$TMP_IMG_DIR/slices/s_${i}.avi" -vframes 1 -c:v mjpeg -q:v 2 -pix_fmt yuvj420p "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                     fi
                 elif [ "$DO_IMG" == "true" ]; then
@@ -218,6 +204,7 @@ process_target() {
                 fi
             ) &
             
+            # 使用正确的动态并发变量
             current_jobs=$((current_jobs + 1))
             if [ "$DO_GIF" == "true" ]; then
                 if (( current_jobs >= GIF_CONCURRENCY )); then wait; current_jobs=0; fi
@@ -243,7 +230,7 @@ process_target() {
             FFMPEG_CMD+=("-filter_complex" "$FILTER_COMPLEX" "-map" "[out]" "-c:v" "libwebp" "-loop" "0" "-q:v" "75" "-compression_level" "0" "-row-mt" "1" "$PREVIEW_WEBP")
             "${FFMPEG_CMD[@]}" >> "$LOG_FILE" 2>&1
             
-            rm -rf "$TMP_IMG_DIR/slices" # 销毁巨量 AVI 防止系统空间爆炸
+            rm -rf "$TMP_IMG_DIR/slices"
         fi
 
         if [ "$DO_IMG" == "true" ]; then
@@ -281,10 +268,10 @@ while true; do
     clear
     SYS_CORES=$(nproc 2>/dev/null || echo 1)
     if [ "$SYS_CORES" -ge 8 ]; then SYS_BANNER="\033[1;32m[NAS模式 火力全开]\033[0m"
-    else SYS_BANNER="\033[1;36m[VPS模式 聚拢单推]\033[0m"; fi
+    else SYS_BANNER="\033[1;36m[VPS模式 强袭满血版]\033[0m"; fi
     
     echo -e "\033[1;36m=====================================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.23 (智适应排版: VR 5x3 | 普通 3x5) \033[0m $SYS_BANNER"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.24 (终极修复: 解除并发封印) \033[0m $SYS_BANNER"
     echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
