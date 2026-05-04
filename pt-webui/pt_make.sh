@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.16 (8K巨兽斩杀版: 软解黑魔法 + 集中并发)
+# 描述: PT 制种引擎 V9.8.17 (8K终极克星: 算力聚拢全核单推版)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -164,11 +164,11 @@ process_target() {
             ffmpeg -nostdin -y -f lavfi -i color=c=white:s=${TOTAL_W}x${HEADER_H} -frames:v 1 -vf "drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/h_all.txt':fontcolor=black:fontsize=40:x=50:y=(h-text_h)/2" "$HEADER_IMG" >> "$LOG_FILE" 2>&1
 
             # =====================================================================
-            # 🎬 动态 WebP 引擎 (8K软解抗压版)
+            # 🎬 动态 WebP 引擎 (8K算力聚拢单推版)
             # =====================================================================
             if [ "$ENABLE_GIF" == "true" ] && ([ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-gif" ]); then
                 if [ ! -f "$PREVIEW_WEBP" ] || [ "$ACTION_TYPE" == "--only-gif" ]; then
-                    echo " 🎬 [WebP引擎] 正在受控并发提取动图 (启用 -skip_loop_filter all 解码黑魔法)..."
+                    echo " 🎬 [WebP引擎] 正在聚拢全核算力提取动图 (解除并发，集中应对8K巨兽)..."
                     
                     local INTERVAL=$(( TOTAL_DUR / (SHOTS + 1) ))
                     [ "$INTERVAL" -le 0 ] && INTERVAL=1
@@ -195,14 +195,13 @@ process_target() {
                             
                             local SLICE_FILE="$TMP_IMG_DIR/slices/s_${i}.mp4"
                             
-                            # 🚀 降压提速核心 1：加入 -skip_loop_filter all，直接抛弃 HEVC 软解最耗时的计算！
-                            # 🚀 降压提速核心 2：删除了 -threads 1，允许软解充分利用多核心。
+                            # 🚀 去除并发抢夺，让 3 核心全职服务于当前这一个切片！
                             ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vf "${CROP_SCALE_FILTER},fps=2,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t_gif_$i.txt':fontcolor=white:fontsize=36:x=12:y=h-th-12:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -crf 24 -frames:v 4 "$SLICE_FILE" >> "$LOG_FILE" 2>&1
                         ) &
                         
                         current_jobs_gif=$((current_jobs_gif + 1))
-                        # 🚀 针对 8K 软解回调并发数：3核机器跑 2 个不限线程的解码任务最有效率，超了反而变慢
-                        if (( current_jobs_gif >= 2 )); then wait; current_jobs_gif=0; fi
+                        # 🚀 降维打击核心：彻底干掉并发！强制为 1，逐个处决 8K 软解，杜绝缓存灾难。
+                        if (( current_jobs_gif >= 1 )); then wait; current_jobs_gif=0; fi
                     done
                     wait
 
@@ -234,11 +233,11 @@ process_target() {
             fi
 
             # =====================================================================
-            # 🖼️ 静态 4K WebP 引擎 (8K软解抗压版)
+            # 🖼️ 静态 4K WebP 引擎 (8K算力聚拢单推版)
             # =====================================================================
             if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
                 if [ ! -f "$STITCHED_IMG" ] || [ "$ACTION_TYPE" == "--only-img" ]; then
-                    echo " 🖼️ 正在生成自适应 4K WebP 静态海报 (${COLS}x${ROWS}阵列)..."
+                    echo " 🖼️ 正在聚拢全核算力提取静态海报 (${COLS}x${ROWS}阵列)..."
                     
                     local current_jobs=0
                     for (( i=1; i<=SHOTS; i++ )); do
@@ -255,7 +254,6 @@ process_target() {
                         echo "[P${PART_NUM}] ${TIME_STR}" > "$TMP_IMG_DIR/t$i.txt"
 
                         (
-                            # 🚀 同步添加 -skip_loop_filter all 和解除线程束缚
                             if [ "$IS_VR" -eq 1 ]; then
                                 ffmpeg -nostdin -y -skip_loop_filter all -ss "$REL_TIME" -i "$CUR_FILE" -map 0:V:0 -an -sn -vframes 1 -q:v 2 -vf "crop=iw/2:ih:0:0,scale=${TILE_W}:${TILE_H}:flags=fast_bilinear,drawtext=fontfile='$FONT_FILE':textfile='$TMP_IMG_DIR/t$i.txt':fontcolor=white:fontsize=36:x=20:y=h-th-20:box=1:boxcolor=black@0.6" "$TMP_IMG_DIR/s_$i.jpg" >> "$LOG_FILE" 2>&1
                             else
@@ -263,7 +261,8 @@ process_target() {
                             fi
                         ) &
                         
-                        current_jobs=$((current_jobs + 1)); if (( current_jobs >= 2 )); then wait; current_jobs=0; fi
+                        # 🚀 降维打击核心：同样强制为 1！专心办事，严禁一心多用！
+                        current_jobs=$((current_jobs + 1)); if (( current_jobs >= 1 )); then wait; current_jobs=0; fi
                     done; wait
 
                     for (( i=1; i<=SHOTS; i++ )); do
@@ -308,7 +307,7 @@ elif [ "$1" == "--auto" ]; then for item in "$BASE_DIR"/*; do [ -e "$item" ] && 
 while true; do
     clear
     echo -e "\033[1;36m======================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.16 (8K巨兽斩杀版) \033[0m"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.17 (8K终极克星版) \033[0m"
     echo -e "\033[1;36m======================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
