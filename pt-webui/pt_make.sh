@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.24 (终极自适应修复版: 恢复甲骨文满血 3 并发)
+# 描述: PT 制种引擎 V9.8.25 (黄金矩阵版: 智适应 VR 4x4 | 普通 3x5)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -40,8 +40,7 @@ if [ "$TOTAL_CORES" -ge 8 ]; then
     IMG_CONCURRENCY=10
 else
     SYS_ENV="基础云主机"
-    # 🚀 修复核心：解开保守封印，恢复甲骨文 3 核满血并发！
-    GIF_CONCURRENCY=3   
+    GIF_CONCURRENCY=3   # ARM 满血并发
     IMG_CONCURRENCY=3
 fi
 
@@ -158,9 +157,15 @@ process_target() {
         local V_W=$(echo $V_RES | cut -d'x' -f1)
         local V_H=$(echo $V_RES | cut -d'x' -f2)
         
-        # 🎨 智适应排版：普通视频 3x5，VR视频 5x3
+        # 🎨 神级智适应排版：普通视频 3x5，VR视频 4x4
         local IS_VR=0; local COLS=3; local ROWS=5
-        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; V_W=$((V_W / 2)); COLS=5; ROWS=3; fi
+        if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then 
+            IS_VR=1; 
+            V_W=$((V_W / 2)); 
+            # 🚀 替换为绝对正方形对称矩阵 4x4
+            COLS=4; 
+            ROWS=4; 
+        fi
 
         local SHOTS=$(( COLS * ROWS ))
         local TOTAL_W=3840; local TILE_W=$(( TOTAL_W / COLS ))
@@ -204,7 +209,6 @@ process_target() {
                 fi
             ) &
             
-            # 使用正确的动态并发变量
             current_jobs=$((current_jobs + 1))
             if [ "$DO_GIF" == "true" ]; then
                 if (( current_jobs >= GIF_CONCURRENCY )); then wait; current_jobs=0; fi
@@ -271,7 +275,7 @@ while true; do
     else SYS_BANNER="\033[1;36m[VPS模式 强袭满血版]\033[0m"; fi
     
     echo -e "\033[1;36m=====================================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.24 (终极修复: 解除并发封印) \033[0m $SYS_BANNER"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.25 (黄金排版: VR 4x4 | 普通 3x5) \033[0m $SYS_BANNER"
     echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
