@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.26 (指令霸权版: 强制单项执行，无视文件存在)
+# 描述: PT 制种引擎 V9.8.27 (终极完全体: 动态分块智适应 + 双态并发)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,14 +30,17 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
+# =====================================================================
+# 🤖 核心侦测雷达：自动适配 甲骨文(ARM小鸡) vs 飞牛NAS(Xeon洋垃圾)
+# =====================================================================
 TOTAL_CORES=$(nproc 2>/dev/null || echo 1)
 if [ "$TOTAL_CORES" -ge 8 ]; then
     SYS_ENV="高性能实体机"
-    GIF_CONCURRENCY=5
+    GIF_CONCURRENCY=5   # Xeon 饱和轰炸
     IMG_CONCURRENCY=10
 else
     SYS_ENV="基础云主机"
-    GIF_CONCURRENCY=3
+    GIF_CONCURRENCY=3   # ARM 满血并发
     IMG_CONCURRENCY=3
 fi
 
@@ -117,10 +120,28 @@ process_target() {
     [ ${#VIDEO_FILES[@]} -eq 0 ] && return
     local MAIN_VIDEO="${VIDEO_FILES[0]}"
     
+    # =====================================================================
+    # 🧩 修复核心：体积智适应分块引擎
+    # =====================================================================
     if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-torrent" ]; then
         if [ ! -f "$TORRENT_FILE" ]; then
-            echo " 📦 正在打包 .torrent 种子文件..."
-            mktorrent -v -p -l 21 -a "${DEFAULT_TRACKER}" -o "$TORRENT_FILE" "$TARGET_PATH" > /dev/null 2>&1
+            # 兼容所有 Linux 的安全算法：获取 KB 级别总大小
+            local TARGET_SIZE_KB=$(du -sk "$TARGET_PATH" | cut -f1)
+            local PIECE_LEN=21 # 默认 2MB 保底
+            
+            if [ "$TARGET_SIZE_KB" -lt 524288 ]; then PIECE_LEN=18          # < 512 MB -> 256 KB
+            elif [ "$TARGET_SIZE_KB" -lt 1048576 ]; then PIECE_LEN=19       # < 1 GB -> 512 KB
+            elif [ "$TARGET_SIZE_KB" -lt 2097152 ]; then PIECE_LEN=20       # < 2 GB -> 1 MB
+            elif [ "$TARGET_SIZE_KB" -lt 4194304 ]; then PIECE_LEN=21       # < 4 GB -> 2 MB
+            elif [ "$TARGET_SIZE_KB" -lt 8388608 ]; then PIECE_LEN=22       # < 8 GB -> 4 MB
+            elif [ "$TARGET_SIZE_KB" -lt 16777216 ]; then PIECE_LEN=23      # < 16 GB -> 8 MB
+            else PIECE_LEN=24; fi                                           # >= 16 GB -> 16 MB
+            
+            local SHOW_SIZE=$((2 ** PIECE_LEN / 1024))
+            [ $SHOW_SIZE -ge 1024 ] && SHOW_SIZE="$((SHOW_SIZE / 1024))MB" || SHOW_SIZE="${SHOW_SIZE}KB"
+            
+            echo " 📦 正在打包 .torrent 种子文件 (智能分块: $SHOW_SIZE)..."
+            mktorrent -v -p -l $PIECE_LEN -a "${DEFAULT_TRACKER}" -o "$TORRENT_FILE" "$TARGET_PATH" > /dev/null 2>&1
         fi
     fi
     
@@ -131,10 +152,6 @@ process_target() {
         fi
     fi
 
-    # =====================================================================
-    # 👑 核心修复：指令绝对霸权！
-    # 如果指定了 --only-gif，无视 WebP 是否存在，强行将 DO_GIF 置为 true
-    # =====================================================================
     local DO_GIF=false
     if [ "$ACTION_TYPE" == "--only-gif" ]; then
         DO_GIF=true
@@ -280,7 +297,7 @@ while true; do
     else SYS_BANNER="\033[1;36m[VPS模式 强袭满血版]\033[0m"; fi
     
     echo -e "\033[1;36m=====================================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.26 (指令霸权修正版) \033[0m $SYS_BANNER"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.27 (动态分块智适应修复版) \033[0m $SYS_BANNER"
     echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
