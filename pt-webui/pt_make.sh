@@ -1,5 +1,5 @@
 #!/bin/bash
-# 描述: PT 制种引擎 V9.8.27 (终极完全体: 动态分块智适应 + 双态并发)
+# 描述: PT 制种引擎 V9.8.28 (环境武装强化版: 修复纯净系统静默安装中断)
 
 export LANG=zh_CN.UTF-8
 CONFIG_FILE="$HOME/.pt_make_config"
@@ -30,17 +30,14 @@ fi
 
 DEFAULT_TRACKER="https://rousi.pro/tracker/808263a94ed47ca690395ca957b562e4/announce"
 
-# =====================================================================
-# 🤖 核心侦测雷达：自动适配 甲骨文(ARM小鸡) vs 飞牛NAS(Xeon洋垃圾)
-# =====================================================================
 TOTAL_CORES=$(nproc 2>/dev/null || echo 1)
 if [ "$TOTAL_CORES" -ge 8 ]; then
     SYS_ENV="高性能实体机"
-    GIF_CONCURRENCY=5   # Xeon 饱和轰炸
+    GIF_CONCURRENCY=5
     IMG_CONCURRENCY=10
 else
     SYS_ENV="基础云主机"
-    GIF_CONCURRENCY=3   # ARM 满血并发
+    GIF_CONCURRENCY=3
     IMG_CONCURRENCY=3
 fi
 
@@ -58,8 +55,28 @@ FONT_FILE="$FONT_DIR/LXGWWenKaiLite-Regular.ttf"
 trap 'rm -rf "$TMP_ROOT"; exit' INT TERM EXIT
 
 check_env() {
-    local missing=(); for tool in ffmpeg ffprobe mediainfo mktorrent curl; do command -v "$tool" >/dev/null 2>&1 || missing+=("$tool"); done
-    if [ ${#missing[@]} -gt 0 ]; then sudo apt-get update && sudo apt-get install -y "${missing[@]}"; fi
+    local missing=()
+    for tool in ffmpeg ffprobe mediainfo mktorrent curl; do 
+        command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+    done
+    
+    if [ ${#missing[@]} -gt 0 ]; then 
+        echo -e "\033[1;33m 🛠️ [环境开荒] 侦测到全新系统，正在自动武装组件: ${missing[*]} ...\033[0m"
+        
+        # 核心防线：打断所有交互式弹窗 (解决 FFmpeg 时区卡死问题)
+        export DEBIAN_FRONTEND=noninteractive
+        export TZ="Asia/Shanghai"
+        
+        local CMD_SUDO=""
+        command -v sudo >/dev/null 2>&1 && CMD_SUDO="sudo"
+        
+        $CMD_SUDO apt-get update -y >/dev/null 2>&1
+        $CMD_SUDO apt-get install -y tzdata >/dev/null 2>&1
+        $CMD_SUDO apt-get install -y "${missing[@]}" >/dev/null 2>&1
+        
+        echo -e "\033[1;32m ✅ [环境开荒] 底层火力组件安装完毕！\033[0m"
+    fi
+    
     local VALID_FONT=false
     [ -s "$FONT_FILE" ] && [ "$(du -k "$FONT_FILE" | cut -f1)" -gt 4000 ] && VALID_FONT=true
     if [ "$VALID_FONT" = false ]; then
@@ -120,22 +137,18 @@ process_target() {
     [ ${#VIDEO_FILES[@]} -eq 0 ] && return
     local MAIN_VIDEO="${VIDEO_FILES[0]}"
     
-    # =====================================================================
-    # 🧩 修复核心：体积智适应分块引擎
-    # =====================================================================
     if [ -z "$ACTION_TYPE" ] || [ "$ACTION_TYPE" == "--only-torrent" ]; then
         if [ ! -f "$TORRENT_FILE" ]; then
-            # 兼容所有 Linux 的安全算法：获取 KB 级别总大小
             local TARGET_SIZE_KB=$(du -sk "$TARGET_PATH" | cut -f1)
-            local PIECE_LEN=21 # 默认 2MB 保底
+            local PIECE_LEN=21 
             
-            if [ "$TARGET_SIZE_KB" -lt 524288 ]; then PIECE_LEN=18          # < 512 MB -> 256 KB
-            elif [ "$TARGET_SIZE_KB" -lt 1048576 ]; then PIECE_LEN=19       # < 1 GB -> 512 KB
-            elif [ "$TARGET_SIZE_KB" -lt 2097152 ]; then PIECE_LEN=20       # < 2 GB -> 1 MB
-            elif [ "$TARGET_SIZE_KB" -lt 4194304 ]; then PIECE_LEN=21       # < 4 GB -> 2 MB
-            elif [ "$TARGET_SIZE_KB" -lt 8388608 ]; then PIECE_LEN=22       # < 8 GB -> 4 MB
-            elif [ "$TARGET_SIZE_KB" -lt 16777216 ]; then PIECE_LEN=23      # < 16 GB -> 8 MB
-            else PIECE_LEN=24; fi                                           # >= 16 GB -> 16 MB
+            if [ "$TARGET_SIZE_KB" -lt 524288 ]; then PIECE_LEN=18          
+            elif [ "$TARGET_SIZE_KB" -lt 1048576 ]; then PIECE_LEN=19       
+            elif [ "$TARGET_SIZE_KB" -lt 2097152 ]; then PIECE_LEN=20       
+            elif [ "$TARGET_SIZE_KB" -lt 4194304 ]; then PIECE_LEN=21       
+            elif [ "$TARGET_SIZE_KB" -lt 8388608 ]; then PIECE_LEN=22       
+            elif [ "$TARGET_SIZE_KB" -lt 16777216 ]; then PIECE_LEN=23      
+            else PIECE_LEN=24; fi                                           
             
             local SHOW_SIZE=$((2 ** PIECE_LEN / 1024))
             [ $SHOW_SIZE -ge 1024 ] && SHOW_SIZE="$((SHOW_SIZE / 1024))MB" || SHOW_SIZE="${SHOW_SIZE}KB"
@@ -189,6 +202,9 @@ process_target() {
         local IS_VR=0; local COLS=3; local ROWS=5
         if echo "$D_NAME" | grep -qiE "vr|sbs|lr"; then IS_VR=1; V_W=$((V_W / 2)); COLS=4; ROWS=4; fi
 
+        # 安全防线：如果读取失败导致 V_W 为空，强行赋默认值防止除以 0 崩溃
+        [ -z "$V_W" ] && V_W=1920 && V_H=1080
+        
         local SHOTS=$(( COLS * ROWS ))
         local TOTAL_W=3840; local TILE_W=$(( TOTAL_W / COLS ))
         local TILE_H=$(( V_H * TILE_W / V_W )); TILE_H=$(( TILE_H / 2 * 2 )) 
@@ -297,7 +313,7 @@ while true; do
     else SYS_BANNER="\033[1;36m[VPS模式 强袭满血版]\033[0m"; fi
     
     echo -e "\033[1;36m=====================================================\033[0m"
-    echo -e "\033[1;33m PT 制种引擎 V9.8.27 (动态分块智适应修复版) \033[0m $SYS_BANNER"
+    echo -e "\033[1;33m PT 制种引擎 V9.8.28 (环境武装强化版) \033[0m $SYS_BANNER"
     echo -e "\033[1;36m=====================================================\033[0m"
     echo -e " \033[1;32m[1]\033[0m 自动模式 | \033[1;32m[2]\033[0m 手动模式"
     echo -e " \033[1;35m[3]\033[0m 云端同步 | \033[1;34m[5]\033[0m 动态 WebP 开关 (当前: \033[1;33m$ENABLE_GIF\033[0m)"
