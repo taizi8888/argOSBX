@@ -1,15 +1,63 @@
 version: '3.8'
+
 services:
-  pt-webui:
+  # ==========================================
+  # 🪐 战区 A：甲骨文宿主机 (Oracle)
+  # ==========================================
+  pt-webui-worker:
+    profiles: ["oracle"]              # 👈 只有激活 oracle 档案时才会启动
     build: .
-    container_name: pt-webui
-    restart: unless-stopped
+    container_name: pt-webui-worker
+    network_mode: "bridge"
     ports:
       - "8080:8080"
+    restart: always
+    volumes:
+      - ./app.py:/app/app.py
+      - ./pt_make.sh:/app/pt_make.sh
+      # 物理下载盘穿透映射
+      - /home/docker/qbittorrent/downloads:/downloads
+      # 硬件探针与磁盘容量穿透
+      - /proc:/host_proc:ro
     environment:
       - BASE_DIR=/downloads
+
+  # ==========================================
+  # 🌍 战区 B：飞牛 NAS 独立引擎 (Feiniu)
+  # ==========================================
+  argosbx-feiniu:
+    profiles: ["feiniu"]              # 👈 只有激活 feiniu 档案时才会启动
+    image: python:3.11-bullseye
+    container_name: argosbx_feiniu_webui
+    network_mode: "host"
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+      - BASE_DIR=/vol3/1000/downloads
+      - PROXY_HOST=http://192.168.1.44:7890
     volumes:
-      # 【重要】请根据不同宿主机，将冒号前面的路径改为真实的下载目录
-      - ./downloads:/downloads
-      # 探针透视眼：读取宿主机真实物理硬件数据
-      - /proc:/host_proc:ro
+      - /home/taizi8888:/home/taizi8888
+      - /vol3/1000/downloads:/vol3/1000/downloads
+    working_dir: /home/taizi8888
+    # ⚡ V8.2 闪电点火脚本
+    command: >
+      /bin/bash -c "
+      if ! command -v ffmpeg &> /dev/null; then
+        echo '📦 初次启动：正在配置国内加速源并安装底层依赖...';
+        sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list;
+        sed -i 's/security.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list;
+        apt-get update && apt-get install -y sudo ffmpeg mediainfo mktorrent curl;
+      else
+        echo '⚡ 底层依赖已就位，跳过系统安装。';
+      fi;
+      
+      if ! python3 -c 'import fastapi' &> /dev/null; then
+        echo '📦 初次启动：正在安装 Python 引擎组件...';
+        pip install fastapi uvicorn pydantic -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com;
+      else
+        echo '⚡ Python 引擎已就位，跳过 Pip 安装。';
+      fi;
+      
+      echo '🚀 正在拉起探针服务...';
+      uvicorn app:app --host 0.0.0.0 --port 18000
+      "
