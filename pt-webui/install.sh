@@ -1,33 +1,69 @@
-{\rtf1\ansi\ansicpg936\cocoartf2870
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+cat << 'EOF' > ~/argOSBX/pt-webui/install.sh
+#!/bin/bash
+# 描述: ArgOSBX 分布式集群节点 - 全自动部署脚本 (终极双子星版)
 
-\f0\fs24 \cf0 #!/bin/bash\
-# \uc0\u25551 \u36848 : \u25112 \u21306 \u33258 \u21160 \u35782 \u21035 \u19982 \u21551 \u21160 \u33050 \u26412 \
-\
-echo -e "\\033[1;36m \uc0\u27491 \u22312 \u25195 \u25551 \u23487 \u20027 \u26426 \u29289 \u29702 \u29305 \u24449 ... \\033[0m"\
-\
-# \uc0\u29289 \u29702 \u29305 \u24449 \u21957 \u25506 \u65306 \u22914 \u26524 \u23384 \u22312 \u36825 \u20010 \u26497 \u20855 \u39134 \u29275 \u29305 \u33394 \u30340 \u30446 \u24405 \u65292 \u23601 \u26159 \u39134 \u29275  NAS\
-if [ -d "/vol3/1000/downloads" ] || [ -d "/home/taizi8888" ]; then\
-    echo -e "\\033[1;32m \uc0\u55356 \u57263  \u20390 \u27979 \u32467 \u26524 \u65306 \u39134 \u29275  NAS \u26680 \u24515 \u65281 \\033[0m"\
-    echo -e "\\033[1;33m \uc0\u55357 \u56960  \u27491 \u22312 \u28608 \u27963 \u39134 \u29275 \u25112 \u21306 \u19987 \u26377 \u37197 \u32622  [feiniu]... \\033[0m"\
-    \
-    # \uc0\u23558 \u20998 \u36523 \u21464 \u37327 \u27880 \u20837 \u24403 \u21069 \u29615 \u22659 \u65292 Docker \u20250 \u33258 \u21160 \u35835 \u21462 \
-    export COMPOSE_PROFILES=feiniu\
-\
-# \uc0\u22914 \u26524 \u25214 \u19981 \u21040 \u39134 \u29275 \u30340 \u29305 \u24449 \u65292 \u23601 \u40664 \u35748 \u23427 \u26159 \u30002 \u39592 \u25991 \u25110 \u32773 \u26631 \u20934 \u30340  VPS\
-else\
-    echo -e "\\033[1;32m \uc0\u55356 \u57263  \u20390 \u27979 \u32467 \u26524 \u65306 \u30002 \u39592 \u25991  / \u26631 \u20934 \u20113 \u20027 \u26426 \u65281 \\033[0m"\
-    echo -e "\\033[1;33m \uc0\u55357 \u56960  \u27491 \u22312 \u28608 \u27963 \u30002 \u39592 \u25991 \u25112 \u21306 \u19987 \u26377 \u37197 \u32622  [oracle]... \\033[0m"\
-    \
-    export COMPOSE_PROFILES=oracle\
-fi\
-\
-# \uc0\u32479 \u19968 \u25191 \u34892 \u21484 \u21796 \u25351 \u20196 \
-echo -e "\uc0\u27491 \u22312 \u25191 \u34892 \u24213 \u23618 \u28857 \u28779 ..."\
-docker compose up -d --build\
-\
-echo -e "\\033[1;32m \uc0\u9989  \u25112 \u21306 \u37096 \u32626 \u23436 \u27605 \u65281  \\033[0m"}
+set -e
+echo -e "\033[1;36m=====================================================\033[0m"
+echo -e "\033[1;33m 🚀 ArgOSBX 歼星舰节点 - 自动化集群并网部署 \033[0m"
+echo -e "\033[1;36m=====================================================\033[0m"
+
+# 1. 砸穿 8080 防火墙
+echo -e "\033[1;32m [1/5] 正在暴力砸穿 8080 端口物理防火墙...\033[0m"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y >/dev/null 2>&1
+apt-get install -y iptables-persistent git curl wget >/dev/null 2>&1
+iptables -I INPUT -p tcp --dport 8080 -j ACCEPT 2>/dev/null || true
+netfilter-persistent save >/dev/null 2>&1 || true
+
+# 2. Docker 引擎自动化部署
+if ! command -v docker >/dev/null 2>&1; then
+    echo -e "\033[1;32m [2/5] 正在安装 Docker 级微服务引擎...\033[0m"
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh >/dev/null 2>&1
+    systemctl enable --now docker
+else
+    echo -e "\033[1;32m [2/5] Docker 引擎已就绪，跳过安装。\033[0m"
+fi
+
+# 3. 拉取星舰图纸
+echo -e "\033[1;32m [3/5] 正在从云端拉取 shdetai 集群分支代码...\033[0m"
+mkdir -p ~/argosbx-web
+cd ~/argosbx-web
+rm -rf argOSBX
+git clone -b shdetai https://github.com/taizi8888/argOSBX.git
+cd argOSBX/pt-webui
+
+# 4. 智适应修改下载目录挂载
+echo -e "\033[1;32m [4/5] 正在执行无损级物理路径桥接...\033[0m"
+REAL_DOWNLOAD_DIR="/home/docker/qbittorrent/downloads"
+mkdir -p "$REAL_DOWNLOAD_DIR"
+
+if [ -f "docker-compose.yml" ]; then
+    sed -i "s|.*:/downloads|      - ${REAL_DOWNLOAD_DIR}:/downloads|g" docker-compose.yml
+else
+    echo -e "\033[1;31m ⚠️ 警告：仓库中未找到 docker-compose.yml！请检查代码！\033[0m"
+    exit 1
+fi
+
+# 5. 战区环境物理嗅探与点火 (核心进化点)
+echo -e "\033[1;32m [5/5] 正在进行战区物理特征嗅探...\033[0m"
+if [ -d "/vol3/1000/downloads" ] || [ -d "/home/taizi8888" ]; then
+    echo -e "\033[1;33m 🎯 侦测结果：[飞牛 NAS 中枢]，激活 feiniu 档案！\033[0m"
+    export COMPOSE_PROFILES=feiniu
+else
+    echo -e "\033[1;33m 🎯 侦测结果：[甲骨文 强袭节点]，激活 oracle 档案！\033[0m"
+    export COMPOSE_PROFILES=oracle
+fi
+
+echo -e "\033[1;33m ⏳ 正在进行容器重铸与点火，请稍候 (约 1-2 分钟)...\033[0m"
+systemctl restart docker
+docker compose up -d --build
+
+# 播报
+PUBLIC_IP=$(curl -s ifconfig.me || echo "你的主机IP")
+echo -e "\033[1;36m=====================================================\033[0m"
+echo -e "\033[1;32m 🎉 节点并网成功！分布式集群已扩容！ \033[0m"
+echo -e "\033[1;33m 👉 WebUI 访问: http://${PUBLIC_IP}:8080 \033[0m"
+echo -e "\033[1;36m=====================================================\033[0m"
+EOF
+chmod +x ~/argOSBX/pt-webui/install.sh
