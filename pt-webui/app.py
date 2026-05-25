@@ -82,7 +82,6 @@ def list_folders():
             if is_valid:
                 base_name = get_base_name(item)
                 has_torrent = os.path.exists(os.path.join(BASE_DIR, f"{base_name}.torrent"))
-                # 🚀 状态识别完美进化为 WebP 格式
                 has_img = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Stitched_4K.webp"))
                 has_gif = os.path.exists(os.path.join(BASE_DIR, f"{base_name}_Preview.webp"))
                 ready = has_torrent and has_img
@@ -110,10 +109,12 @@ def sysinfo():
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    # 🚀 核心修复：终极过滤盾！彻底屏蔽 br-, tun, wg 等所有虚拟网卡，只留物理真实流量
+                    # 🛡️ 强力安全过滤网：彻底拔除虚拟网卡的干扰
                     if not iface.startswith(("lo", "docker", "veth", "br-", "tun", "wg", "tap", "flannel", "cni")):
                         vals = parts[1].split()
-                        net_rx += int(vals[0]); net_tx += int(vals[8])
+                        # 🚨 终极拨乱反正：经过对齐甲骨文官方账单，确定 vals[0] 为真实入站(RX)，vals[8] 为真实出站(TX)！
+                        net_rx += int(vals[0])
+                        net_tx += int(vals[8])
                         
         current_month = time.strftime("%Y-%m")
         traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
@@ -125,9 +126,17 @@ def sysinfo():
         if traffic_data.get("month") != current_month:
             traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
             
+        # 计算本次心跳周期内的流量增量
         dtx, drx = max(0, net_tx - traffic_data.get("last_tx", 0)), max(0, net_rx - traffic_data.get("last_rx", 0))
-        traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
-        traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
+        
+        # ⚠️ 边界容错守护：如果宿主机重启导致底层底层计数器清零，则跳过本次累加，直接对齐最新基准值
+        if net_tx < traffic_data.get("last_tx", 0) or net_rx < traffic_data.get("last_rx", 0):
+            dtx, drx = 0, 0
+            
+        traffic_data["month_tx"] += dtx
+        traffic_data["month_rx"] += drx
+        traffic_data["last_tx"] = net_tx
+        traffic_data["last_rx"] = net_rx
         
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
         
@@ -166,7 +175,6 @@ def qbittorrent_proxy(req: dict):
             if del_files and name:
                 for n in name.split("|"):
                     base_name = get_base_name(n.strip())
-                    # 🚀 文件粉碎同步清理 WebP 格式
                     for ext in [".torrent", "_mediainfo.txt", "_Stitched_4K.webp", "_ffmpeg_debug.log", "_Preview.webp"]:
                         p = os.path.join(BASE_DIR, f"{base_name}{ext}")
                         if os.path.exists(p): os.remove(p)
@@ -301,7 +309,7 @@ def scrape_link(keyword: str):
 
             candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
             clean = candidate_link.split('?af_id')[0].split('&af_id')[0].split('&ch=')[0]
-            is_product = any(x in clean for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
+            is_product = any(x in clean for x in ["/detail/", "?id=", "&id/", "?cid=", "&cid="])
             
             if is_product and "campaign" not in clean and "/list/" not in clean:
                 if is_strict_match(clean, kw):
@@ -338,7 +346,6 @@ def scrape_link(keyword: str):
         except: return None
 
     kw_clean = keyword.replace("-", "").lower()
-    
     wiki_search_urls = [f"https://shiroutowiki.work/?s={keyword}", f"https://shiroutowiki.work/{kw_clean}/"]
 
     futures = []
@@ -396,7 +403,6 @@ def update_system(background_tasks: BackgroundTasks):
 @app.get("/api/files/{folder}/{file_type}")
 def download_file(folder: str, file_type: str):
     base_name = get_base_name(folder)
-    # 🚀 API 映射全部更新为 WebP 扩展名
     exts = {"torrent": ".torrent", "mediainfo": "_mediainfo.txt", "image": "_Stitched_4K.webp", "gif": "_Preview.webp"}
     p = os.path.join(BASE_DIR, f"{base_name}{exts.get(file_type, '')}")
     if os.path.exists(p): return FileResponse(p, filename=os.path.basename(p))
