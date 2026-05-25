@@ -9,345 +9,212 @@
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; }
         #app-layout { display: flex; width: 100%; height: 100%; transition: filter 0.3s ease;}
-        #sidebar { width: 240px; background-color: var(--sidebar-bg); color: white; display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 100; }
-        .sidebar-brand { padding: 24px; font-size: 18px; font-weight: bold; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
-        .sidebar-menu { flex: 1; padding: 16px 0; overflow-y: auto; }
-        .menu-item { padding: 12px 24px; display: flex; align-items: center; cursor: pointer; color: #cbd5e1; transition: all 0.2s; font-size: 14px; }
-        .menu-item:hover { background-color: var(--sidebar-hover); color: white; }
-        .menu-item.active { background-color: var(--sidebar-active); color: white; font-weight: bold; }
-        .menu-item .icon { margin-right: 12px; font-size: 16px; }
-        #main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
-        .header { height: 64px; background-color: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
-        .header-title { font-size: 18px; font-weight: bold; color: #1e293b; display: flex; align-items: center; gap: 10px; }
-        .header-actions { display: flex; gap: 12px; align-items: center; }
-        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; border: none; transition: background 0.2s; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
-        .btn-primary { background-color: var(--primary); color: white; }
-        .btn-primary:hover { background-color: #2563eb; }
-        .btn-secondary { background-color: #e2e8f0; color: #475569; }
-        .btn-secondary:hover { background-color: #cbd5e1; }
-        .btn-danger { background-color: var(--danger); color: white; }
-        .btn-danger:hover { background-color: #dc2626; }
-        .btn-success { background-color: var(--success); color: white; }
-        .btn-success:hover { background-color: #059669; }
-        .content-body { flex: 1; padding: 24px; overflow-y: auto; display: none; }
-        .content-body.active { display: block; }
-        
-        .sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .sys-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .card-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
-        .card-value { font-size: 22px; font-weight: bold; color: #1e293b; font-family: monospace; }
-        .progress-bar { height: 6px; background-color: #e2e8f0; border-radius: 3px; margin-top: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background-color: var(--primary); width: 0%; transition: width 0.5s ease; }
-        
-        .node-selector-bar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; }
-        .node-tab { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: all 0.2s; color: #475569; }
-        .node-tab:hover { border-color: var(--primary); color: var(--primary); }
-        .node-tab.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: bold; }
-        .node-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #94a3b8; }
-        .node-dot.online { background-color: var(--success); box-shadow: 0 0 8px var(--success); }
-        
-        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; gap: 12px; flex-wrap: wrap; }
-        .search-input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; width: 26px; min-width: 200px; flex: 1; font-size: 14px; }
-        .view-switch { display: flex; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; background: white; }
-        .view-btn { padding: 8px 14px; border: none; background: transparent; cursor: pointer; font-size: 14px; color: #64748b; }
-        .view-btn.active { background: #e2e8f0; color: #1e293b; font-weight: bold; }
-        
-        .folder-list { display: flex; flex-direction: column; gap: 10px; }
-        .folder-item { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .folder-item:hover { border-color: #cbd5e1; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .folder-info { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
-        .checkbox-custom { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
-        .folder-icon { font-size: 24px; flex-shrink: 0; }
-        .folder-meta { min-width: 0; flex: 1; }
-        .folder-name { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .folder-status-tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; background-color: #f1f5f9; color: #475569; }
-        .folder-status-tag.ready { background-color: #d1fae5; color: #065f46; }
-        .folder-actions-group { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-        
-        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        .grid-item { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; height: 160px; position: relative; transition: all 0.2s; }
-        .grid-item:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        .grid-top { display: flex; gap: 12px; align-items: flex-start; }
-        .grid-meta { flex: 1; min-width: 0; }
-        .grid-checkbox { position: absolute; top: 16px; right: 16px; width: 18px; height: 18px; cursor: pointer; }
-        .grid-actions { display: flex; gap: 6px; margin-top: auto; border-top: 1px solid #f1f5f9; padding-top: 12px; justify-content: flex-end; }
-        
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); padding: 16px; }
-        .modal-card { background: white; border-radius: 16px; width: 100%; max-width: 550px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 90vh; animation: modalEnter 0.2s ease-out; }
-        @keyframes modalEnter { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
-        .modal-title { font-size: 16px; font-weight: bold; color: #1e293b; }
-        .modal-close { font-size: 20px; cursor: pointer; color: #94a3b8; border: none; background: transparent; }
-        .modal-close:hover { color: #475569; }
-        .modal-body { padding: 24px; overflow-y: auto; }
-        .modal-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
-        
-        .form-group { margin-bottom: 16px; }
-        .form-label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
-        .form-control { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background-color: white; color: #1e293b; }
-        .form-control:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-        .form-row { display: flex; gap: 12px; }
-        .form-row .form-group { flex: 1; }
-        .switch-group { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 8px; user-select: none; }
-        .switch-group input { width: 16px; height: 16px; cursor: pointer; }
-        
-        .node-list-item { border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
-        .node-list-info { display: flex; flex-direction: column; gap: 4px; }
-        .node-list-name { font-weight: bold; font-size: 14px; color: #1e293b; }
-        .node-list-url { font-size: 12px; color: var(--text-muted); font-family: monospace; }
-        
-        #log-area { width: 100%; height: calc(100vh - 180px); background: #0f172a; color: #38bdf8; font-family: 'Courier New', Courier, monospace; padding: 16px; border-radius: 8px; overflow-y: auto; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
-        
-        .qb-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-        .qb-item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-        .qb-top { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; gap: 16px; }
-        .qb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-        .qb-meta-line { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
-        .qb-progress { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
-        .qb-fill { height: 100%; background: var(--success); width: 0%; }
-        .qb-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; margin-top: 4px; }
-        
-        #viewerModal .modal-card { max-width: 95vw; width: 1200px; height: 90vh; }
-        #viewerModal .modal-body { display: flex; gap: 16px; padding: 16px; height: 100%; overflow: hidden; }
-        .viewer-left { flex: 1; background: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; border: 1px solid #334155; }
-        .viewer-right { width: 380px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; }
-        #detailImage { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.1s ease; cursor: grab; transform-origin: center center; }
-        #detailImage:active { cursor: grabbing; }
-        .info-box { background: white; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .info-box-title { font-weight: bold; font-size: 13px; color: #1e293b; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 6px; }
-        #mediainfoText { font-family: monospace; font-size: 11px; white-space: pre-wrap; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; height: 260px; overflow-y: auto; margin: 0; color: #334155; }
-        
-        .hamburger { display: none; font-size: 20px; cursor: pointer; color: #1e293b; }
-        @media(max-width: 768px) {
-            #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
-            #sidebar.open { transform: translateX(0); }
-            .hamburger { display: block; }
-            #viewerModal .modal-body { flex-direction: column; overflow-y: auto; }
-            .viewer-left { height: 300px; flex-shrink: 0; }
-            .viewer-right { width: 100%; }
+        #sidebar { width: 240px; background-color: var(--sidebar-bg); color: white; display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 100;}
+        .sidebar-logo { padding: 24px 20px; font-size: 22px; font-weight: 800; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px;}
+        .sidebar-logo span { font-size: 12px; background: var(--primary); padding: 2px 6px; border-radius: 6px;}
+        .sidebar-nav { display: flex; flex-direction: column; padding: 16px 10px; gap: 8px; flex-grow: 1;}
+        .nav-item { padding: 14px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: #cbd5e1; transition: all 0.2s; }
+        .nav-item:hover { background-color: var(--sidebar-hover); color: white; }
+        .nav-item.active { background-color: var(--sidebar-active); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-color);}
+        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); z-index: 10;}
+        .top-header h2 { margin: 0; font-size: 20px; color: #0f172a; }
+        .content-body { flex: 1; overflow-y: auto; padding: 24px 30px; scroll-behavior: smooth; } 
+        .tab-pane { display: none; animation: fadeIn 0.3s ease; }
+        .tab-pane.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 24px; overflow: hidden; border: 1px solid #f1f5f9; }
+        .card-header { padding: 18px 24px; border-bottom: 1px solid #f1f5f9; font-size: 16px; font-weight: 700; color: #1e293b; display: flex; justify-content: space-between; align-items: center;}
+        .card-body { padding: 24px; }
+        .dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .stat-card { display: flex; align-items: center; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: pointer; position: relative; overflow: hidden;}
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+        .stat-card::after { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: transparent; transition: background 0.3s ease; }
+        .stat-card:hover::after { background: var(--primary); }
+        .stat-card.active-filter { background: #f0f9ff; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .stat-card.active-filter::after { background: var(--primary); }
+        .stat-icon { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; margin-right: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: transform 0.3s ease;}
+        .stat-card:hover .stat-icon { transform: scale(1.1) rotate(5deg); }
+        .bg-purple { background: linear-gradient(135deg, #a855f7, #6366f1); color: white;}
+        .bg-pink { background: linear-gradient(135deg, #fb7185, #f43f5e); color: white;}
+        .bg-orange { background: linear-gradient(135deg, #fdba74, #f59e0b); color: white;}
+        .bg-success { background: linear-gradient(135deg, #34d399, #10b981); color: white;}
+        .stat-label { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; transition: color 0.3s ease;}
+        .stat-card:hover .stat-label { color: var(--primary); }
+        .stat-value { font-size: 26px; font-weight: 800; color: #0f172a; line-height: 1; }
+        button { border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;}
+        .btn-update { background: linear-gradient(135deg, #ef4444, #b91c1c); padding: 10px 20px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);}
+        .btn-action { background: var(--primary); padding: 8px 16px;}
+        .btn-view { background: #0ea5e9; padding: 8px 16px;}
+        .btn-pro-submit { background: #0f172a; width: 100%; padding: 16px; font-size: 16px; margin-top: 20px; border-radius: 12px;}
+        .node-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .sys-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
+        .sys-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.05); }
+        .sys-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 10px; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: #1e293b;}
+        .sys-stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-muted); margin-bottom: 4px;}
+        .sys-bar-bg { background: #f1f5f9; border-radius: 10px; height: 8px; margin: 4px 0 12px 0; overflow: hidden; width: 100%; }
+        .sys-bar-fill { height: 100%; transition: width 0.6s ease; border-radius: 10px;}
+        .sys-net { display: flex; justify-content: space-between; font-family: Consolas, monospace; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 10px;}
+        .form-input { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #f8fafc;}
+        .view-toggle { display: flex; background: #e2e8f0; border-radius: 8px; padding: 4px; }
+        .view-toggle button { background: transparent; color: #64748b; padding: 6px 14px; font-size: 13px; font-weight: 700; border-radius: 6px; box-shadow: none; border: none; }
+        .view-toggle button.active { background: white; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .node-group-header { font-size:15px; font-weight:800; color:#1e293b; margin-bottom:12px; display:inline-flex; align-items:center; gap:8px; cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: background 0.2s; user-select: none; }
+        .node-group-header:hover { background: #f1f5f9; }
+        .collapsed { display: none !important; }
+        .items-container.list-view .item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f1f5f9; border-radius: 10px; margin-bottom: 4px; gap: 10px; transition: opacity 0.3s, transform 0.3s;}
+        .items-container.list-view .item:hover { background: #f8fafc; }
+        .items-container.list-view .item-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+        .items-container.list-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .items-container.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding-bottom: 10px; }
+        .items-container.grid-view .item { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s, opacity 0.3s; }
+        .items-container.grid-view .item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); border-color: #cbd5e1; }
+        .items-container.grid-view .item-info { display: flex; align-items: flex-start; gap: 12px; }
+        .items-container.grid-view .item-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: flex-end; margin-top: auto; border-top: 1px dashed #e2e8f0; padding-top: 12px;}
+        .item-info input[type="checkbox"] { transform: scale(1.4); cursor: pointer; accent-color: var(--primary); flex-shrink: 0;}
+        #detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s ease; }
+        #detail-modal-overlay.show { display: flex; opacity: 1; }
+        .detail-modal-container { background: var(--bg-color); width: 100%; max-width: 1400px; height: 92vh; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalPop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: white; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .modal-body { padding: 20px 24px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 20px; }
+        .preview-container { display: flex; gap: 20px; align-items: stretch; flex-grow: 1; }
+        .preview-box { flex: 1; background: white; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 400px;}
+        .mediainfo-wrapper { position: relative; flex-grow: 1; height: 0; min-height: 300px; display: flex; flex-direction: column; }
+        .mediainfo-content { margin: 0; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; overflow-y: auto; background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 10px; }
+        .btn-copy-code { position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.6); color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px); }
+        .btn-copy-code:hover { background: rgba(15, 23, 42, 0.8); }
+        .btn-copy-code.copied { background: var(--success); color: white; }
+        .image-zoom-container { width: 100%; flex-grow: 1; height: 0; min-height: 300px; background: #0f172a; border-radius: 10px; overflow: hidden; position: relative; cursor: grab; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
+        .preview-image { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center center; pointer-events: none; user-select: none; }
+        #bottom-nav { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; justify-content: space-around; padding: 10px 0; padding-bottom: env(safe-area-inset-bottom, 10px); }
+        .bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); cursor: pointer; flex: 1; }
+        .bottom-nav-item.active { color: var(--primary); font-weight: bold; }
+        .qb-table-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .qb-table { width: 100%; border-collapse: collapse; min-width: 1300px; }
+        .qb-table th { background: #f8fafc; padding: 14px; font-size: 13px; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; cursor: pointer; white-space: nowrap;}
+        .qb-table td { padding: 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; white-space: nowrap;}
+        @media (max-width: 1400px) { .node-matrix { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 1024px) { .node-matrix { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { 
+            #sidebar { display: none; } #bottom-nav { display: flex; } #main-content { padding-bottom: 70px; } 
+            .card-header { flex-direction: column; align-items: flex-start; gap: 15px;} .card-header > div { width: 100%; overflow-x: auto; }
+            .items-container.list-view .item { flex-direction: column; align-items: flex-start; } .items-container.list-view .item-actions { margin-top: 10px; width: 100%; justify-content: flex-end; }
+            .detail-modal-container { height: 95vh; width: 98%; border-radius: 16px; } .modal-header { padding: 15px; } .modal-body { padding: 15px; }
+            .preview-container { flex-direction: column; } .preview-box { width: 100%; min-height: 50vh; } 
+            .node-matrix { grid-template-columns: repeat(2, 1fr); gap: 10px; } .sys-card { padding: 12px; border-radius: 10px; }
+            .sys-card-header { font-size: 12px; margin-bottom: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 4px; } .sys-stat-row { font-size: 11px; margin-bottom: 2px; }
+            .sys-bar-bg { height: 6px; margin: 4px 0 8px 0; } .sys-net { font-size: 10px; padding: 6px; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
         }
-        .image-zoom-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-        .zoom-controls { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.8); padding: 6px 12px; border-radius: 20px; display: flex; gap: 12px; z-index: 10; border: 1px solid #334155; }
-        .zoom-btn { background: transparent; border: none; color: white; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; transition: background 0.2s; }
-        .zoom-btn:hover { background: rgba(255,255,255,0.1); }
     </style>
 </head>
 <body>
     <div id="app-layout">
-        <div id="sidebar">
-            <div class="sidebar-brand">
-                <span>ArgOSBX 集群端</span>
-            </div>
-            <div class="sidebar-menu">
-                <div class="menu-item active" onclick="switchNav('task', this)"><span class="icon">⚡</span>智能制种调度</div>
-                <div class="menu-item" onclick="switchNav('qb', this)"><span class="icon">📥</span>qBittorrent 监视</div>
-                <div class="menu-item" onclick="switchNav('log', this)"><span class="icon">📝</span>全域制种日志</div>
-                <div class="menu-item" onclick="switchNav('node', this)"><span class="icon">📡</span>边缘算力集群</div>
-            </div>
-        </div>
-        
-        <div id="main-content">
-            <div id="panel-task" class="content-body active">
-                <div class="header">
-                    <div class="header-title">
-                        <div class="hamburger" onclick="toggleSidebar()">☰</div>
-                        <span>智能制种资源调度大盘</span>
+        <aside id="sidebar">
+            <div class="sidebar-logo">ArgOSBX <span>V9.8</span></div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span>📊</span> 主页大盘</a>
+                <a class="nav-item" onclick="switchTab('fleet')" id="nav-fleet"><span>⚙️</span> 节点探针</a>
+                <a class="nav-item" onclick="switchTab('qb')" id="nav-qb"><span>🔵</span> QB 调度</a>
+                <a class="nav-item" onclick="switchTab('factory')" id="nav-factory"><span>🏭</span> 种子工厂</a>
+                <a class="nav-item" onclick="switchTab('logs')" id="nav-logs"><span>📝</span> 日志审计</a>
+            </nav>
+        </aside>
+        <main id="main-content">
+            <header class="top-header">
+                <h2 id="page-title">主页大盘</h2>
+                <button class="btn-update" onclick="updateSystem()">🚀 全域集群 OTA</button>
+            </header>
+            <div class="content-body">
+                <div id="tab-dashboard" class="tab-pane active">
+                    <div class="dashboard-stats" id="global-stats">
+                        <div class="stat-card" onclick="switchTab('fleet')" title="点击跳转至节点探针"><div class="stat-icon bg-purple">📊</div><div class="stat-info"><span class="stat-label">活跃节点</span><span class="stat-value" id="stat-nodes">0</span></div></div>
+                        <div class="stat-card" id="card-filter-all" onclick="filterTasks('all')" title="点击显示全部任务"><div class="stat-icon bg-pink">📦</div><div class="stat-info"><span class="stat-label">全网任务</span><span class="stat-value" id="stat-total">0</span></div></div>
+                        <div class="stat-card" id="card-filter-ready" onclick="filterTasks('ready')" title="点击仅显示已完成"><div class="stat-icon bg-success">✅</div><div class="stat-info"><span class="stat-label">已完成</span><span class="stat-value" id="stat-ready">0</span></div></div>
+                        <div class="stat-card" id="card-filter-pending" onclick="filterTasks('pending')" title="点击仅显示排队中"><div class="stat-icon bg-orange">⏳</div><div class="stat-info"><span class="stat-label">排队中</span><span class="stat-value" id="stat-pending">0</span></div></div>
                     </div>
-                    <div class="header-actions">
-                        <button class="btn btn-primary" onclick="openRunModal('all')">⚡ 全新扫描一键全制</button>
-                        <button class="btn btn-secondary" onclick="triggerUpdate()">🚀 全域集群 OTA</button>
-                    </div>
-                </div>
-                
-                <div class="node-selector-bar" id="node-tabs-container"></div>
-                
-                <div class="sys-grid">
-                    <div class="sys-card">
-                        <div class="card-label">CPU 使用率</div>
-                        <div class="card-value" id="sys-cpu">0.0%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="sys-cpu-bar"></div></div>
-                    </div>
-                    <div class="sys-card">
-                        <div class="card-label">内存 占用</div>
-                        <div class="card-value" id="sys-mem">0.0 / 0.0 GB</div>
-                        <div class="progress-bar"><div class="progress-fill" id="sys-mem-bar"></div></div>
-                    </div>
-                    <div class="sys-card">
-                        <div class="card-label">存储 盘余</div>
-                        <div class="card-value" id="sys-disk">0.0 / 0.0 TB</div>
-                        <div class="progress-bar"><div class="progress-fill" id="sys-disk-bar"></div></div>
-                    </div>
-                    <div class="sys-card">
-                        <div class="card-label">📊 本月入站流量 (下载)</div>
-                        <div class="card-value" id="sys-rx">0.00 GB</div>
-                    </div>
-                    <div class="sys-card">
-                        <div class="card-label">📊 本月出站流量 (上传)</div>
-                        <div class="card-value" id="sys-tx">0.00 GB</div>
+                    <div class="card" id="task-list-section">
+                        <div class="card-header">
+                            <span style="display:flex; align-items:center; gap:10px;"><span id="task-list-title">📂 全网成品目录监控</span><div class="view-toggle"><button id="btn-view-list" onclick="switchViewMode('list')">列表</button><button id="btn-view-grid" onclick="switchViewMode('grid')">网格</button></div></span>
+                            <div style="display:flex; gap:10px;"><button class="btn-action" style="background:#64748b" onclick="selectAllPending()">☑️ 全选未完成</button><button class="btn-action" onclick="triggerBatch()">🚀 批量执行队列</button></div>
+                        </div>
+                        <div class="card-body" style="padding-top:10px;"><div id="folder-list"></div></div>
                     </div>
                 </div>
-                
-                <div class="toolbar">
-                    <input type="text" class="search-input" id="search-box" placeholder="过滤资源目录名称..." oninput="renderFolders()">
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button class="btn btn-success" id="btn-batch-run" style="display:none;" onclick="runBatchTasks()">⚙️ 批量并发制种</button>
-                        <div class="view-switch">
-                            <button class="view-btn active" id="btn-view-list" onclick="setViewMode('list')">☰ 列表</button>
-                            <button class="view-btn" id="btn-view-grid" onclick="setViewMode('grid')">⚃ 矩阵</button>
+                <div id="tab-fleet" class="tab-pane"><div class="card"><div class="card-header">⚙️ 算力集群调度</div><div class="card-body"><div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;"><input type="text" id="newNodeIp" class="form-input" style="flex:2; min-width: 150px;" placeholder="节点 API 地址"><input type="text" id="newNodeName" class="form-input" style="flex:1; min-width: 100px;" placeholder="备注别名"><button class="btn-action" onclick="addNode()">添加探针</button></div><div id="active-nodes" class="node-matrix"></div></div></div></div>
+                <div id="tab-qb" class="tab-pane"><div class="card"><div class="card-header">🔵 qBittorrent 远程接管<div id="qb-batch-bar" style="display:none; gap:6px;"><button onclick="qbBatchAction('resume')" style="background:var(--success); padding:6px 12px;">▶ 开始</button><button onclick="qbBatchDelete()" style="background:var(--danger); padding:6px 12px;">🗑️ 删除</button></div></div><div class="card-body"><div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;"><select id="qb-node-select" class="form-input" style="flex:1; min-width:150px;" onchange="loadQbConfig()"></select><input type="text" id="qb-url" class="form-input" style="flex:2; min-width:200px;" placeholder="QB 地址 (如 http://192.168.1.2:8080)"><input type="text" id="qb-user" class="form-input" style="flex:1; min-width:120px;" placeholder="用户名 (选填)"><input type="password" id="qb-pwd" class="form-input" style="flex:1; min-width:120px;" placeholder="密码 (选填)"><button class="btn-view" onclick="connectQb()" style="min-width:100px;">🔗 连接</button></div><div class="qb-table-wrapper" id="qb-table-container" style="display:none;"><table class="qb-table"><thead><tr><th><input type="checkbox" id="qb-chk-all" onclick="toggleQbAll(this.checked)"></th><th onclick="setQbSort('name')">名称 <span id="sort-icon-name" class="sort-icon"></span></th><th onclick="setQbSort('size')">大小 <span id="sort-icon-size" class="sort-icon"></span></th><th onclick="setQbSort('progress')">进度 <span id="sort-icon-progress" class="sort-icon"></span></th><th onclick="setQbSort('state')">状态 <span id="sort-icon-state" class="sort-icon"></span></th><th onclick="setQbSort('ratio')">分享率 <span id="sort-icon-ratio" class="sort-icon"></span></th><th onclick="setQbSort('dlspeed')">下行 <span id="sort-icon-dlspeed" class="sort-icon"></span></th><th onclick="setQbSort('upspeed')">上行 <span id="sort-icon-upspeed" class="sort-icon"></span></th><th onclick="setQbSort('added_on')">添加时间 <span id="sort-icon-added_on" class="sort-icon"></span></th><th style="text-align:right;">操作</th></tr></thead><tbody id="qb-table-body"></tbody></table></div></div></div></div>
+                <div id="tab-factory" class="tab-pane">
+                    <div class="card">
+                        <div class="card-header">🏭 极客种子工厂 Pro</div>
+                        <div class="card-body">
+                            <div class="pro-form-group"><label>🎯 注入目标目录</label><select id="pro-folder" class="form-input"></select></div>
+                            <div class="pro-form-group" style="margin-top: 15px;"><label>🔗 Tracker URL</label><input type="text" id="pro-tracker" class="form-input" placeholder="留空使用默认"></div>
+                            
+                            <div style="display:flex; flex-wrap:wrap; gap:20px; margin-top: 15px;">
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>🖼️ 排版引擎</label>
+                                    <select id="pro-layout" class="form-input"><option value="auto">🤖 智能自动</option><option value="standard">🎥 标准 2x8</option><option value="vr">🥽 VR 1x8</option></select>
+                                </div>
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>📦 分块大小</label>
+                                    <select id="pro-piece" class="form-input"><option value="">🤖 自适应</option><option value="21">2MB</option><option value="24">16MB</option></select>
+                                </div>
+                                <div class="pro-form-group" style="flex:1;">
+                                    <label>🎯 执行模式 (微操)</label>
+                                    <select id="pro-action" class="form-input" style="color: var(--primary); font-weight: bold;">
+                                        <option value="">⚙️ 完整全自动流水线</option>
+                                        <option value="--only-torrent">📦 仅制作种子 (.torrent)</option>
+                                        <option value="--only-info">📄 仅提取 MediaInfo</option>
+                                        <option value="--only-img">🖼️ 仅生成 4K WebP 静态海报</option>
+                                        <option value="--only-gif">🎬 仅渲染动态 WebP 矩阵</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="pro-form-group" style="margin-top: 15px; display:flex; flex-wrap:wrap; gap: 15px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; color:#ec4899; font-weight:bold;"><input type="checkbox" id="pro-enable-gif" checked style="accent-color:#ec4899; transform:scale(1.2);"> 🎬 自动生成 3x6 动态 WebP</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-torrent"> 🔄 覆盖旧种子/Info</label>
+                                <label style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pro-overwrite-image"> 🖼️ 重新生成静态 WebP 海报</label>
+                            </div>
+                            <button class="btn-pro-submit" onclick="submitProTask()">🚀 向算力节点下发任务</button>
                         </div>
                     </div>
                 </div>
-                
-                <div id="folders-display-container"></div>
+                <div id="tab-logs" class="tab-pane"><div class="card" style="height: calc(100vh - 120px); display: flex; flex-direction: column;"><div class="card-header">📝 实时日志审计<div style="display: flex; gap: 15px;"><label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="auto-scroll-cb" checked> 自动追踪</label><button class="btn-action" style="background:var(--danger); padding: 6px 12px;" onclick="clearLogs()">🗑️ 清空</button></div></div><div class="card-body" style="flex: 1; padding: 0; background: #0f172a; overflow: hidden;"><pre id="log-container" style="margin: 0; padding: 20px; color: #a5b4fc; font-family: Consolas, monospace; font-size: 13px; height: 100%; overflow-y: auto; white-space: pre-wrap;"></pre></div></div></div>
             </div>
-            
-            <div id="panel-qb" class="content-body">
-                <div class="header">
-                    <div class="header-title"><span>qBittorrent 核心吞吐流监控</span></div>
-                </div>
-                <div class="toolbar" style="margin-top:20px;">
-                    <span style="font-size:14px; font-weight:bold; color:#475569;" id="qb-node-title">当前节点: 未连接</span>
-                    <button class="btn btn-secondary" onclick="refreshQB()">🔄 强制刷新</button>
-                </div>
-                <div class="qb-grid" id="qb-list-container"></div>
-            </div>
-            
-            <div id="panel-log" class="content-body">
-                <div class="header">
-                    <div class="header-title"><span>全域集群制种异步流水线日志</span></div>
-                    <div class="header-actions">
-                        <button class="btn btn-danger" onclick="clearLogs()">🧹 擦除日志</button>
-                        <button class="btn btn-secondary" onclick="refreshLogs()">🔄 刷新日志</button>
-                    </div>
-                </div>
-                <div style="padding-top:20px;"><pre id="log-area">正在同步集群日志流...</pre></div>
-            </div>
-            
-            <div id="panel-node" class="content-body">
-                <div class="header">
-                    <div class="header-title"><span>边缘节点算力拓扑管理</span></div>
-                    <button class="btn btn-primary" onclick="openAddNodeModal()">➕ 新增分布式边缘节点</button>
-                </div>
-                <div style="padding-top:20px;" id="node-list-manager"></div>
-            </div>
-        </div>
+        </main>
+        <nav id="bottom-nav"><div class="bottom-nav-item active" onclick="switchTab('dashboard')" id="mob-dashboard"><span class="icon">📊</span>主页</div><div class="bottom-nav-item" onclick="switchTab('fleet')" id="mob-fleet"><span class="icon">⚙️</span>节点</div><div class="bottom-nav-item" onclick="switchTab('qb')" id="mob-qb"><span class="icon">🔵</span>QB</div><div class="bottom-nav-item" onclick="switchTab('factory')" id="mob-factory"><span class="icon">🏭</span>工厂</div><div class="bottom-nav-item" onclick="switchTab('logs')" id="mob-logs"><span class="icon">📝</span>日志</div></nav>
     </div>
     
-    <div class="modal-overlay" id="runModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div class="modal-title" id="runModalTitle">独立资源制种参数高级定制</div>
-                <button class="modal-close" onclick="closeModal('runModal')">×</button>
-            </div>
+    <div id="detail-modal-overlay">
+        <div class="detail-modal-container" onclick="event.stopPropagation()">
+            <div class="modal-header"><div class="success-title" style="margin:0; font-size:22px; color:#1e293b;"><span style="color:var(--success); margin-right:8px;">✅</span> 任务审核详情</div><button class="btn-action" style="background:#f1f5f9; color:#475569; padding:8px 16px; border:1px solid #cbd5e1;" onclick="closeDetailView()">✖ 关闭</button></div>
             <div class="modal-body">
-                <input type="hidden" id="submit-folder">
-                <input type="hidden" id="submit-mode">
-                <div class="form-group">
-                    <label class="form-label">发布 Tracker 服务器（留空则采用基础配置）</label>
-                    <input type="text" class="form-control" id="task-tracker" placeholder="https://xp.m-team.cc/announce.php">
+                <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                    <div style="color: #64748b; font-size: 14px; font-weight:600;" id="detailPath"></div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;"><button onclick="downloadFile('torrent')" style="background:#15803d; padding:8px 16px;">⬇️ 种子</button><button onclick="downloadFile('mediainfo')" style="background:#0ea5e9; padding:8px 16px;">⬇️ Info</button><button onclick="downloadFile('image')" style="background:#f59e0b; color:#fff; padding:8px 16px;">⬇️ 4K WebP</button><button id="btn-dl-gif" onclick="downloadFile('gif')" style="background:#ec4899; color:#fff; padding:8px 16px; display:none;">⬇️ 动态 WebP</button></div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">制作块大小 (Piece Size)</label>
-                        <select class="form-control" id="task-piece">
-                            <option value="">自动智适应块</option>
-                            <option value="18">256 KB</option>
-                            <option value="19">512 KB</option>
-                            <option value="20">1 MB</option>
-                            <option value="21">2 MB</option>
-                            <option value="22">4 MB</option>
-                            <option value="23">8 MB</option>
-                            <option value="24">16 MB</option>
-                            <option value="25">32 MB</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">拼接大图排版阵列</label>
-                        <select class="form-control" id="task-layout">
-                            <option value="">默认 3x4 阵列</option>
-                            <option value="2x3">2x3 极速阵列</option>
-                            <option value="3x4">3x4 标准阵列</option>
-                            <option value="4x5">4x5 高清阵列</option>
-                            <option value="5x6">5x6 究极巨幕</option>
-                        </select>
+                <div style="background:white; padding:15px 24px; border-radius:12px; display:flex; flex-wrap:wrap; align-items:center; gap:15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                    <div style="font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px; white-space:nowrap;"><span>🔗 DMM 链接：</span></div>
+                    <div style="display:flex; gap:10px; flex:1; min-width:300px; flex-wrap:wrap;">
+                        <input type="text" id="meta-keyword" class="form-input" style="flex:1; min-width:100px;" placeholder="提取番号">
+                        <button class="btn-action" style="background:#8b5cf6;" onclick="fetchDmmLink()">🔍 自动抓取</button>
+                        <input type="text" id="meta-result" class="form-input" style="flex:2; min-width:180px;" placeholder="点击抓取或在此手动粘贴链接">
+                        <button id="btn-copy-dmm" class="btn-action" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" onclick="copyDmmLink()">📋 复制</button>
+                        <button class="btn-action" style="background:#0ea5e9;" onclick="openGoogleSearch()">🌐 浏览器搜索</button>
                     </div>
                 </div>
-                <div class="form-group" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
-                    <label class="switch-group"><input type="checkbox" id="task-overwrite-torrent"><span>🔥 强制覆盖已有 .torrent 种子与 MediaInfo</span></label>
-                    <label class="switch-group" style="margin-top:10px;"><input type="checkbox" id="task-overwrite-image"><span>🔥 强制全量重绘 WebP 4K 大图与动态预览</span></label>
-                    <label class="switch-group" style="margin-top:10px;"><input type="checkbox" id="task-gif" checked><span>🎬 开启多核心抽取制作 WebP 高清动态预览</span></label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('runModal')">放弃</button>
-                <button class="btn btn-primary" onclick="submitTask()">点火 启动流水线</button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="modal-overlay" id="nodeModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div class="modal-title">新增算力集群节点网关</div>
-                <button class="modal-close" onclick="closeModal('nodeModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">自定义节点命名</label>
-                    <input type="text" class="form-control" id="node-name" placeholder="例如：甲骨文新加坡 3+13">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">后端 API 绝对网关 (含端口)</label>
-                    <input type="text" class="form-control" id="node-url" placeholder="http://152.67.x.x:8080">
-                </div>
-                <div style="background:#f1f5f9; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-top:14px;">
-                    <div class="modal-title" style="font-size:12px; margin-bottom:10px; color:#475569;">🔗 同步桥接该节点独占的 qBittorrent（可选）</div>
-                    <div class="form-group">
-                        <label class="form-label">qBittorrent WebUI 访问基准 URL</label>
-                        <input type="text" class="form-control" id="node-qb-url" placeholder="http://127.0.0.1:8081">
+                <div class="preview-container">
+                    <div class="preview-box">
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;"><span>📄 MediaInfo 物理探针参数:</span></div>
+                        <div class="mediainfo-wrapper"><button id="btn-copy-mediainfo" class="btn-copy-code" onclick="copyMediaInfo()">📋 复制代码</button><pre class="mediainfo-content" id="detailMediaInfo">跨机读取中...</pre></div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group"><label class="form-label">WebUI 账户</label><input type="text" class="form-control" id="node-qb-user" placeholder="admin"></div>
-                        <div class="form-group"><label class="form-label">WebUI 密码</label><input type="password" class="form-control" id="node-qb-pwd" placeholder="password"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('nodeModal')">取消</button>
-                <button class="btn btn-primary" onclick="saveNewNode()">并网 绑定算力</button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="modal-overlay" id="viewerModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div class="modal-title" id="viewerTitle">资产扫描详情</div>
-                <button class="modal-close" onclick="closeModal('viewerModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="viewer-left" id="imageZoomContainer">
-                    <div class="image-zoom-container">
-                        <img id="detailImage" alt="媒体资产载入中...">
-                    </div>
-                    <div class="zoom-controls">
-                        <button class="zoom-btn" onclick="zoomImage(0.15)">＋</button>
-                        <button class="zoom-btn" onclick="zoomImage(-0.15)">－</button>
-                        <button class="zoom-btn" onclick="resetImageZoom()">↺</button>
-                    </div>
-                </div>
-                <div class="viewer-right">
-                    <div class="info-box">
-                        <div class="info-box-title">💾 实体资产外发联动</div>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <a class="btn btn-primary" id="link-torrent" target="_blank" style="font-size:12px; padding:6px 12px;">📥 下载种子</a>
-                            <a class="btn btn-success" id="link-img" target="_blank" style="font-size:12px; padding:6px 12px;">🖼️ 4K 拼图</a>
-                            <a class="btn btn-secondary" id="link-gif" target="_blank" style="font-size:12px; padding:6px 12px;">🎬 动态预览</a>
+                    <div class="preview-box">
+                        <div style="font-weight:700; margin-bottom:12px; font-size:15px; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🖼️ 4K WebP 压榨沙盒:</span>
+                            <div style="font-size:12px; font-weight:normal; color:#94a3b8; display:flex; align-items:center; gap:10px;"><button id="btn-preview-gif" onclick="loadGifPreview()" style="background:#ec4899; color:white; border:none; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; display:none;">🎞️ 载入动态预览</button><span>🖱️ 滚轮缩放 / 拖拽平移</span><button onclick="resetImageZoom()" style="background:#f1f5f9; color:#475569; padding:4px 10px; font-size:12px; border:1px solid #e2e8f0;">重置视角</button></div>
                         </div>
-                    </div>
-                    <div class="info-box" style="flex:1; display:flex; flex-direction:column; min-height:300px;">
-                        <div class="info-box-title">📋 经典 MediaInfo 参数报表</div>
-                        <pre id="mediainfoText">检测中...</pre>
+                        <div class="image-zoom-container" id="imageZoomContainer"><img class="preview-image" id="detailImage" src="" alt="4K Preview"></div>
                     </div>
                 </div>
             </div>
@@ -355,420 +222,223 @@
     </div>
 
     <script>
-        let nodes = [];
-        let currentNodeIdx = 0;
-        let foldersData = [];
-        let currentViewMode = localStorage.getItem("view_mode") || "list";
-        let sysTimer = null, qbTimer = null, logTimer = null;
-        let selectedFolders = new Set();
+        let clusterNodes = [], currentFolders = [], currentActiveFolder = "", currentActiveNodeUrl = "", nodeStats = {};
+        let qbTorrentsData = [], qbSortKey = 'added_on', qbSortAsc = false, qbSelectedHashes = new Set(), qbInterval = null, logInterval = null, isAutoScroll = true;
+        let currentViewMode = localStorage.getItem('view_mode') || 'list';
+        let collapsedNodes = new Set(JSON.parse(localStorage.getItem('collapsed_nodes')) || []);
+        let currentTaskFilter = 'all'; 
+        
+        document.getElementById('auto-scroll-cb').addEventListener('change', e => isAutoScroll = e.target.checked);
+        const titles = { 'dashboard':'主页大盘', 'fleet':'节点管理', 'qb':'QB 调度', 'factory':'种子工厂', 'logs':'日志审计' };
+        
+        function switchViewMode(m) { currentViewMode=m; localStorage.setItem('view_mode',m); document.getElementById('btn-view-list').className = m==='list'?'active':''; document.getElementById('btn-view-grid').className = m==='grid'?'active':''; renderList(); }
+        function filterTasks(status) { currentTaskFilter = status; document.getElementById('card-filter-all').classList.remove('active-filter'); document.getElementById('card-filter-ready').classList.remove('active-filter'); document.getElementById('card-filter-pending').classList.remove('active-filter'); document.getElementById(`card-filter-${status}`).classList.add('active-filter'); const titleMap = { 'all': '📂 全网成品目录监控 (全部)', 'ready': '✅ 仅显示已完成任务', 'pending': '⏳ 仅显示排队中任务' }; document.getElementById('task-list-title').innerText = titleMap[status]; renderList(); document.querySelector('.content-body').scrollTo({ top: document.getElementById('task-list-section').offsetTop - 20, behavior: 'smooth' }); }
+        function toggleNodeGroup(n) { if(collapsedNodes.has(n)) collapsedNodes.delete(n); else collapsedNodes.add(n); localStorage.setItem('collapsed_nodes', JSON.stringify([...collapsedNodes])); renderList(); }
+        
+        function switchTab(t) {
+            document.querySelectorAll('.tab-pane, .nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${t}`).classList.add('active');
+            const n = document.getElementById(`nav-${t}`), m = document.getElementById(`mob-${t}`);
+            if(n) n.classList.add('active'); if(m) m.classList.add('active');
+            document.getElementById('page-title').innerText = titles[t];
+            if (t === 'logs') { fetchLogs(true); if (!logInterval) logInterval = setInterval(() => fetchLogs(), 3000); }
+            else { if (logInterval) { clearInterval(logInterval); logInterval = null; } }
+        }
 
-        async function initNodes() {
+        async function fetchLogs(m = false) { try { const res = await fetch('/api/logs'), d = await res.json(), c = document.getElementById('log-container'); if (d.logs) c.innerText = d.logs; if (isAutoScroll || m) c.scrollTop = c.scrollHeight; } catch(e){} }
+        async function clearLogs() { if(confirm("确定清空日志？")) { await fetch('/api/logs/clear', { method: 'POST' }); fetchLogs(true); } }
+        function extractJavCode(folder) { const match1 = folder.match(/[a-zA-Z0-9]{2,8}-\d{2,5}/i); if (match1) return match1[0].toUpperCase(); const match2 = folder.match(/[a-zA-Z]{2,6}\d{3,5}/i); if (match2) return match2[0].toUpperCase(); return folder; }
+
+        function openDetailView(u, f, n, hasGif) {
+            currentActiveNodeUrl = u; currentActiveFolder = f; 
+            document.getElementById('detail-modal-overlay').classList.add('show'); document.getElementById('app-layout').style.filter = 'blur(4px)';
+            document.getElementById('detailPath').innerText = `节点：[${n}] /downloads/${f}`; resetImageZoom();
+            document.getElementById('detailImage').src = `${u}/api/files/${encodeURIComponent(f)}/image?t=${Date.now()}`;
+            
+            const btnDl = document.getElementById('btn-dl-gif'), btnPv = document.getElementById('btn-preview-gif');
+            if (hasGif === true || hasGif === 'true') { btnDl.style.display = 'inline-block'; btnPv.style.display = 'inline-block'; } else { btnDl.style.display = 'none'; btnPv.style.display = 'none'; }
+            
+            document.getElementById('meta-keyword').value = extractJavCode(f); document.getElementById('meta-result').value = ""; document.getElementById('detailMediaInfo').innerText = "跨机读取中...";
+            fetch(`${u}/api/preview/mediainfo/${encodeURIComponent(f)}`).then(r=>r.text()).then(t=>document.getElementById('detailMediaInfo').innerText=t).catch(()=>document.getElementById('detailMediaInfo').innerText="读取失败");
+        }
+        
+        function loadGifPreview() { document.getElementById('detailImage').src = `${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/gif?t=${Date.now()}`; }
+        function closeDetailView() { document.getElementById('detail-modal-overlay').classList.remove('show'); document.getElementById('app-layout').style.filter = 'none'; document.getElementById('detailImage').src = ""; }
+        document.getElementById('detail-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeDetailView(); });
+
+        /* =========================================================================
+           🚀 核心修复：绝对锁定主控机 (Master Node) 抓取 + 本地正则兜底
+           ========================================================================= */
+        async function fetchDmmLink() {
+            const keyword = document.getElementById('meta-keyword').value.trim();
+            if(!keyword) return alert("提取番号不能为空！");
+            const resInput = document.getElementById('meta-result');
+            resInput.value = "📡 主控机(Master)穿透检索中...";
+
+            // 1. API 智能请求（⚠️ 核心修正：绝对锁定使用相对路径！）
+            const targetApiUrl = `/api/scraper/${encodeURIComponent(keyword)}`;
+
             try {
-                const r = await fetch("/api/nodes");
-                nodes = await r.json();
-            } catch { nodes = []; }
-            if(nodes.length === 0) {
-                nodes = [{name: "本地主控核心", url: window.location.origin, qb_url: "", qb_user: "", qb_pwd: ""}];
+                const res = await fetch(targetApiUrl);
+                const data = await res.json();
+                if(data.link) {
+                    resInput.value = data.link;
+                    return; // 命中则直接结束
+                }
+            } catch(e) {
+                console.warn("主控机 API 抓取超时或拦截，触发本地智能推算...", e);
             }
-            renderNodeTabs();
-            selectNode(0);
-        }
 
-        function renderNodeTabs() {
-            const container = document.getElementById("node-tabs-container");
-            container.innerHTML = nodes.map((n, idx) => `
-                <div class="node-tab ${idx === currentNodeIdx ? 'active' : ''}" onclick="selectNode(${idx})">
-                    <div class="node-dot" id="dot-${idx}"></div>
-                    <span>${n.name}</span>
-                </div>
-            `).join("");
-        }
-
-        function selectNode(idx) {
-            currentNodeIdx = idx;
-            renderNodeTabs();
-            selectedFolders.clear();
-            document.getElementById("btn-batch-run").style.display = "none";
-            
-            clearInterval(sysTimer); clearInterval(qbTimer); clearInterval(logTimer);
-            
-            refreshSysInfo(); sysTimer = setInterval(refreshSysInfo, 6000);
-            refreshFolders();
-            
-            const activeNav = document.querySelector(".menu-item.active").innerText;
-            if(activeNav.includes("qBittorrent")) { refreshQB(); qbTimer = setInterval(refreshQB, 4000); }
-            if(activeNav.includes("日志")) { refreshLogs(); logTimer = setInterval(refreshLogs, 3000); }
-        }
-
-        function getActiveNode() { return nodes[currentNodeIdx] || {url: window.location.origin}; }
-
-        async function refreshSysInfo() {
-            const node = getActiveNode();
-            const dot = document.getElementById(`dot-${currentNodeIdx}`);
-            try {
-                const r = await fetch(`${node.url}/api/sysinfo`);
-                const d = await r.json();
-                if(d.error) throw new Error();
-                
-                if(dot) { dot.className = "node-dot online"; }
-                
-                const cpuUsed = ((d.cpu_total - d.cpu_idle) / d.cpu_total * 100).toFixed(1);
-                document.getElementById("sys-cpu").innerText = `${cpuUsed}%`;
-                document.getElementById("sys-cpu-bar").style.width = `${cpuUsed}%`;
-                
-                const memT = (d.mem_total / 1073741824).toFixed(1);
-                const memU = (d.mem_used / 1073741824).toFixed(1);
-                document.getElementById("sys-mem").innerText = `${memU} / ${memT} GB`;
-                document.getElementById("sys-mem-bar").style.width = `${(memU/memT*100).toFixed(1)}%`;
-                
-                const diskT = (d.disk_total / 1099511627776).toFixed(1);
-                const diskU = (d.disk_used / 1099511627776).toFixed(1);
-                document.getElementById("sys-disk").innerText = `${diskU} / ${diskT} TB`;
-                document.getElementById("sys-disk-bar").style.width = `${(diskU/diskT*100).toFixed(1)}%`;
-                
-                // 🚨 终极对调：前端标签对齐后端，rx渲染入站，tx渲染出站！
-                const rxGB = (d.month_rx / 1073741824).toFixed(2);
-                document.getElementById("sys-rx").innerText = rxGB >= 1024 ? `${(rxGB/1024).toFixed(2)} TB` : `${rxGB} GB`;
-                
-                const txGB = (d.month_tx / 1073741824).toFixed(2);
-                document.getElementById("sys-tx").innerText = txGB >= 1024 ? `${(txGB/1024).toFixed(2)} TB` : `${txGB} GB`;
-                
-            } catch {
-                if(dot) { dot.className = "node-dot"; }
-            }
-        }
-
-        async function refreshFolders() {
-            const node = getActiveNode();
-            try {
-                const r = await fetch(`${node.url}/api/folders`);
-                const d = await r.json();
-                foldersData = d.folders || [];
-                renderFolders();
-            } catch {
-                document.getElementById("folders-display-container").innerHTML = `<div style="text-align:center;color:var(--danger);padding:40px;font-weight:bold;">⚠️ 无法连接到该边缘算力节点，请检查网络或端口放行状态</div>`;
-            }
-        }
-
-        function renderFolders() {
-            const container = document.getElementById("folders-display-container");
-            const kw = document.getElementById("search-box").value.toLowerCase().strip();
-            const filtered = foldersData.filter(f => f.name.toLowerCase().includes(kw));
-            
-            if(filtered.length === 0) {
-                container.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:40px;">暂无匹配的存储资产目录</div>`;
-                return;
-            }
-            
-            if(currentViewMode === "list") {
-                container.className = "folder-list";
-                container.innerHTML = filtered.map(f => {
-                    const isChecked = selectedFolders.has(f.name) ? 'checked' : '';
-                    return `
-                        <div class="folder-item">
-                            <div class="folder-info">
-                                <input type="checkbox" class="checkbox-custom" ${isChecked} onchange="toggleSelectFolder('${f.name}', this)">
-                                <div class="folder-icon">${f.name.toLowerCase().endsWith(('.mp4','.mkv','.avi','.wmv','.ts')) ? '🎬' : '📁'}</div>
-                                <div class="folder-meta">
-                                    <div class="folder-name" title="${f.name}">${f.name}</div>
-                                    <div style="display:flex; gap:8px; align-items:center;">
-                                        <div class="folder-status-tag ${f.ready ? 'ready' : ''}">${f.status}</div>
-                                        ${f.has_gif ? '<span style="font-size:11px; background:#e0f2fe; color:#0369a1; padding:1px 5px; border-radius:3px; font-weight:bold;">⚡ Preview 绘成</span>' : ''}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="folder-actions-group">
-                                <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="openRunModal('folder', '${f.name}')">⚙️ 配置参数</button>
-                                <button class="btn btn-primary" style="padding:6px 12px; font-size:12px;" onclick="directFastRun('${f.name}')">⚡ 瞬发制种</button>
-                                ${f.ready ? `<button class="btn btn-success" style="padding:6px 12px; font-size:12px;" onclick="openAssetViewer('${f.name}')">🔍 资产透视</button>` : ''}
-                            </div>
-                        </div>
-                    `;
-                }).join("");
+            // 2. 离线/防封兜底：如果主控机真的被 Cloudflare 彻底封死，前端 JS 暴力推算
+            let kw_clean = keyword.replace(/-/g, "").toLowerCase();
+            let match = kw_clean.match(/([a-z]+)(\d+)/);
+            if (match) {
+                let letters = match[1];
+                let numbers = match[2];
+                let cid = letters + numbers.padStart(5, '0');
+                if (cid.includes('vr')) {
+                    resInput.value = `https://video.dmm.co.jp/av/content/?id=${cid}`;
+                } else {
+                    resInput.value = `https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=${cid}/`;
+                }
             } else {
-                container.className = "folder-grid";
-                container.innerHTML = filtered.map(f => {
-                    const Hong = selectedFolders.has(f.name) ? 'checked' : '';
-                    return `
-                        <div class="grid-item">
-                            <input type="checkbox" class="grid-checkbox" ${Hong} onchange="toggleSelectFolder('${f.name}', this)">
-                            <div class="grid-top">
-                                <div class="folder-icon" style="font-size:28px;">${f.name.toLowerCase().endsWith(('.mp4','.mkv','.avi','.wmv','.ts')) ? '🎬' : '📁'}</div>
-                                <div class="grid-meta">
-                                    <div class="folder-name" title="${f.name}">${f.name}</div>
-                                    <div class="folder-status-tag ${f.ready ? 'ready' : ''}" style="margin-top:4px;">${f.status}</div>
+                resInput.value = "检索失败且无法推算，请点击【浏览器搜索】";
+            }
+        }
+        /* ========================================================================= */
+
+        function openGoogleSearch() { const keyword = document.getElementById('meta-keyword').value.trim(); if(!keyword) return; window.open(`https://www.google.com/search?q=${encodeURIComponent(keyword + ' site:dmm.co.jp')}`, '_blank'); }
+        async function copyDmmLink() { const text = document.getElementById('meta-result').value.trim(); if (!text || text.includes("检索中") || text.includes("失败") || text.includes("拦截") || text.includes("阻断") || text.includes("指令")) return; const btn = document.getElementById('btn-copy-dmm'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.style.background = "#dcfce3"; btn.style.color = "#166534"; btn.style.borderColor = "#86efac"; setTimeout(() => { btn.innerHTML = originalHTML; btn.style.background = "#f1f5f9"; btn.style.color = "#475569"; btn.style.borderColor = "#cbd5e1"; }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
+        async function copyMediaInfo() { const text = document.getElementById('detailMediaInfo').innerText; if (!text || text.includes("跨机读取中...") || text.includes("读取失败")) return; const btn = document.getElementById('btn-copy-mediainfo'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = originalHTML; btn.classList.remove('copied'); }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
+        function fallbackCopyTextToClipboard(text, callback) { const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.top = "-999999px"; textArea.style.left = "-999999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { const successful = document.execCommand('copy'); if (successful) callback(); else alert("浏览器阻断，请手动复制"); } catch (err) { alert("浏览器阻断，请手动复制"); } document.body.removeChild(textArea); }
+        function downloadFile(type) { if(currentActiveNodeUrl && currentActiveFolder) window.open(`${currentActiveNodeUrl}/api/files/${encodeURIComponent(currentActiveFolder)}/${type}`, '_blank'); }
+        function formatBytes(b) { if(b===0||!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i]; }
+        function formatDate(ts) { if(!ts) return '-'; const d = new Date(ts * 1000); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+
+        async function syncNodesToBackend(nodes) { try { await fetch('/api/nodes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(nodes) }); } catch(e){} }
+        async function initNodes() { const origin = window.location.origin; let saved = []; try { saved = await (await fetch('/api/nodes')).json(); } catch(e){} if(saved.length === 0) { let local = JSON.parse(localStorage.getItem('cluster_nodes')) || []; saved = local.map(n => typeof n === 'string' ? {url:n, name:new URL(n).host} : n); if(saved.length > 0) await syncNodesToBackend(saved); } clusterNodes = [{ url: origin, name: "本机主控", status: "online" }]; saved.forEach(n => { if(n.url !== origin && !clusterNodes.find(c=>c.url===n.url)) clusterNodes.push({...n, status: "online"}); }); renderNodes(); populateQbNodes(); }
+        function renderNodes() { const c = document.getElementById('active-nodes'); c.innerHTML = ''; clusterNodes.forEach((n, i) => { const s = n.status==='offline'; c.innerHTML += `<div class="sys-card" style="${s?'opacity:0.5':''}"><div class="sys-card-header"><div onclick="editNodeName('${n.url}')" style="cursor:pointer; word-break: break-all;"><strong>${s?'🔴':'🟢'} ${n.name}</strong></div>${i!==0?`<span onclick="removeNode('${n.url}')" style="cursor:pointer;color:var(--danger);font-size:12px; flex-shrink:0; margin-left:8px;">移除</span>`:''}</div><div id="sys-data-${i}" style="display:flex; flex-direction:column; flex-grow:1;"><div style="text-align:center; padding: 20px 0; color: #94a3b8; font-size: 13px;">${s?'节点已离线或被阻断':'正在建立探针通信...'}</div></div></div>`; }); }
+        async function editNodeName(url) { const i = clusterNodes.findIndex(n=>n.url===url); if(i===-1) return; const newName = prompt(`修改节点别名：`, clusterNodes[i].name); if(newName!==null && newName.trim()!=="") { clusterNodes[i].name = newName.trim(); await syncNodesToBackend(clusterNodes.filter((_,j)=>j!==0).map(n=>({url:n.url,name:n.name}))); renderNodes(); renderList(); updateProDropdown(); populateQbNodes(); } }
+        async function addNode() { let ip = document.getElementById('newNodeIp').value.trim(), name = document.getElementById('newNodeName').value.trim(); if(!ip) return alert("请输入 API 地址"); if(!ip.startsWith('http')) ip='http://'+ip; if(ip.endsWith('/')) ip=ip.slice(0,-1); if(!name) { try { name = new URL(ip).host; } catch(e){name=ip;} } if(!clusterNodes.find(n=>n.url===ip)) { let saved = clusterNodes.filter((_,i)=>i!==0).map(n=>({url:n.url,name:n.name})); saved.push({url:ip,name}); await syncNodesToBackend(saved); document.getElementById('newNodeIp').value=''; document.getElementById('newNodeName').value=''; await initNodes(); fetchAllNodesFolders(); fetchSysInfo(); } else alert("节点 IP 已存在！"); }
+        async function removeNode(url) { if(confirm("确定剥离此节点？")) { await syncNodesToBackend(clusterNodes.filter((n,i)=>i!==0 && n.url!==url).map(n=>({url:n.url,name:n.name}))); await initNodes(); fetchAllNodesFolders(); } }
+
+        async function fetchAllNodesFolders() { currentFolders = []; let count = 0; const ps = clusterNodes.map(async n => { try { const r = await fetch(`${n.url}/api/folders`), d = await r.json(); count++; n.status='online'; return d.folders.map(f=>({...f,nodeUrl:n.url,nodeName:n.name})); } catch(e){ n.status='offline'; return []; } }); const rs = await Promise.all(ps); rs.forEach(r => currentFolders = currentFolders.concat(r)); currentFolders.sort((a,b)=>(a.ready===b.ready ? b.mtime-a.mtime : (a.ready?1:-1))); document.getElementById('stat-nodes').innerText = count; document.getElementById('stat-total').innerText = currentFolders.length; document.getElementById('stat-ready').innerText = currentFolders.filter(f=>f.ready).length; document.getElementById('stat-pending').innerText = currentFolders.length - currentFolders.filter(f=>f.ready).length; document.getElementById('card-filter-all').classList.add('active-filter'); renderList(); updateProDropdown(); }
+        function renderList() { const list = document.getElementById('folder-list'); const sel = new Set(Array.from(document.querySelectorAll('.folder-check:checked')).map(cb => cb.value)); list.innerHTML = ''; if(currentFolders.length===0) return; let grouped = {}; currentFolders.forEach(f => { if (currentTaskFilter === 'ready' && !f.ready) return; if (currentTaskFilter === 'pending' && f.ready) return; if(!grouped[f.nodeName]) grouped[f.nodeName]=[]; grouped[f.nodeName].push(f); }); if(Object.keys(grouped).length === 0) { list.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">🤷 此时没有任何符合条件的数据...</div>`; return; } for(const [nName, folders] of Object.entries(grouped)) { const isCol = collapsedNodes.has(nName), safeN = nName.replace(/'/g,"\\'"); let h = `<div style="margin-bottom:20px;"><div class="node-group-header" onclick="toggleNodeGroup('${safeN}')">${isCol?'▶':'▼'} 🖥️ ${nName} <span style="background:#e2e8f0;color:#334155;padding:2px 8px;border-radius:12px;font-size:12px;">${folders.length}</span></div><div class="items-container ${currentViewMode}-view ${isCol?'collapsed':''}">`; folders.forEach(f => { const cKey = `${f.nodeUrl}|${f.name}`, safeF = f.name.replace(/'/g,"\\'"); const btn = f.ready ? `<button class="btn-view" onclick="openDetailView('${f.nodeUrl}','${safeF}','${safeN}', ${f.has_gif})">👁️ 预览</button><button class="btn-action" style="background:#64748b;" onclick="fillProForm('${f.nodeUrl}','${safeF}')">🔄 重做</button>` : `<button class="btn-action" onclick="fillProForm('${f.nodeUrl}','${safeF}')">🚀 装载</button>`; h += `<div class="item"><div class="item-info"><input type="checkbox" class="folder-check" value="${cKey}" ${f.ready?'disabled':''} ${sel.has(cKey)?'checked':''}><div><strong style="word-break:break-all; font-size:14px; color:#1e293b; line-height: 1.3; display: block; margin-bottom: 4px;">${f.name}</strong><span style="color:${f.ready?'var(--success)':'var(--warning)'};font-size:12px;font-weight:700">${f.status}</span></div></div><div class="item-actions">${btn}</div></div>`; }); list.innerHTML += h + `</div></div>`; } }
+        
+        function populateQbNodes() { const s = document.getElementById('qb-node-select'), cur = s.value; s.innerHTML = '<option value="">-- 选择接管节点 --</option>'; clusterNodes.forEach(n => s.innerHTML+=`<option value="${n.url}">🖥️ ${n.name}</option>`); if(cur) s.value = cur; }
+        function loadQbConfig() { const url = document.getElementById('qb-node-select').value; if(!url) return; let cfg = (JSON.parse(localStorage.getItem('qb_configs')) || {})[url] || {}; document.getElementById('qb-url').value = cfg.url||''; const u = document.getElementById('qb-user'); if(u) u.value = cfg.user||''; const p = document.getElementById('qb-pwd'); if(p) p.value = cfg.pwd||''; clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; qbSelectedHashes.clear(); updateQbBatchBar(); }
+        async function connectQb() { const n = document.getElementById('qb-node-select').value, u = document.getElementById('qb-url').value; const usrInput = document.getElementById('qb-user'), pwdInput = document.getElementById('qb-pwd'); const usr = usrInput ? usrInput.value : "", p = pwdInput ? pwdInput.value : ""; if(!n||!u) return alert("请选择节点并填写地址"); let cfgs = JSON.parse(localStorage.getItem('qb_configs'))||{}; cfgs[n] = {url:u, user:usr, pwd:p}; localStorage.setItem('qb_configs', JSON.stringify(cfgs)); await fetchQbData(true); if(qbInterval) clearInterval(qbInterval); qbInterval = setInterval(() => fetchQbData(false), 3000); }
+        async function fetchQbData(isManual = false) { const n = document.getElementById('qb-node-select').value; if(!n) return; let cfg = (JSON.parse(localStorage.getItem('qb_configs'))||{})[n]; if(!cfg) return; try { const res = await fetch(`${n}/api/qbittorrent`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'list'})}); const data = await res.json(); if(data.error) { if(isManual) alert("连接失败: " + data.error); clearInterval(qbInterval); document.getElementById('qb-table-container').style.display='none'; return; } qbTorrentsData = data; document.getElementById('qb-table-container').style.display='block'; renderQbTable(); } catch(e){ if(isManual) alert("连接超时"); clearInterval(qbInterval); } }
+        function setQbSort(k) { if(qbSortKey===k) qbSortAsc=!qbSortAsc; else { qbSortKey=k; qbSortAsc=k!=='added_on'; } renderQbTable(); }
+        function toggleQbAll(c) { if(c) qbTorrentsData.forEach(t=>qbSelectedHashes.add(t.hash)); else qbSelectedHashes.clear(); renderQbTable(); }
+        function toggleQbHash(h,c) { if(c) qbSelectedHashes.add(h); else qbSelectedHashes.delete(h); updateQbBatchBar(); }
+        function updateQbBatchBar() { const b = document.getElementById('qb-batch-bar'), c = document.getElementById('qb-sel-count'), a = document.getElementById('qb-chk-all'); if(c) c.innerText = qbSelectedHashes.size; if(b) b.style.display = qbSelectedHashes.size>0?'flex':'none'; if(a) a.checked = qbTorrentsData.length>0 && qbSelectedHashes.size===qbTorrentsData.length; }
+
+        function renderQbTable() { const b = document.getElementById('qb-table-body'); b.innerHTML = ''; document.querySelectorAll('.sort-icon').forEach(e=>{e.innerHTML='';e.className='sort-icon';}); const icon = document.getElementById(`sort-icon-${qbSortKey}`); if(icon) { icon.innerHTML=qbSortAsc?'▲':'▼'; icon.className='sort-icon active'; } if(!qbTorrentsData.length) { b.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#64748b">暂无任务</td></tr>'; updateQbBatchBar(); return; } let data = [...qbTorrentsData].sort((x,y) => { let v1 = x[qbSortKey], v2 = y[qbSortKey]; return qbSortAsc ? (v1>v2?1:-1) : (v1<v2?1:-1); }); const states = { 'downloading':['下载中','#3b82f6'], 'uploading':['做种中','#10b981'], 'pausedDL':['已暂停','#f59e0b'], 'pausedUP':['已暂停','#f59e0b'], 'stalledUP':['做种(空)','#10b981'], 'error':['错误','#ef4444']}; data.forEach(t => { let s = states[t.state] || [t.state, '#64748b'], p = (t.progress*100).toFixed(1); let ratio = t.ratio !== undefined ? t.ratio.toFixed(2) : '0.00'; let dlSpeed = formatBytes(t.dlspeed || 0) + '/s', upSpeed = formatBytes(t.upspeed || 0) + '/s', addedTime = formatDate(t.added_on); b.innerHTML += `<tr><td style="text-align:center"><input type="checkbox" class="qb-checkbox" onclick="toggleQbHash('${t.hash}',this.checked)" ${qbSelectedHashes.has(t.hash)?'checked':''}></td><td><div style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.name}"><strong>${t.name}</strong></div></td><td>${formatBytes(t.size)}</td><td><div style="font-size:11px">${p}%</div><div style="background:#f1f5f9;height:6px;border-radius:10px;"><div style="height:100%;width:${p}%;background:${s[1]}"></div></div></td><td style="color:${s[1]};font-weight:bold">${s[0]}</td><td style="font-family: Consolas, monospace; font-weight: 600;">${ratio}</td><td style="color:var(--success); font-family: Consolas, monospace; font-size: 12px;">↓ ${dlSpeed}</td><td style="color:var(--primary); font-family: Consolas, monospace; font-size: 12px;">↑ ${upSpeed}</td><td style="font-size:12px; color:var(--text-muted)">${addedTime}</td><td style="text-align:right"><button onclick="qbAction('${t.hash}','resume')" style="background:var(--success);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">▶</button> <button onclick="qbAction('${t.hash}','pause')" style="background:var(--warning);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">⏸</button> <button onclick="qbDelete('${t.hash}','${t.name.replace(/'/g,"\\'")}')" style="background:var(--danger);border:none;border-radius:4px;color:white;padding:4px 8px;cursor:pointer;">✖</button></td></tr>`; }); updateQbBatchBar(); }
+        async function qbAction(h,a) { const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h})}).then(()=>fetchQbData()); }
+        async function qbBatchAction(a) { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:a,hashes:h.join('|')})}); fetchQbData(); }
+        async function qbDelete(h,name) { if(!confirm(`确定删除 [${name}]?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h,delete_files:d,name})}); qbSelectedHashes.delete(h); fetchQbData(); }
+        async function qbBatchDelete() { if(qbSelectedHashes.size===0) return; const h=Array.from(qbSelectedHashes), names=h.map(x=>qbTorrentsData.find(t=>t.hash===x)?.name||"").filter(x=>x); if(!confirm(`确定删除 ${h.length} 个任务?`)) return; const d=confirm("🗑️ 粉碎文件?"); const n=document.getElementById('qb-node-select').value; let cfg=JSON.parse(localStorage.getItem('qb_configs'))[n]; await fetch(`${n}/api/qbittorrent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:cfg.url,user:cfg.user,pwd:cfg.pwd,action:'delete',hashes:h.join('|'),delete_files:d,name:names.join('|')})}); qbSelectedHashes.clear(); fetchQbData(); }
+
+        function updateProDropdown() { const s = document.getElementById("pro-folder"), cur = s.value; s.innerHTML = '<option value="">-- 选择目标目录 --</option>'; currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`); if(cur) s.value = cur; }
+        function fillProForm(url, folder) { document.getElementById("pro-folder").value = `${url}|${folder}`; const cbT = document.getElementById("pro-overwrite-torrent"); if (cbT) cbT.checked = false; const cbI = document.getElementById("pro-overwrite-image"); if (cbI) cbI.checked = false; switchTab('factory'); }
+
+        /* 🚀 核心修复：注入 action 微操参数并下发给后端 */
+        async function submitProTask() {
+            const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
+            const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
+            const t = document.getElementById("pro-tracker").value.trim(), p = document.getElementById("pro-piece").value, l = document.getElementById("pro-layout").value;
+            const cbT = document.getElementById("pro-overwrite-torrent"); const ot = cbT ? cbT.checked : false;
+            const cbI = document.getElementById("pro-overwrite-image"); const oi = cbI ? cbI.checked : false;
+            const cbG = document.getElementById("pro-enable-gif"); const eg = cbG ? cbG.checked : true;
+            
+            const actionType = document.getElementById("pro-action") ? document.getElementById("pro-action").value : "";
+
+            if(document.getElementById("pro-save-tracker") && document.getElementById("pro-save-tracker").checked && t) localStorage.setItem("saved_tracker", t); else localStorage.removeItem("saved_tracker");
+            
+            alert(`任务指令已下发！模式: ${actionType ? actionType : "完整流水线"}`); 
+            switchTab('dashboard'); 
+            
+            await fetch(`${url}/api/run/folder`, { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({ folder, action: actionType, tracker:t, piece_size:p, layout:l, overwrite_torrent: ot, overwrite_image: oi, enable_gif: eg }) 
+            });
+            fetchAllNodesFolders();
+        }
+        
+        function selectAllPending() { document.querySelectorAll('.items-container .folder-check:not(:disabled)').forEach(cb => cb.checked = true); }
+        async function triggerBatch() {
+            const sel = Array.from(document.querySelectorAll('.folder-check:checked')).map(c=>c.value); if(sel.length===0) return alert("请勾选需要处理的任务");
+            const cbG = document.getElementById("pro-enable-gif"); const eg = cbG ? cbG.checked : true;
+            const cbT = document.getElementById("pro-overwrite-torrent"); const ot = cbT ? cbT.checked : false;
+            const cbI = document.getElementById("pro-overwrite-image"); const oi = cbI ? cbI.checked : false;
+            let batches = {}; sel.forEach(c => { const [u, f] = [c.substring(0,c.indexOf('|')), c.substring(c.indexOf('|')+1)]; if(!batches[u]) batches[u]=[]; batches[u].push(f); });
+            for(const [u, fds] of Object.entries(batches)) { fetch(`${u}/api/run_batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({folders:fds, enable_gif: eg, overwrite_torrent: ot, overwrite_image: oi}) }); }
+            alert(`已排队分配 ${sel.length} 个任务`); setTimeout(fetchAllNodesFolders, 2000);
+        }
+
+        async function updateSystem() {
+            if(!confirm("⚠️ 将从 GitHub (shdetai 分支) 强制同步最新代码，并重启当前节点的 API 服务！\\n\\n确定执行全域集群 OTA 吗？")) return;
+            clusterNodes.forEach(n => { if(n.status!=='offline') fetch(`${n.url}/api/update`, { method:'POST' }); });
+            alert('⚡ 全域热更新指令已下发！系统将在 3 秒后重启。');
+            setTimeout(() => { window.location.reload(); }, 5000);
+        }
+
+        async function fetchSysInfo() {
+            clusterNodes.forEach(async (n, i) => {
+                if(n.status==='offline') return;
+                try {
+                    const res = await fetch(`${n.url}/api/sysinfo`), cur = await res.json(); if(cur.error) return;
+                    let prev = nodeStats[n.url];
+                    if(prev && cur.timestamp > prev.timestamp) {
+                        let tDiff = cur.timestamp - prev.timestamp; 
+                        let cpu = Math.max(0, Math.min(100, ((cur.cpu_total-prev.cpu_total)-(cur.cpu_idle-prev.cpu_idle))/(cur.cpu_total-prev.cpu_total)*100)); 
+                        let mem = (cur.mem_used/cur.mem_total)*100; 
+                        let tx = Math.max(0, (cur.net_tx-prev.net_tx)/tDiff), rx = Math.max(0, (cur.net_rx-prev.net_rx)/tDiff); 
+                        
+                        let diskTotal = cur.disk_total || 0, diskUsed = cur.disk_used || 0, diskPct = diskTotal > 0 ? (diskUsed/diskTotal)*100 : 0; 
+                        let diskColor = diskPct > 95 ? '#ef4444' : (diskPct > 80 ? '#f59e0b' : '#8b5cf6');
+                        
+                        const el = document.getElementById(`sys-data-${i}`);
+                        if(el) {
+                            el.innerHTML = `
+                                <div class="sys-stat-row"><span>💻 CPU</span><span style="font-weight:600">${cpu.toFixed(1)}%</span></div>
+                                <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${cpu}%;background:linear-gradient(90deg, #60a5fa, #3b82f6)"></div></div>
+                                <div class="sys-stat-row"><span>🧠 RAM</span><span style="font-weight:600">${formatBytes(cur.mem_used)} / ${formatBytes(cur.mem_total)}</span></div>
+                                <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${mem}%;background:linear-gradient(90deg, #34d399, #10b981)"></div></div>
+                                <div class="sys-stat-row"><span>💾 硬盘</span><span style="font-weight:600">${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}</span></div>
+                                <div class="sys-bar-bg"><div class="sys-bar-fill" style="width:${diskPct}%;background:${diskColor}"></div></div>
+                                
+                                <div class="sys-stat-row" style="margin-top:auto; padding-top:8px; border-top: 1px dashed #e2e8f0;">
+                                    <span>
+                                        <span style="color:var(--primary); font-weight:bold;">↑ 出站月流</span>
+                                        <span style="font-size:11px; background:#fef3c7; color:#d97706; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde68a;">免费 10T</span>
+                                    </span>
+                                    <span style="font-weight:800;color:var(--primary); font-size:14px;">${formatBytes(cur.month_tx||0)}</span>
                                 </div>
-                            </div>
-                            <div class="grid-actions">
-                                <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="openRunModal('folder', '${f.name}')">⚙️</button>
-                                <button class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="directFastRun('${f.name}')">⚡ 瞬发</button>
-                                ${f.ready ? `<button class="btn btn-success" style="padding:4px 10px; font-size:11px;" onclick="openAssetViewer('${f.name}')">🔍 透视</button>` : ''}
-                            </div>
-                        </div>
-                    `;
-                }).join("");
-            }
-        }
-
-        function toggleSelectFolder(name, el) {
-            if(el.checked) selectedFolders.add(name);
-            else selectedFolders.delete(name);
-            document.getElementById("btn-batch-run").style.display = selectedFolders.size > 0 ? "inline-flex" : "none";
-        }
-
-        function setViewMode(m) {
-            currentViewMode = m; localStorage.setItem("view_mode", m);
-            document.getElementById("btn-view-list").className = m === "list" ? "view-btn active" : "view-btn";
-            document.getElementById("btn-view-grid").className = m === "grid" ? "view-btn active" : "view-btn";
-            renderFolders();
-        }
-
-        function openRunModal(mode, folder="") {
-            document.getElementById("submit-mode").value = mode;
-            document.getElementById("submit-folder").value = folder;
-            document.getElementById("runModalTitle").innerText = mode === "all" ? "🚀 全域空闲资产一键全制" : `🎬 资源 [${folder}] 专属定制制种`;
-            document.getElementById("runModal").style.display = "flex";
-        }
-
-        function closeModal(id) { document.getElementById(id).style.display = "none"; resetImageZoom(); }
-
-        async function submitTask() {
-            const node = getActiveNode();
-            const mode = document.getElementById("submit-mode").value;
-            const folder = document.getElementById("submit-folder").value;
-            
-            const payload = {
-                folder: folder,
-                action: "",
-                tracker: document.getElementById("task-tracker").value,
-                piece_size: document.getElementById("task-piece").value,
-                layout: document.getElementById("task-layout").value,
-                overwrite_torrent: document.getElementById("task-overwrite-torrent").checked,
-                overwrite_image: document.getElementById("task-overwrite-image").checked,
-                enable_gif: document.getElementById("task-gif").checked
-            };
-            
-            closeModal('runModal');
-            try {
-                const url = mode === "all" ? `${node.url}/api/run/all` : `${node.url}/api/run/folder`;
-                const r = await fetch(url, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
-                const d = await r.json();
-                alert(d.message || "指令下发成功");
-                setTimeout(refreshFolders, 1000);
-            } catch { alert("下发失败"); }
-        }
-
-        async function directFastRun(folder) {
-            const node = getActiveNode();
-            try {
-                const r = await fetch(`${node.url}/api/run/folder`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ folder: folder, action: "", overwrite_torrent: false, overwrite_image: false, enable_gif: true })
-                });
-                const d = await r.json();
-                alert(`[${folder}] 极速制种流水线激活成功！`);
-            } catch { alert("唤醒失败"); }
-        }
-
-        async function runBatchTasks() {
-            if(selectedFolders.size === 0) return;
-            if(!confirm(`确认对选中的 ${selectedFolders.size} 个资产目录发起批量多线程并发制种？`)) return;
-            const node = getActiveNode();
-            try {
-                const r = await fetch(`${node.url}/api/run_batch`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ folders: Array.from(selectedFolders), overwrite_torrent: false, overwrite_image: false, enable_gif: true })
-                });
-                const d = await r.json();
-                alert("批量制种集群任务已成功部署！");
-                selectedFolders.clear();
-                document.getElementById("btn-batch-run").style.display = "none";
-                refreshFolders();
-            } catch { alert("批量触发失败"); }
-        }
-
-        async function openAssetViewer(folder) {
-            const node = getActiveNode();
-            document.getElementById("viewerTitle").innerText = `📦 资产透视中心: ${folder}`;
-            
-            // 🚀 API 映射全部更新为 WebP 扩展名
-            document.getElementById("link-torrent").href = `${node.url}/api/files/${encodeURIComponent(folder)}/torrent`;
-            document.getElementById("link-img").href = `${node.url}/api/files/${encodeURIComponent(folder)}/image`;
-            document.getElementById("link-gif").href = `${node.url}/api/files/${encodeURIComponent(folder)}/gif`;
-            
-            document.getElementById("detailImage").src = `${node.url}/api/files/${encodeURIComponent(folder)}/image?t=${Date.now()}`;
-            
-            document.getElementById("mediainfoText").innerText = "正在读取 MediaInfo 数据流...";
-            document.getElementById("viewerModal").style.display = "flex";
-            
-            try {
-                const r = await fetch(`${node.url}/api/preview/mediainfo/${encodeURIComponent(folder)}`);
-                document.getElementById("mediainfoText").innerText = await r.text();
-            } catch { document.getElementById("mediainfoText").innerText = "未找到 MediaInfo 报表文件。"; }
-        }
-
-        async function refreshQB() {
-            const node = getActiveNode();
-            const container = document.getElementById("qb-list-container");
-            if(!node.qb_url) {
-                document.getElementById("qb-node-title").innerText = `当前节点 [${node.name}] 未绑定专属 qBittorrent 网关`;
-                container.innerHTML = ""; return;
-            }
-            document.getElementById("qb-node-title").innerText = `当前打通网关: ${node.qb_url}`;
-            try {
-                const r = await fetch(`${window.location.origin}/api/qbittorrent`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ url: node.qb_url, user: node.qb_user, pwd: node.qb_pwd, action: "list" })
-                });
-                const list = await r.json();
-                if(list.error) throw new Error();
-                if(list.length === 0) { container.innerHTML = `<div style="color:var(--text-muted);padding:20px;">当前无任何下载或做种任务</div>`; return; }
-                
-                container.innerHTML = list.map(t => {
-                    const prog = (t.progress * 100).toFixed(1);
-                    const dSpeed = (t.dlspeed / 1048576).toFixed(1);
-                    const uSpeed = (t.upspeed / 1048576).toFixed(1);
-                    return `
-                        <div class="qb-item">
-                            <div class="qb-top"><div class="qb-name" title="${t.name}">${t.name}</div><div style="color:var(--primary);">${prog}%</div></div>
-                            <div class="qb-progress"><div class="qb-fill" style="width:${prog}%; background:${t.state.includes('UP') ? 'var(--primary)' : 'var(--success)'}"></div></div>
-                            <div class="qb-meta-line">
-                                <span>状态: <b style="color:#1e293b">${t.state}</b> | 大小: ${(t.size/1073741824).toFixed(2)} GB</span>
-                                <span>⬇️ ${dSpeed} MB/s | ⬆️ ${uSpeed} MB/s</span>
-                            </div>
-                            <div class="qb-actions">
-                                <button class="btn btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="controlQB('${t.hash}', 'pause')">暂停</button>
-                                <button class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="controlQB('${t.hash}', 'resume')">开始</button>
-                                <button class="btn btn-danger" style="padding:4px 10px; font-size:11px;" onclick="deleteQB('${t.hash}', '${t.name}')">销毁</button>
-                            </div>
-                        </div>
-                    `;
-                }).join("");
-            } catch { container.innerHTML = `<div style="color:var(--danger);padding:20px;font-weight:bold;">⚠️ 边缘 qBittorrent 网关鉴权失败或网络阻断</div>`; }
-        }
-
-        async function controlQB(hash, action) {
-            const node = getActiveNode();
-            await fetch(`${window.location.origin}/api/qbittorrent`, {
-                method: "POST", headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ url: node.qb_url, user: node.qb_user, pwd: node.qb_pwd, action: action, hashes: hash })
+                                <div class="sys-stat-row" style="margin-top:4px;">
+                                    <span>
+                                        <span style="color:var(--success); font-weight:bold;">↓ 入站月流</span>
+                                        <span style="font-size:11px; color:#94a3b8; margin-left:4px;">(完全免费/无限)</span>
+                                    </span>
+                                    <span style="font-weight:600;color:var(--success); font-size:14px;">${formatBytes(cur.month_rx||0)}</span>
+                                </div>
+                                
+                                <div class="sys-net"><span style="color:var(--success)">↓ ${formatBytes(rx)}/s</span><span style="color:var(--primary)">↑ ${formatBytes(tx)}/s</span></div>
+                            `;
+                        }
+                    }
+                    nodeStats[n.url] = cur;
+                } catch(e){}
             });
-            refreshQB();
         }
-
-        async function deleteQB(hash, name) {
-            const delFiles = confirm("是否在清理种子的同时，同步将物理磁盘上的原始媒体资产及生成的 WebP 拼图等彻底粉碎？");
-            const node = getActiveNode();
-            await fetch(`${window.location.origin}/api/qbittorrent`, {
-                method: "POST", headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ url: node.qb_url, user: node.qb_user, pwd: node.qb_pwd, action: "delete", hashes: hash, delete_files: delFiles, name: name })
-            });
-            refreshQB(); setTimeout(refreshFolders, 1000);
-        }
-
-        async function refreshLogs() {
-            const node = getActiveNode();
-            try {
-                const r = await fetch(`${node.url}/api/logs`);
-                const d = await r.json();
-                const area = document.getElementById("log-area");
-                area.innerText = d.logs || "暂无集群制种流水日志。";
-                area.scrollTop = area.scrollHeight;
-            } catch {}
-        }
-
-        async function clearLogs() {
-            if(!confirm("确认彻底清空该节点当前的系统流水日志吗？")) return;
-            const node = getActiveNode();
-            await fetch(`${node.url}/api/logs/clear`, {method: "POST"});
-            refreshLogs();
-        }
-
-        async function triggerUpdate() {
-            if(!confirm("将对当前集群进行热更新，系统会秒级拉取 GitHub shdetai 分支最新核心代码并热重启，确认继续？")) return;
-            const node = getActiveNode();
-            try {
-                await fetch(`${node.url}/api/update`, {method: "POST"});
-                alert("云端热更指令已下发，请等待5秒后手动刷新本页面。");
-            } catch { alert("热更下发失败"); }
-        }
-
-        function switchNav(target, el) {
-            document.querySelectorAll(".menu-item").forEach(m => m.classList.remove("active"));
-            el.classList.add("active");
-            document.querySelectorAll(".content-body").forEach(p => p.classList.remove("active"));
-            document.getElementById(`panel-${target}`).classList.add("active");
-            
-            if(window.innerWidth <= 768) toggleSidebar();
-            selectNode(currentNodeIdx);
-        }
-
-        function toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); }
-
-        function openAddNodeModal() { document.getElementById("nodeModal").style.display = "flex"; }
-
-        async function saveNewNode() {
-            const name = document.getElementById("node-name").value.strip();
-            const url = document.getElementById("node-url").value.strip().replace(/\/$/, "");
-            if(!name || !url) { alert("参数不得留空"); return; }
-            
-            nodes.push({
-                name: name, url: url,
-                qb_url: document.getElementById("node-qb-url").value.strip(),
-                qb_user: document.getElementById("node-qb-user").value.strip(),
-                qb_pwd: document.getElementById("node-qb-pwd").value.strip()
-            });
-            
-            await fetch("/api/nodes", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(nodes) });
-            closeModal('nodeModal');
-            initNodes();
-        }
-
-        function renderNodeManager() {
-            const container = document.getElementById("node-list-manager");
-            container.innerHTML = nodes.map((n, idx) => `
-                <div class="node-list-item">
-                    <div class="node-list-info">
-                        <div class="node-list-name">${n.name} ${idx===0?'(默认主控)':''}</div>
-                        <div class="node-list-url">网关: ${n.url}</div>
-                        ${n.qb_url ? `<div class="node-list-url" style="color:var(--success)">桥接 QB: ${n.qb_url}</div>` : ''}
-                    </div>
-                    ${idx > 0 ? `<button class="btn btn-danger" style="padding:4px 10px; font-size:12px;" onclick="deleteNode(${idx})">下线并网</button>` : ''}
-                </div>
-            `).join("");
-        }
-
-        async function deleteNode(idx) {
-            if(!confirm("确认下线并将该节点剔出当前的算力集群集群？")) return;
-            nodes.splice(idx, 1);
-            await fetch("/api/nodes", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(nodes) });
-            if(currentNodeIdx >= nodes.length) currentNodeIdx = 0;
-            initNodes();
-        }
-
-        String.prototype.strip = function() { return this.replace(/^\s+|\s+$/g, ''); };
-
-        document.getElementById("panel-node").addEventListener('click', function() {
-            if (document.getElementById("panel-node").classList.contains("active")) { renderNodeManager(); }
-        });
 
         let imgScale=1, imgTX=0, imgTY=0, isImageDragging=false, imgDragStartX=0, imgDragStartY=0;
         function resetImageZoom() { imgScale=1; imgTX=0; imgTY=0; applyTransform(); }
-        function zoomImage(amount) { imgScale = Math.max(0.2, Math.min(imgScale + amount, 15)); applyTransform(); }
         function applyTransform() { const i=document.getElementById('detailImage'); if(i) i.style.transform=`translate(${imgTX}px, ${imgTY}px) scale(${imgScale})`; }
-        
-        const c=document.getElementById('imageZoomContainer');
-        if(c) {
-            c.addEventListener('wheel', e=>{ e.preventDefault(); imgScale=Math.max(0.2, Math.min(imgScale+(e.deltaY>0?-1:1)*0.15*imgScale, 15)); applyTransform(); }, {passive:false});
-            c.addEventListener('mousedown', e=>{ e.preventDefault(); isImageDragging=true; imgDragStartX=e.clientX-imgTX; imgDragStartY=e.clientY-imgTY; c.style.cursor='grabbing'; });
-            document.addEventListener('mousemove', e=>{ if(!isImageDragging) return; imgTX=e.clientX-imgDragStartX; imgTY=e.clientY-imgDragStartY; applyTransform(); });
-            document.addEventListener('mouseup', ()=>{ isImageDragging=false; c.style.cursor='grab'; });
-        }
-
-        window.onload = () => { initNodes(); };
+        function initImageZoomPan() { const c=document.getElementById('imageZoomContainer'); if(!c) return; c.addEventListener('wheel', e=>{ e.preventDefault(); imgScale=Math.max(0.2, Math.min(imgScale+(e.deltaY>0?-1:1)*0.15*imgScale, 15)); applyTransform(); }, {passive:false}); c.addEventListener('mousedown', e=>{ e.preventDefault(); isImageDragging=true; imgDragStartX=e.clientX-imgTX; imgDragStartY=e.clientY-imgTY; }); document.addEventListener('mousemove', e=>{ if(!isImageDragging) return; imgTX=e.clientX-imgDragStartX; imgTY=e.clientY-imgDragStartY; applyTransform(); }); document.addEventListener('mouseup', ()=>isImageDragging=false); c.addEventListener('mouseleave', ()=>isImageDragging=false); }
+        window.onload = () => { document.getElementById('btn-view-list').className = currentViewMode === 'list' ? 'active' : ''; document.getElementById('btn-view-grid').className = currentViewMode === 'grid' ? 'active' : ''; initImageZoomPan(); initNodes().then(()=>{ fetchSysInfo(); fetchAllNodesFolders(); setInterval(fetchSysInfo, 2000); setInterval(fetchAllNodesFolders, 10000); }); };
     </script>
 </body>
 </html>
