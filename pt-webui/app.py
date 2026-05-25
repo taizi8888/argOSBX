@@ -102,6 +102,7 @@ def sysinfo():
         with open(stat_path, 'r') as f: cpu_line = f.readline().split()
         cpu_idle = float(cpu_line[4]) + float(cpu_line[5])
         cpu_total = sum(float(x) for x in cpu_line[1:8])
+        
         net_tx, net_rx = 0, 0
         net_path = '/host_proc/1/net/dev' if os.path.exists('/host_proc/1/net/dev') else '/proc/net/dev'
         with open(net_path, 'r') as f:
@@ -109,21 +110,27 @@ def sysinfo():
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    if iface != "lo" and not iface.startswith("docker") and not iface.startswith("veth"):
+                    # 🚀 核心修复：终极过滤盾！彻底屏蔽 br-, tun, wg 等所有虚拟网卡，只留物理真实流量
+                    if not iface.startswith(("lo", "docker", "veth", "br-", "tun", "wg", "tap", "flannel", "cni")):
                         vals = parts[1].split()
                         net_rx += int(vals[0]); net_tx += int(vals[8])
+                        
         current_month = time.strftime("%Y-%m")
         traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
         if os.path.exists(TRAFFIC_FILE):
             try:
                 with open(TRAFFIC_FILE, "r") as f: traffic_data.update(json.load(f))
             except: pass
+            
         if traffic_data.get("month") != current_month:
             traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
+            
         dtx, drx = max(0, net_tx - traffic_data.get("last_tx", 0)), max(0, net_rx - traffic_data.get("last_rx", 0))
         traffic_data["month_tx"] += dtx; traffic_data["month_rx"] += drx
         traffic_data["last_tx"] = net_tx; traffic_data["last_rx"] = net_rx
+        
         with open(TRAFFIC_FILE, "w") as f: json.dump(traffic_data, f)
+        
         try:
             disk_usage = shutil.disk_usage(BASE_DIR)
             disk_total, disk_used = disk_usage.total, disk_usage.used
