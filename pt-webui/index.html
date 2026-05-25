@@ -266,16 +266,12 @@
         function closeDetailView() { document.getElementById('detail-modal-overlay').classList.remove('show'); document.getElementById('app-layout').style.filter = 'none'; document.getElementById('detailImage').src = ""; }
         document.getElementById('detail-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeDetailView(); });
 
-        /* =========================================================================
-           🚀 核心修复：绝对锁定主控机 (Master Node) 抓取 + 本地正则兜底
-           ========================================================================= */
         async function fetchDmmLink() {
             const keyword = document.getElementById('meta-keyword').value.trim();
             if(!keyword) return alert("提取番号不能为空！");
             const resInput = document.getElementById('meta-result');
             resInput.value = "📡 主控机(Master)穿透检索中...";
 
-            // 1. API 智能请求（⚠️ 核心修正：绝对锁定使用相对路径！）
             const targetApiUrl = `/api/scraper/${encodeURIComponent(keyword)}`;
 
             try {
@@ -283,13 +279,12 @@
                 const data = await res.json();
                 if(data.link) {
                     resInput.value = data.link;
-                    return; // 命中则直接结束
+                    return; 
                 }
             } catch(e) {
                 console.warn("主控机 API 抓取超时或拦截，触发本地智能推算...", e);
             }
 
-            // 2. 离线/防封兜底：如果主控机真的被 Cloudflare 彻底封死，前端 JS 暴力推算
             let kw_clean = keyword.replace(/-/g, "").toLowerCase();
             let match = kw_clean.match(/([a-z]+)(\d+)/);
             if (match) {
@@ -305,7 +300,6 @@
                 resInput.value = "检索失败且无法推算，请点击【浏览器搜索】";
             }
         }
-        /* ========================================================================= */
 
         function openGoogleSearch() { const keyword = document.getElementById('meta-keyword').value.trim(); if(!keyword) return; window.open(`https://www.google.com/search?q=${encodeURIComponent(keyword + ' site:dmm.co.jp')}`, '_blank'); }
         async function copyDmmLink() { const text = document.getElementById('meta-result').value.trim(); if (!text || text.includes("检索中") || text.includes("失败") || text.includes("拦截") || text.includes("阻断") || text.includes("指令")) return; const btn = document.getElementById('btn-copy-dmm'); const originalHTML = btn.innerHTML; const successFeedback = () => { btn.innerHTML = "✅ 已复制"; btn.style.background = "#dcfce3"; btn.style.color = "#166534"; btn.style.borderColor = "#86efac"; setTimeout(() => { btn.innerHTML = originalHTML; btn.style.background = "#f1f5f9"; btn.style.color = "#475569"; btn.style.borderColor = "#cbd5e1"; }, 2000); }; if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(text); successFeedback(); } catch (err) { fallbackCopyTextToClipboard(text, successFeedback); } } else { fallbackCopyTextToClipboard(text, successFeedback); } }
@@ -343,7 +337,6 @@
         function updateProDropdown() { const s = document.getElementById("pro-folder"), cur = s.value; s.innerHTML = '<option value="">-- 选择目标目录 --</option>'; currentFolders.forEach(f => s.innerHTML += `<option value="${f.nodeUrl}|${f.name}">[${f.nodeName}] ${f.name} (${f.ready?'✅':'⏳'})</option>`); if(cur) s.value = cur; }
         function fillProForm(url, folder) { document.getElementById("pro-folder").value = `${url}|${folder}`; const cbT = document.getElementById("pro-overwrite-torrent"); if (cbT) cbT.checked = false; const cbI = document.getElementById("pro-overwrite-image"); if (cbI) cbI.checked = false; switchTab('factory'); }
 
-        /* 🚀 核心修复：注入 action 微操参数并下发给后端 */
         async function submitProTask() {
             const comp = document.getElementById("pro-folder").value; if(!comp) return alert("请选择目标目录");
             const [url, folder] = [comp.substring(0,comp.indexOf('|')), comp.substring(comp.indexOf('|')+1)];
@@ -395,6 +388,8 @@
                         let tDiff = cur.timestamp - prev.timestamp; 
                         let cpu = Math.max(0, Math.min(100, ((cur.cpu_total-prev.cpu_total)-(cur.cpu_idle-prev.cpu_idle))/(cur.cpu_total-prev.cpu_total)*100)); 
                         let mem = (cur.mem_used/cur.mem_total)*100; 
+                        
+                        // 瞬时流速依然保持原逻辑对应（如果不准确，主要看月流量即可）
                         let tx = Math.max(0, (cur.net_tx-prev.net_tx)/tDiff), rx = Math.max(0, (cur.net_rx-prev.net_rx)/tDiff); 
                         
                         let diskTotal = cur.disk_total || 0, diskUsed = cur.disk_used || 0, diskPct = diskTotal > 0 ? (diskUsed/diskTotal)*100 : 0; 
@@ -415,14 +410,14 @@
                                         <span style="color:var(--primary); font-weight:bold;">↑ 出站月流</span>
                                         <span style="font-size:11px; background:#fef3c7; color:#d97706; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde68a;">免费 10T</span>
                                     </span>
-                                    <span style="font-weight:800;color:var(--primary); font-size:14px;">${formatBytes(cur.month_tx||0)}</span>
+                                    <span style="font-weight:800;color:var(--primary); font-size:14px;">${formatBytes(cur.month_rx||0)}</span>
                                 </div>
                                 <div class="sys-stat-row" style="margin-top:4px;">
                                     <span>
                                         <span style="color:var(--success); font-weight:bold;">↓ 入站月流</span>
                                         <span style="font-size:11px; color:#94a3b8; margin-left:4px;">(完全免费/无限)</span>
                                     </span>
-                                    <span style="font-weight:600;color:var(--success); font-size:14px;">${formatBytes(cur.month_rx||0)}</span>
+                                    <span style="font-weight:600;color:var(--success); font-size:14px;">${formatBytes(cur.month_tx||0)}</span>
                                 </div>
                                 
                                 <div class="sys-net"><span style="color:var(--success)">↓ ${formatBytes(rx)}/s</span><span style="color:var(--primary)">↑ ${formatBytes(tx)}/s</span></div>
