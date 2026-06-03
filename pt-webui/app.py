@@ -109,30 +109,37 @@ def sysinfo():
                 parts = line.split(':')
                 if len(parts) == 2:
                     iface = parts[0].strip()
-                    # 🛡️ 强力安全过滤网：彻底拔除虚拟网卡的干扰
-                    if not iface.startswith(("lo", "docker", "veth", "br-", "tun", "wg", "tap", "flannel", "cni")):
+                    # 🛡️ 终极白名单模式：只认物理网卡，无视所有 Docker 和隧道
+                    if iface.startswith(("eth", "en")):
                         vals = parts[1].split()
-                        # 🚨 终极拨乱反正：经过对齐甲骨文官方账单，确定 vals[0] 为真实入站(RX)，vals[8] 为真实出站(TX)！
                         net_rx += int(vals[0])
                         net_tx += int(vals[8])
                         
         current_month = time.strftime("%Y-%m")
         traffic_data = {"month": current_month, "month_tx": 0, "month_rx": 0, "last_tx": 0, "last_rx": 0}
+        
         if os.path.exists(TRAFFIC_FILE):
             try:
                 with open(TRAFFIC_FILE, "r") as f: traffic_data.update(json.load(f))
             except: pass
             
         if traffic_data.get("month") != current_month:
-            traffic_data["month"] = current_month; traffic_data["month_tx"] = 0; traffic_data["month_rx"] = 0
+            traffic_data["month"] = current_month
+            traffic_data["month_tx"] = 0
+            traffic_data["month_rx"] = 0
             
-        # 计算本次心跳周期内的流量增量
-        dtx, drx = max(0, net_tx - traffic_data.get("last_tx", 0)), max(0, net_rx - traffic_data.get("last_rx", 0))
+        last_tx = traffic_data.get("last_tx", 0)
+        last_rx = traffic_data.get("last_rx", 0)
         
-        # ⚠️ 边界容错守护：如果宿主机重启导致底层底层计数器清零，则跳过本次累加，直接对齐最新基准值
-        if net_tx < traffic_data.get("last_tx", 0) or net_rx < traffic_data.get("last_rx", 0):
+        # 🚀 核心修复：首次建账（或被删除账单）时，将其设为起跑线，拒绝把历史总额加进当月！
+        if last_tx == 0 and last_rx == 0:
             dtx, drx = 0, 0
-            
+        else:
+            dtx = max(0, net_tx - last_tx)
+            drx = max(0, net_rx - last_rx)
+            if net_tx < last_tx or net_rx < last_rx:
+                dtx, drx = 0, 0
+                
         traffic_data["month_tx"] += dtx
         traffic_data["month_rx"] += drx
         traffic_data["last_tx"] = net_tx
@@ -309,7 +316,7 @@ def scrape_link(keyword: str):
 
             candidate_link = candidate_link.split('"')[0].split("'")[0].split('<')[0]
             clean = candidate_link.split('?af_id')[0].split('&af_id')[0].split('&ch=')[0]
-            is_product = any(x in clean for x in ["/detail/", "?id=", "&id/", "?cid=", "&cid="])
+            is_product = any(x in clean for x in ["/detail/", "?id=", "&id=", "?cid=", "&cid="])
             
             if is_product and "campaign" not in clean and "/list/" not in clean:
                 if is_strict_match(clean, kw):
